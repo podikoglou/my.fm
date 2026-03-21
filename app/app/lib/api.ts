@@ -1,8 +1,8 @@
 import { useAtom } from "jotai/react";
 import ky from "ky";
-import { authTokenAtom } from "~/state/auth";
+import { accessTokenAtom } from "~/state/auth";
 
-const makeClient = (authToken: string | null) =>
+export const makeClient = (authToken: string | null) =>
   ky.create({
     prefixUrl: "https://api.my.fm/",
     headers: authToken
@@ -12,8 +12,8 @@ const makeClient = (authToken: string | null) =>
       : {},
   });
 
-export const useApiClient = () => {
-  const [authToken, _] = useAtom(authTokenAtom);
+export const useAuthenticatedClient = () => {
+  const [accessToken, _] = useAtom(accessTokenAtom);
 
-  return makeClient(authToken);
+  return makeClient(accessToken);
 };

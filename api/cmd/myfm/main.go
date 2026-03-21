@@ -4,7 +4,9 @@ import (
 	"log"
 
 	"github.com/joho/godotenv"
-	config "github.com/podikoglou/my.fm/internal"
+	"github.com/podikoglou/my.fm/internal/config"
+	"github.com/podikoglou/my.fm/internal/db"
+	"github.com/podikoglou/my.fm/internal/db/queries"
 	"github.com/podikoglou/my.fm/internal/server"
 )
 
@@ -15,8 +17,17 @@ func main() {
 		log.Fatal("error: couldn't load .env file")
 	}
 
-	config := config.ParseConfig()
+	cfg := config.ParseConfig()
+
+	// open database
+	db, err := db.OpenSQLite(cfg.DatabasePath)
+	if err != nil {
+		log.Fatalf("error: couldn't open database: %s", err)
+	}
+	defer db.Close()
+
+	queries := queries.New(db)
 
 	// start server
-	log.Fatal(server.StartServer(":8080"))
+	log.Fatal(server.StartServer(":8080", cfg, queries))
 }
