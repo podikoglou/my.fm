@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "@my.fm/app",
   "private": true,
   "type": "module",
   "scripts": {
