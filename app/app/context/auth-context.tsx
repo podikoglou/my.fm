@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { client } from "~/lib/api";
+import { useApiClient } from "~/lib/api";
 import type { MeUser } from "~/models/user";
 
 export type AuthContextData = { user: MeUser | null; loading: boolean };
@@ -9,9 +9,10 @@ export const AuthContext = createContext<AuthContextData>({ user: null, loading:
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const apiClient = useApiClient();
 
   useEffect(() => {
-    client
+    apiClient
       .get("auth/me")
       .json<MeUser>()
       .then(setUser)
