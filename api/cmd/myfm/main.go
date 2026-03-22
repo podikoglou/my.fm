@@ -14,7 +14,7 @@ func main() {
 	// load env variables
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("error: couldn't load .env file")
+		log.Fatalf("error: couldn't load .env file: %s", err)
 	}
 
 	cfg := config.ParseConfig()
