@@ -1,13 +1,13 @@
 package routes
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 
+	"github.com/golang-jwt/jwt/v4"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/podikoglou/my.fm/internal/config"
 	"github.com/podikoglou/my.fm/internal/db/queries"
@@ -98,6 +98,7 @@ func AuthSpotifyHandler(cfg config.Config, q *queries.Queries) http.HandlerFunc 
 				ID:       id,
 				Username: id, // until the user picks a username, we default it to the ID
 				Name:     me.DisplayName,
+				Email:    me.Email,
 			})
 
 			if err != nil {
@@ -107,9 +108,20 @@ func AuthSpotifyHandler(cfg config.Config, q *queries.Queries) http.HandlerFunc 
 			}
 		}
 
-		// TODO: create JWT
+		// TODO: expiration?
+		t := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": user.ID,
+		})
 
-		resp := AuthSpotifyResponse{AccessToken: tokenResp.AccessToken}
+		signed, err := t.SignedString([]byte(cfg.Secret))
+
+		if err != nil {
+			slog.Error(fmt.Sprintf("failed to sign JWT: %v", err))
+			http.Error(w, "failed to sign JWT", http.StatusInternalServerError)
+			return
+		}
+
+		resp := AuthSpotifyResponse{AccessToken: signed}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}
