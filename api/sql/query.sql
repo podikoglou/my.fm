@@ -10,9 +10,9 @@ LIMIT 1;
 
 -- name: CreateUser :one
 INSERT INTO users (
-  id, username, name, onboarded
+  id, username, name, email, onboarded
 ) VALUES (
-  ?, ?, ?, FALSE
+  ?, ?, ?, ?, FALSE
 )
 RETURNING *;
 

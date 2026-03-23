@@ -12,9 +12,9 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
-  id, username, name, onboarded
+  id, username, name, email, onboarded
 ) VALUES (
-  ?, ?, ?, FALSE
+  ?, ?, ?, ?, FALSE
 )
 RETURNING id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded
 `
@@ -23,10 +23,16 @@ type CreateUserParams struct {
 	ID       string
 	Username string
 	Name     string
+	Email    string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.ID, arg.Username, arg.Name)
+	row := q.db.QueryRowContext(ctx, createUser,
+		arg.ID,
+		arg.Username,
+		arg.Name,
+		arg.Email,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
