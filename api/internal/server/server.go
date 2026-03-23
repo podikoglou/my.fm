@@ -3,21 +3,21 @@ package server
 import (
 	"fmt"
 	"log/slog"
-	"net/http"
 
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/podikoglou/my.fm/internal/config"
 	"github.com/podikoglou/my.fm/internal/db/queries"
 	"github.com/podikoglou/my.fm/internal/server/routes"
-	"github.com/rs/cors"
 )
 
 func StartServer(addr string, cfg config.Config, q *queries.Queries) error {
-	mux := http.NewServeMux()
+	e := echo.New()
+	e.Use(middleware.RequestLogger())
+	e.Use(middleware.CORS("https://my.fm"))
 
-	mux.HandleFunc("POST /auth/spotify", routes.AuthSpotifyHandler(cfg, q))
-
-	handler := cors.Default().Handler(mux)
+	e.POST("/auth/spotify", routes.AuthSpotifyHandler(cfg, q))
 
 	slog.Info(fmt.Sprintf("Starting HTTP server on %s", addr))
-	return http.ListenAndServe(addr, handler)
+	return e.Start(addr)
 }

@@ -1,16 +1,14 @@
 package routes
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/labstack/echo/v5"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/podikoglou/my.fm/internal/config"
 	"github.com/podikoglou/my.fm/internal/db/queries"
+	"github.com/podikoglou/my.fm/internal/server/util"
 	"github.com/podikoglou/my.fm/internal/spotify"
 )
 
@@ -22,41 +20,28 @@ type AuthSpotifyResponse struct {
 	AccessToken string `json:"accessToken"`
 }
 
-func AuthSpotifyHandler(cfg config.Config, q *queries.Queries) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// read request
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "failed to read request body", http.StatusBadRequest)
-			return
-		}
-
-		// validate request
+func AuthSpotifyHandler(cfg config.Config, q *queries.Queries) func(c *echo.Context) error {
+	return func(c *echo.Context) error {
+		// read data
 		var req AuthSpotifyRequest
-		if err := json.Unmarshal(body, &req); err != nil {
-			http.Error(w, "failed to parse request body", http.StatusBadRequest)
-			return
+		if err := c.Bind(&req); err != nil {
+			return util.ErrorResp(c, http.StatusBadRequest, "invalid data")
 		}
 
 		if req.Code == "" {
-			http.Error(w, "code is required", http.StatusBadRequest)
-			return
+			return util.ErrorResp(c, http.StatusBadRequest, "code required")
 		}
 
 		// exchange authorization code for access + refresh token
 		tokenResp, err := spotify.ExchangeToken(req.Code, cfg.RedirectUri, cfg.Spotify)
 		if err != nil {
-			slog.Error(fmt.Sprintf("failed to exchange token: %v", err))
-			http.Error(w, "failed to exchange token", http.StatusInternalServerError)
-			return
+			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
 		}
 
 		// query user info
 		me, err := spotify.Me(tokenResp.AccessToken)
 		if err != nil {
-			slog.Error(fmt.Sprintf("failed to query user information: %v", err))
-			http.Error(w, "failed to query user information", http.StatusInternalServerError)
-			return
+			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
 		}
 
 		// GENERAL FLOW:
@@ -83,18 +68,16 @@ func AuthSpotifyHandler(cfg config.Config, q *queries.Queries) http.HandlerFunc 
 		//   (and in the future proflie picure)
 		// --------------------------------------------------------------------------
 
-		user, err := q.GetUserByEmail(r.Context(), me.Email)
+		user, err := q.GetUserByEmail(c.Request().Context(), me.Email)
 
 		if err != nil {
 			// create user if they don't exist
 			id, err := gonanoid.New()
 			if err != nil {
-				slog.Error(fmt.Sprintf("failed to generate id: %v", err))
-				http.Error(w, "failed to generate id", http.StatusInternalServerError)
-				return
+				return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
 			}
 
-			user, err = q.CreateUser(r.Context(), queries.CreateUserParams{
+			user, err = q.CreateUser(c.Request().Context(), queries.CreateUserParams{
 				ID:       id,
 				Username: id, // until the user picks a username, we default it to the ID
 				Name:     me.DisplayName,
@@ -102,10 +85,9 @@ func AuthSpotifyHandler(cfg config.Config, q *queries.Queries) http.HandlerFunc 
 			})
 
 			if err != nil {
-				slog.Error(fmt.Sprintf("failed to create user: %v", err))
-				http.Error(w, "failed to create user", http.StatusInternalServerError)
-				return
+				return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
 			}
+
 		}
 
 		// TODO: expiration?
@@ -116,13 +98,9 @@ func AuthSpotifyHandler(cfg config.Config, q *queries.Queries) http.HandlerFunc 
 		signed, err := t.SignedString([]byte(cfg.Secret))
 
 		if err != nil {
-			slog.Error(fmt.Sprintf("failed to sign JWT: %v", err))
-			http.Error(w, "failed to sign JWT", http.StatusInternalServerError)
-			return
+			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
 		}
 
-		resp := AuthSpotifyResponse{AccessToken: signed}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		return c.JSON(http.StatusOK, AuthSpotifyResponse{AccessToken: signed})
 	}
 }
