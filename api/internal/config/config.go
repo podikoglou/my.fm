@@ -10,6 +10,7 @@ type Config struct {
 	RedirectUri  string
 	Spotify      SpotifyConfig
 	DatabasePath string
+	Secret       string
 }
 
 type SpotifyConfig struct {
@@ -41,5 +42,6 @@ func ParseConfig() Config {
 		RedirectUri:  getEnvRequired("REDIRECT_URI"),
 		Spotify:      parseSpotifyConfig(),
 		DatabasePath: getEnvRequired("DATABASE_PATH"),
+		Secret:       getEnvRequired("SECRET"),
 	}
 }
