@@ -7,7 +7,7 @@ export const makeClient = (authToken: string | null) =>
     prefixUrl: "https://api.my.fm/",
     headers: authToken
       ? {
-          Authorization: authToken,
+          Authorization: `Bearer ${authToken}`,
         }
       : {},
   });

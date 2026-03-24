@@ -1,14 +1,16 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
+	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v5"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/podikoglou/my.fm/internal/config"
 	"github.com/podikoglou/my.fm/internal/db/queries"
+	serverauth "github.com/podikoglou/my.fm/internal/server/auth"
 	"github.com/podikoglou/my.fm/internal/server/util"
 	spotifyapi "github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
@@ -51,77 +53,52 @@ func AuthSpotifyHandler(cfg config.Config, q *queries.Queries, spotifyAuth *spot
 			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
 		}
 
-		// GENERAL FLOW:
-
-		// 1. figure out if user already exists by their email
-
-		// --------------------------------------------------------------------------
-		// USER EXISTS:
-		// 1. create JWT
-		// 2. respond wiht JWT
-		// --------------------------------------------------------------------------
-
-		// --------------------------------------------------------------------------
-		// USER DOES NOT EXIST:
-		// 1. create user (by default, it should have a column "onboarded" to false)
-		// 2. create JWT
-		// 3. respond wih JWT
-		//
-		// - there should be a middleware that checks if the user is authenticated
-		// - there should be a middleware that checks if the user is onboarded
-		// - if the user is not onboarded, the client should be informed and
-		//   redirect to an onboarding page
-		// - in the onboarding page he user should enter their name and username
-		//   (and in the future proflie picure)
-		// --------------------------------------------------------------------------
-
-		user, err := q.GetUserByEmail(ctx, me.Email)
-
-		if err != nil {
-			if err != sql.ErrNoRows {
-				return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
-			}
-
-			// create user if they don't exist
-			id, err := gonanoid.New()
-			if err != nil {
-				return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
-			}
-
-			user, err = q.CreateUser(ctx, queries.CreateUserParams{
-				ID:       id,
-				Username: id, // until the user picks a username, we default it to the ID
-				Name:     me.DisplayName,
-				Email:    me.Email,
-			})
-
-			if err != nil {
-				return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
-			}
-
-		}
-
-		// update token
-		if err := q.UpdateUserSpotifyTokens(ctx, queries.UpdateUserSpotifyTokensParams{
-			SpotifyAccessToken:     sql.NullString{String: token.AccessToken, Valid: token.AccessToken != ""},
-			SpotifyRefreshToken:    sql.NullString{String: token.RefreshToken, Valid: token.RefreshToken != ""},
-			SpotifyTokenExpiration: sql.NullInt64{Int64: token.Expiry.Unix(), Valid: !token.Expiry.IsZero()},
-			ID:                     user.ID,
-		}); err != nil {
-			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
-		}
-
-		// TODO: expiration?
-		t := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"sub": user.ID,
-		})
-
-		signed, err := t.SignedString([]byte(cfg.Secret))
-
+		user, err := getOrCreateUser(ctx, q, me.Email, me.DisplayName)
 		if err != nil {
 			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
 		}
 
-		return c.JSON(http.StatusOK, AuthSpotifyResponse{AccessToken: signed})
+		if err := updateUserSpotifyTokens(ctx, q, user.ID, token.AccessToken, token.RefreshToken, token.Expiry); err != nil {
+			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
+		}
+
+		jwtTokString, err := serverauth.IssueToken(cfg.Secret, user.ID, time.Now())
+		if err != nil {
+			return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
+		}
+
+		return c.JSON(http.StatusOK, AuthSpotifyResponse{AccessToken: jwtTokString})
 	}
+}
+
+func getOrCreateUser(ctx context.Context, q *queries.Queries, email string, displayName string) (queries.User, error) {
+	user, err := q.GetUserByEmail(ctx, email)
+	if err == nil {
+		return user, nil
+	}
+
+	if err != sql.ErrNoRows {
+		return queries.User{}, err
+	}
+
+	id, err := gonanoid.New()
+	if err != nil {
+		return queries.User{}, err
+	}
+
+	return q.CreateUser(ctx, queries.CreateUserParams{
+		ID:       id,
+		Username: id,
+		Name:     displayName,
+		Email:    email,
+	})
+}
+
+func updateUserSpotifyTokens(ctx context.Context, q *queries.Queries, userID string, accessToken string, refreshToken string, expiry time.Time) error {
+	return q.UpdateUserSpotifyTokens(ctx, queries.UpdateUserSpotifyTokensParams{
+		SpotifyAccessToken:     sql.NullString{String: accessToken, Valid: accessToken != ""},
+		SpotifyRefreshToken:    sql.NullString{String: refreshToken, Valid: refreshToken != ""},
+		SpotifyTokenExpiration: sql.NullInt64{Int64: expiry.Unix(), Valid: !expiry.IsZero()},
+		ID:                     userID,
+	})
 }
