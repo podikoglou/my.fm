@@ -21,6 +21,7 @@ func StartServer(addr string, cfg config.Config, q *queries.Queries, spotifyAuth
 	e.Use(apiauth.CurrentUserMiddleware(q))
 
 	e.POST("/auth/spotify", routes.AuthSpotifyHandler(cfg, q, spotifyAuth))
+	e.GET("/user/me", routes.UserMeHandler(cfg, q))
 
 	slog.Info(fmt.Sprintf("Starting HTTP server on %s", addr))
 	return e.Start(addr)
