@@ -1,5 +1,6 @@
 import { atom } from "jotai";
-import { callUserMe, clientAtom } from "~/lib/api";
+import { callUserMe } from "~/lib/api";
+import { clientAtom } from "./api";
 
 export const userAtom = atom(async (get) => {
   const client = get(clientAtom);
