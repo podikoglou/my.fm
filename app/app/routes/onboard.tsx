@@ -82,9 +82,6 @@ export default function Onboard() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      This is the name that will be displayed to other users.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -109,7 +106,6 @@ export default function Onboard() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>This is a unique name that identifies you.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
