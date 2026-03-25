@@ -49,11 +49,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GeneralError'
         '500':
-          description: Unexpected internal error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GeneralError'
+          $ref: '#/components/responses/InternalServerError'
 
 
 components:
@@ -75,3 +71,10 @@ components:
         errors:
           type: object
           additionalProperties: true
+  responses:
+    InternalServerError:
+      description: Unexpected internal error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
