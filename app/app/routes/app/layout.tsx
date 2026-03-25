@@ -9,7 +9,7 @@ export async function clientLoader() {
 
   // if no access token, redirect to spotify to authenticate
   if (!accessToken) {
-    const url = await makeSpotifyAuthorizeUrl();
+    const url = makeSpotifyAuthorizeUrl();
 
     throw redirect(url.toString());
   }
