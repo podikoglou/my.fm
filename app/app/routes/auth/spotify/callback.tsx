@@ -2,6 +2,7 @@ import { getDefaultStore } from "jotai";
 import { accessTokenAtom } from "~/state/auth";
 import type { Route } from "./+types/callback";
 import { makeClient } from "~/lib/api";
+import { redirect } from "react-router";
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // parse code from spotify redirect
@@ -26,4 +27,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   const store = getDefaultStore();
   store.set(accessTokenAtom, accessToken);
+
+  throw redirect("/app");
 }
