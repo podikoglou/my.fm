@@ -22,3 +22,10 @@ set spotify_access_token = ?,
     spotify_refresh_token = ?,
     spotify_token_expiration = ?
 WHERE id = ?;
+
+-- name: OnboardUser :exec
+UPDATE users
+set username = ?,
+    name = ?,
+    onboarded = true
+WHERE id = ?;

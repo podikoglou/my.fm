@@ -94,6 +94,25 @@ func (q *Queries) GetUserById(ctx context.Context, id string) (User, error) {
 	return i, err
 }
 
+const onboardUser = `-- name: OnboardUser :exec
+UPDATE users
+set username = ?,
+    name = ?,
+    onboarded = true
+WHERE id = ?
+`
+
+type OnboardUserParams struct {
+	Username string
+	Name     string
+	ID       string
+}
+
+func (q *Queries) OnboardUser(ctx context.Context, arg OnboardUserParams) error {
+	_, err := q.db.ExecContext(ctx, onboardUser, arg.Username, arg.Name, arg.ID)
+	return err
+}
+
 const updateUserSpotifyTokens = `-- name: UpdateUserSpotifyTokens :exec
 UPDATE users
 set spotify_access_token = ?,
