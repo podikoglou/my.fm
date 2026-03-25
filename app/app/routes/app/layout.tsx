@@ -2,9 +2,12 @@ import { getDefaultStore } from "jotai";
 import { Outlet, redirect } from "react-router";
 import { makeSpotifyAuthorizeUrl } from "~/lib/spotify";
 import { accessTokenAtom } from "~/state/auth";
+import { userAtom } from "~/state/user";
 
 export async function clientLoader() {
   const store = getDefaultStore();
+
+  // ensure we've got an access token
   const accessToken = store.get(accessTokenAtom);
 
   // if no access token, redirect to spotify to authenticate
@@ -12,6 +15,13 @@ export async function clientLoader() {
     const url = makeSpotifyAuthorizeUrl();
 
     throw redirect(url.toString());
+  }
+
+  // ensure we're onboarded
+  const user = await store.get(userAtom);
+
+  if (!user.onboarded) {
+    throw redirect("/onboard");
   }
 }
 
