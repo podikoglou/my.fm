@@ -8,6 +8,8 @@ info:
 tags:
   - name: authentication
     description: Authentication-related operations
+  - name: user
+    description: User-related operations
 security:
   - BearerAuth: []
 paths:
@@ -55,6 +57,19 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /user/me:
+    get:
+      tags: [user]
+      summary: Get user info.
+      description: >
+        Returns information about the currently authenticated user.
+      operationId: userMe
+
+      responses:
+        '200':
+          $ref: '#/components/responses/UserMeResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
   schemas:
@@ -82,6 +97,28 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GeneralError'
+    UserMeResponse:
+      description: Information about a user.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              id:
+                type: string
+                description: The ID of the user.
+              email:
+                type: string
+                description: The email of the user as per the auth provider.
+              name:
+                type: string
+                description: The name of the user.
+              username:
+                type: string
+                description: The username of the user.
+              onboarded:
+                type: boolean
+                description: Whether the user has finished being onboarded.
   securitySchemes:
     BearerAuth:
       description: Bearer token using a JWT
