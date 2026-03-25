@@ -5,10 +5,13 @@ info:
   version: 0.1.0
   title: my.fm API
   description: 'The my.fm backend service'
+tags:
+  - name: authentication
+    description: Authentication-related operations
 paths:
   /auth/spotify:
     post:
-      tag: [Authentication]
+      tags: [authentication]
       summary: Authenticate with Spotify
       description: >
         Exchanges Spotify authorization code for my.fm access token.
