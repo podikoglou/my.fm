@@ -8,6 +8,8 @@ info:
 tags:
   - name: authentication
     description: Authentication-related operations
+security:
+  - BearerAuth: []
 paths:
   /auth/spotify:
     post:
@@ -17,6 +19,8 @@ paths:
         Exchanges Spotify authorization code for my.fm access token.
         If no my.fm account exists with the associated Spotify email, one is created.
       operationId: authSpotify
+
+      security: []
 
       requestBody:
         required: true
@@ -78,3 +82,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GeneralError'
+  securitySchemes:
+    BearerAuth:
+      description: Bearer token using a JWT
+      type: http
+      scheme: Bearer
+      bearerFormat: JWT
