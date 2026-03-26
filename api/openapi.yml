@@ -44,6 +44,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - accessToken
                 properties:
                   accessToken:
                     type: string
