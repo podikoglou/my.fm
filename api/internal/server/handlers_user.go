@@ -55,10 +55,10 @@ func (h *Handler) UserOnboarding(c *echo.Context) error {
 
 	errors := make(map[string]string)
 	if !validateName(req.Name) {
-		errors["name"] = "name must be between 1 and 50 characters"
+		errors["name"] = "must be between 1 and 50 characters"
 	}
 	if !validateUsername(req.Username) {
-		errors["username"] = "username must be 2-30 characters and contain only letters, numbers, underscores, and hyphens"
+		errors["username"] = "must be 2-30 characters and contain only letters, numbers, underscores, and hyphens"
 	}
 	if len(errors) > 0 {
 		return c.JSON(http.StatusBadRequest, api.FormError{Errors: errors})
