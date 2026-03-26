@@ -17,6 +17,7 @@ import { userAtom } from "~/state/user";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { userOnboarding } from "~/lib/api";
+import { makeSpotifyAuthorizeUrl } from "~/lib/spotify";
 
 export async function clientLoader() {
   const store = getDefaultStore();
@@ -24,25 +25,23 @@ export async function clientLoader() {
   // ensure we've got an access token
   const accessToken = store.get(accessTokenAtom);
 
-  // if no access token, redirect to /app and make it handle that
+  // if no access token, redirect to spotify to authenticate
   if (!accessToken) {
-    throw redirect("/app");
+    const url = makeSpotifyAuthorizeUrl();
+    throw redirect(url.toString());
   }
 
   // ensure we have a user
-  try {
-    const user = await store.get(userAtom);
+  const user = await store.get(userAtom);
 
-    if (!user.data) {
-      throw redirect("/app");
-    }
+  if (user.error || !user.data) {
+    // if there's an error or no user data, redirect to spotify to re-auth
+    const url = makeSpotifyAuthorizeUrl();
+    throw redirect(url.toString());
+  }
 
-    // ensure we're not onboarded
-    if (user.data.onboarded) {
-      throw redirect("/app");
-    }
-  } catch (e) {
-    // if API call fails (401, etc.), redirect to /app
+  // ensure we're not already onboarded
+  if (user.data.onboarded) {
     throw redirect("/app");
   }
 }

@@ -20,7 +20,13 @@ export async function clientLoader() {
   // ensure we're onboarded
   const user = await store.get(userAtom);
 
-  if (!user.data?.onboarded) {
+  if (user.error || !user.data) {
+    // if there's an error or no user data, redirect to spotify to re-auth
+    const url = makeSpotifyAuthorizeUrl();
+    throw redirect(url.toString());
+  }
+
+  if (!user.data.onboarded) {
     throw redirect("/onboard");
   }
 }
