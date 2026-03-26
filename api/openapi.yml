@@ -68,6 +68,8 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/UserMeResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -93,6 +95,12 @@ components:
   responses:
     InternalServerError:
       description: Unexpected internal error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
+    UnauthorizedError:
+      description: User is unauthorized.
       content:
         application/json:
           schema:
