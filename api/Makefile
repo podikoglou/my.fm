@@ -2,4 +2,4 @@ migrate:
 	goose up
 
 generate:
-	sqlc generate
+	go generate ./...
