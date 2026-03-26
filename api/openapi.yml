@@ -103,6 +103,12 @@ components:
         application/json:
           schema:
             type: object
+            required:
+              - id
+              - email
+              - name
+              - username
+              - onboarded
             properties:
               id:
                 type: string
