@@ -75,6 +75,7 @@ paths:
       summary: Complete user onboarding.
       description: >
         Sets the user's name and username, marking them as onboarded.
+        Cannot be called if the user is already onboarded.
       operationId: userOnboarding
 
       requestBody:
@@ -89,20 +90,32 @@ paths:
               properties:
                 name:
                   type: string
-                  description: The user's display name.
+                  minLength: 1
+                  maxLength: 50
+                  description: The user's display name (1-50 characters).
                 username:
                   type: string
-                  description: The user's username.
+                  minLength: 2
+                  maxLength: 30
+                  pattern: '^[a-zA-Z0-9_-]+$'
+                  description: The user's username (2-30 characters, alphanumeric/underscore/hyphen only).
 
       responses:
         '204':
           description: Onboarding completed successfully.
         '400':
-          description: Invalid request data.
+          description: >
+            Invalid request data. This can be due to:
+            - User is already onboarded
+            - Name is not between 1-50 characters
+            - Username is not between 2-30 characters
+            - Username contains invalid characters (only letters, numbers, underscores, and hyphens allowed)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FormError'
+                oneOf:
+                  - $ref: '#/components/schemas/FormError'
+                  - $ref: '#/components/schemas/GeneralError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':

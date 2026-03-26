@@ -62,10 +62,10 @@ type AuthSpotifyJSONBody struct {
 
 // UserOnboardingJSONBody defines parameters for UserOnboarding.
 type UserOnboardingJSONBody struct {
-	// Name The user's display name.
+	// Name The user's display name (1-50 characters).
 	Name string `json:"name"`
 
-	// Username The user's username.
+	// Username The user's username (2-30 characters, alphanumeric/underscore/hyphen only).
 	Username string `json:"username"`
 }
 
