@@ -5,6 +5,16 @@ export type ClientOptions = {
 };
 
 /**
+ * Response containing the access token
+ */
+export type AuthSpotifyResponse = {
+    /**
+     * The access token for the my.fm user.
+     */
+    accessToken: string;
+};
+
+/**
  * A general API error
  */
 export type GeneralError = {
@@ -49,15 +59,10 @@ export type AuthSpotifyResponses = {
     /**
      * An access token for the user.
      */
-    200: {
-        /**
-         * The access token for the my.fm user.
-         */
-        accessToken: string;
-    };
+    200: AuthSpotifyResponse;
 };
 
-export type AuthSpotifyResponse = AuthSpotifyResponses[keyof AuthSpotifyResponses];
+export type AuthSpotifyResponse2 = AuthSpotifyResponses[keyof AuthSpotifyResponses];
 
 export type UserMeData = {
     body?: never;
@@ -108,3 +113,45 @@ export type UserMeResponses = {
 };
 
 export type UserMeResponse = UserMeResponses[keyof UserMeResponses];
+
+export type UserOnboardingData = {
+    body: {
+        /**
+         * The user's display name.
+         */
+        name: string;
+        /**
+         * The user's username.
+         */
+        username: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/user/onboarding';
+};
+
+export type UserOnboardingErrors = {
+    /**
+     * Invalid request data.
+     */
+    400: FormError;
+    /**
+     * User is unauthorized.
+     */
+    401: GeneralError;
+    /**
+     * Unexpected internal error.
+     */
+    500: GeneralError;
+};
+
+export type UserOnboardingError = UserOnboardingErrors[keyof UserOnboardingErrors];
+
+export type UserOnboardingResponses = {
+    /**
+     * Onboarding completed successfully.
+     */
+    204: void;
+};
+
+export type UserOnboardingResponse = UserOnboardingResponses[keyof UserOnboardingResponses];

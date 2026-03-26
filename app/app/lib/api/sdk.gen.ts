@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AuthSpotifyData, AuthSpotifyErrors, AuthSpotifyResponses, UserMeData, UserMeErrors, UserMeResponses } from './types.gen';
+import type { AuthSpotifyData, AuthSpotifyErrors, AuthSpotifyResponses, UserMeData, UserMeErrors, UserMeResponses, UserOnboardingData, UserOnboardingErrors, UserOnboardingResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -43,4 +43,20 @@ export const userMe = <ThrowOnError extends boolean = false>(options?: Options<U
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/user/me',
     ...options
+});
+
+/**
+ * Complete user onboarding.
+ *
+ * Sets the user's name and username, marking them as onboarded.
+ *
+ */
+export const userOnboarding = <ThrowOnError extends boolean = false>(options: Options<UserOnboardingData, ThrowOnError>) => (options.client ?? client).post<UserOnboardingResponses, UserOnboardingErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/user/onboarding',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });

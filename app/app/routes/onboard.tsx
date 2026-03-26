@@ -1,6 +1,6 @@
 import { getDefaultStore, useAtom } from "jotai";
 import { useForm } from "react-hook-form";
-import { redirect } from "react-router";
+import { redirect, useNavigate } from "react-router";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -16,6 +16,7 @@ import { accessTokenAtom } from "~/state/auth";
 import { userAtom } from "~/state/user";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
+import { userOnboarding } from "~/lib/api";
 
 export async function clientLoader() {
   const store = getDefaultStore();
@@ -44,6 +45,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export default function Onboard() {
+  const navigate = useNavigate();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -52,8 +54,13 @@ export default function Onboard() {
     },
   });
 
-  const onSubmit = (data: FormValues) => {
-    console.log(data);
+  const onSubmit = async (data: FormValues) => {
+    try {
+      await userOnboarding({ body: data });
+      navigate("/app");
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
