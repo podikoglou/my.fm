@@ -11,6 +11,12 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
+// AuthSpotifyResponse Response containing the access token
+type AuthSpotifyResponse struct {
+	// AccessToken The access token for the my.fm user.
+	AccessToken string `json:"accessToken"`
+}
+
 // GeneralError A general API error
 type GeneralError struct {
 	Error string `json:"error"`

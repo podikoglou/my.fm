@@ -8,8 +8,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	echojwt "github.com/labstack/echo-jwt/v5"
 	"github.com/labstack/echo/v5"
+	"github.com/podikoglou/my.fm/internal/api"
 	"github.com/podikoglou/my.fm/internal/db/queries"
-	"github.com/podikoglou/my.fm/internal/server/util"
 )
 
 const (
@@ -34,7 +34,7 @@ func JWTMiddleware(secret string) echo.MiddlewareFunc {
 			return new(jwt.RegisteredClaims)
 		},
 		ErrorHandler: func(c *echo.Context, err error) error {
-			return util.ErrorResp(c, http.StatusUnauthorized, "unauthorized")
+			return c.JSON(http.StatusUnauthorized, api.GeneralError{Error: "unauthorized"})
 		},
 	})
 }
@@ -48,16 +48,16 @@ func CurrentUserMiddleware(q *queries.Queries) echo.MiddlewareFunc {
 
 			claims, ok := ClaimsFromContext(c)
 			if !ok || claims.Subject == "" {
-				return util.ErrorResp(c, http.StatusUnauthorized, "unauthorized")
+				return c.JSON(http.StatusUnauthorized, api.GeneralError{Error: "unauthorized"})
 			}
 
 			user, err := q.GetUserById(c.Request().Context(), claims.Subject)
 			if err != nil {
 				if err == sql.ErrNoRows {
-					return util.ErrorResp(c, http.StatusUnauthorized, "unauthorized")
+					return c.JSON(http.StatusUnauthorized, api.GeneralError{Error: "unauthorized"})
 				}
 
-				return util.ErrorResp(c, http.StatusInternalServerError, err.Error())
+				return c.JSON(http.StatusInternalServerError, api.GeneralError{Error: err.Error()})
 			}
 
 			c.Set(currentUserContextKey, user)

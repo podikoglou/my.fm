@@ -43,13 +43,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - accessToken
-                properties:
-                  accessToken:
-                    type: string
-                    description: The access token for the my.fm user.
+                $ref: '#/components/schemas/AuthSpotifyResponse'
         '400':
           description: Invalid authorization code.
           content:
@@ -77,6 +71,15 @@ paths:
 
 components:
   schemas:
+    AuthSpotifyResponse:
+      description: Response containing the access token
+      type: object
+      required:
+        - accessToken
+      properties:
+        accessToken:
+          type: string
+          description: The access token for the my.fm user.
     GeneralError:
       description: A general API error
       type: object
