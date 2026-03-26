@@ -91,7 +91,8 @@ components:
       properties:
         errors:
           type: object
-          additionalProperties: true
+          additionalProperties:
+            type: string
   responses:
     InternalServerError:
       description: Unexpected internal error.
