@@ -60,6 +60,12 @@ func (h *Handler) UserOnboarding(c *echo.Context) error {
 	if !validateUsername(req.Username) {
 		errors["username"] = "must be 2-30 characters and contain only letters, numbers, underscores, and hyphens"
 	}
+
+	// check if username is already taken
+	existingUser, err := h.q.GetUserByUsername(ctx, req.Username)
+	if err == nil && existingUser.ID != user.ID {
+		errors["username"] = "already taken"
+	}
 	if len(errors) > 0 {
 		return c.JSON(http.StatusBadRequest, api.FormError{Errors: errors})
 	}

@@ -94,6 +94,29 @@ func (q *Queries) GetUserById(ctx context.Context, id string) (User, error) {
 	return i, err
 }
 
+const getUserByUsername = `-- name: GetUserByUsername :one
+SELECT id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded FROM users
+WHERE username = ?
+LIMIT 1
+`
+
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByUsername, username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Name,
+		&i.Email,
+		&i.SpotifyAccessToken,
+		&i.SpotifyRefreshToken,
+		&i.SpotifyTokenExpiration,
+		&i.CreatedAt,
+		&i.Onboarded,
+	)
+	return i, err
+}
+
 const onboardUser = `-- name: OnboardUser :exec
 UPDATE users
 set username = ?,
