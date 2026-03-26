@@ -29,6 +29,11 @@ func (h *Handler) UserOnboarding(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user, _ := serverauth.CurrentUser(c)
 
+	// check if already onboarded
+	if user.Onboarded.Valid && user.Onboarded.Int64 == 1 {
+		return c.JSON(http.StatusConflict, api.GeneralError{Error: "already onboarded"})
+	}
+
 	var req api.UserOnboardingJSONBody
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "invalid data"})
