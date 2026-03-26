@@ -30,14 +30,19 @@ export async function clientLoader() {
   }
 
   // ensure we have a user
-  const user = await store.get(userAtom);
+  try {
+    const user = await store.get(userAtom);
 
-  if (!user.data) {
-    throw redirect("/app");
-  }
+    if (!user.data) {
+      throw redirect("/app");
+    }
 
-  // ensure we're not onboarded
-  if (user.data.onboarded) {
+    // ensure we're not onboarded
+    if (user.data.onboarded) {
+      throw redirect("/app");
+    }
+  } catch (e) {
+    // if API call fails (401, etc.), redirect to /app
     throw redirect("/app");
   }
 }
