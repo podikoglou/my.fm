@@ -1,8 +1,8 @@
 import { getDefaultStore } from "jotai";
 import { accessTokenAtom } from "~/state/auth";
 import type { Route } from "./+types/callback";
-import { makeClient } from "~/lib/api";
 import { redirect } from "react-router";
+import { authSpotify } from "~/lib/api";
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // parse code from spotify redirect
@@ -13,21 +13,16 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     return; // TODO: handle error
   }
 
-  // create one-use unauthenticated API client
-  const client = makeClient(null);
-
   // send authorization code to our backend, expecting back a JWT
-  // TODO: make this a thing in lib/api.ts
-  const { accessToken } = await client
-    .post("auth/spotify", {
-      json: {
-        code: authorizationCode,
-      },
-    })
-    .json<{ accessToken: string }>();
+  const { data, error } = await authSpotify({ body: { code: authorizationCode } });
 
+  if (error) {
+    return; // TODO: handle error
+  }
+
+  console.log("updating");
   const store = getDefaultStore();
-  store.set(accessTokenAtom, accessToken);
+  store.set(accessTokenAtom, data.accessToken);
 
   throw redirect("/app");
 }

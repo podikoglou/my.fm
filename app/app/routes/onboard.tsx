@@ -31,7 +31,7 @@ export async function clientLoader() {
   // ensure we're not onboarded
   const user = await store.get(userAtom);
 
-  if (user.onboarded) {
+  if (user.data?.onboarded) {
     throw redirect("/app");
   }
 }
