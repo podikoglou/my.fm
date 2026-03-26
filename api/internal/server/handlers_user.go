@@ -2,12 +2,26 @@ package server
 
 import (
 	"net/http"
+	"regexp"
 
 	"github.com/labstack/echo/v5"
 	"github.com/podikoglou/my.fm/internal/api"
 	"github.com/podikoglou/my.fm/internal/db/queries"
 	serverauth "github.com/podikoglou/my.fm/internal/server/auth"
 )
+
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+func validateUsername(username string) bool {
+	if len(username) < 2 || len(username) > 30 {
+		return false
+	}
+	return usernameRegex.MatchString(username)
+}
+
+func validateName(name string) bool {
+	return len(name) > 0 && len(name) <= 50
+}
 
 // UserMe implements api.ServerInterface
 func (h *Handler) UserMe(c *echo.Context) error {
@@ -31,7 +45,7 @@ func (h *Handler) UserOnboarding(c *echo.Context) error {
 
 	// check if already onboarded
 	if user.Onboarded.Valid && user.Onboarded.Int64 == 1 {
-		return c.JSON(http.StatusConflict, api.GeneralError{Error: "already onboarded"})
+		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "already onboarded"})
 	}
 
 	var req api.UserOnboardingJSONBody
@@ -39,11 +53,15 @@ func (h *Handler) UserOnboarding(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "invalid data"})
 	}
 
-	if req.Name == "" {
-		return c.JSON(http.StatusBadRequest, api.FormError{Errors: map[string]string{"name": "name is required"}})
+	errors := make(map[string]string)
+	if !validateName(req.Name) {
+		errors["name"] = "name must be between 1 and 50 characters"
 	}
-	if req.Username == "" {
-		return c.JSON(http.StatusBadRequest, api.FormError{Errors: map[string]string{"username": "username is required"}})
+	if !validateUsername(req.Username) {
+		errors["username"] = "username must be 2-30 characters and contain only letters, numbers, underscores, and hyphens"
+	}
+	if len(errors) > 0 {
+		return c.JSON(http.StatusBadRequest, api.FormError{Errors: errors})
 	}
 
 	if err := h.q.OnboardUser(ctx, queries.OnboardUserParams{
