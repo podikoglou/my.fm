@@ -69,6 +69,45 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /user/onboarding:
+    post:
+      tags: [user]
+      summary: Complete user onboarding.
+      description: >
+        Sets the user's name and username, marking them as onboarded.
+      operationId: userOnboarding
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - username
+              properties:
+                name:
+                  type: string
+                  description: The user's display name.
+                username:
+                  type: string
+                  description: The user's username.
+
+      responses:
+        '204':
+          description: Onboarding completed successfully.
+        '400':
+          description: Invalid request data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   schemas:
     AuthSpotifyResponse:

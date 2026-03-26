@@ -17,6 +17,11 @@ type AuthSpotifyResponse struct {
 	AccessToken string `json:"accessToken"`
 }
 
+// FormError Invalid form data
+type FormError struct {
+	Errors map[string]string `json:"errors"`
+}
+
 // GeneralError A general API error
 type GeneralError struct {
 	Error string `json:"error"`
@@ -55,8 +60,20 @@ type AuthSpotifyJSONBody struct {
 	Code string `json:"code"`
 }
 
+// UserOnboardingJSONBody defines parameters for UserOnboarding.
+type UserOnboardingJSONBody struct {
+	// Name The user's display name.
+	Name string `json:"name"`
+
+	// Username The user's username.
+	Username string `json:"username"`
+}
+
 // AuthSpotifyJSONRequestBody defines body for AuthSpotify for application/json ContentType.
 type AuthSpotifyJSONRequestBody AuthSpotifyJSONBody
+
+// UserOnboardingJSONRequestBody defines body for UserOnboarding for application/json ContentType.
+type UserOnboardingJSONRequestBody UserOnboardingJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -66,6 +83,9 @@ type ServerInterface interface {
 	// Get user info.
 	// (GET /user/me)
 	UserMe(ctx *echo.Context) error
+	// Complete user onboarding.
+	// (POST /user/onboarding)
+	UserOnboarding(ctx *echo.Context) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -90,6 +110,17 @@ func (w *ServerInterfaceWrapper) UserMe(ctx *echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.UserMe(ctx)
+	return err
+}
+
+// UserOnboarding converts echo context to params.
+func (w *ServerInterfaceWrapper) UserOnboarding(ctx *echo.Context) error {
+	var err error
+
+	ctx.Set(string(BearerAuthScopes), []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserOnboarding(ctx)
 	return err
 }
 
@@ -123,5 +154,6 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 
 	router.POST(baseURL+"/auth/spotify", wrapper.AuthSpotify)
 	router.GET(baseURL+"/user/me", wrapper.UserMe)
+	router.POST(baseURL+"/user/onboarding", wrapper.UserOnboarding)
 
 }
