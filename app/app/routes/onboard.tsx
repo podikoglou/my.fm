@@ -29,10 +29,15 @@ export async function clientLoader() {
     throw redirect("/app");
   }
 
-  // ensure we're not onboarded
+  // ensure we have a user
   const user = await store.get(userAtom);
 
-  if (user.data?.onboarded) {
+  if (!user.data) {
+    throw redirect("/app");
+  }
+
+  // ensure we're not onboarded
+  if (user.data.onboarded) {
     throw redirect("/app");
   }
 }
