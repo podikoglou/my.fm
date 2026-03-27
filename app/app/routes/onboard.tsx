@@ -37,9 +37,9 @@ export async function clientLoader() {
       ...userMeOptions({}),
     });
 
-    // if not onboarded, make the user onboard
-    if (!data.onboarded) {
-      throw redirect("/onboard");
+    // if already onboarded, redirect to app
+    if (data.onboarded) {
+      throw redirect("/app");
     }
   } catch (err) {
     // this is what the throw redirect(..) throws. we don't actually want to watch that, so we throw it back
