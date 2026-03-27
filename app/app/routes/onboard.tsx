@@ -16,8 +16,8 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { authorizeSpotify } from "~/lib/spotify";
 import { queryClient } from "~/lib/query";
-import { userMeOptions, userOnboardMutation } from "~/lib/api/@tanstack/react-query.gen";
-import { useMutation } from "@tanstack/react-query";
+import { userMeOptions, userMeQueryKey, userOnboardMutation } from "~/lib/api/@tanstack/react-query.gen";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 // NOTE: this loader should be almost identical with the loader in ./app/layout.tsx (just with the opposite logic)
 export async function clientLoader() {
@@ -63,6 +63,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function Onboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -73,7 +74,10 @@ export default function Onboard() {
 
   const userOnboard = useMutation({
     ...userOnboardMutation(),
-    onSuccess: () => navigate("/app"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: userMeQueryKey() });
+      navigate("/app");
+    },
     onError: (error) => console.error(error),
   });
 
