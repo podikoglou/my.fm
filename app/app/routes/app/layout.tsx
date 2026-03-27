@@ -1,8 +1,9 @@
 import { getDefaultStore } from "jotai";
 import { Outlet, redirect } from "react-router";
-import { makeSpotifyAuthorizeUrl } from "~/lib/spotify";
+import { userMeOptions } from "~/lib/api/@tanstack/react-query.gen";
+import { queryClient } from "~/lib/query";
+import { authorizeSpotify } from "~/lib/spotify";
 import { accessTokenAtom } from "~/state/auth";
-import { userAtom } from "~/state/user";
 
 export async function clientLoader() {
   const store = getDefaultStore();
@@ -12,22 +13,24 @@ export async function clientLoader() {
 
   // if no access token, redirect to spotify to authenticate
   if (!accessToken) {
-    const url = makeSpotifyAuthorizeUrl();
-
-    throw redirect(url.toString());
+    authorizeSpotify();
   }
 
   // ensure we're onboarded
-  const user = await store.get(userAtom);
+  try {
+    const data = await queryClient.fetchQuery({
+      ...userMeOptions({}),
+    });
 
-  if (user.error || !user.data) {
+    // if not onboarded, make the user onboard
+    if (!data.onboarded) {
+      throw redirect("/onboard");
+    }
+  } catch (err) {
+    console.error(err);
+
     // if there's an error or no user data, redirect to spotify to re-auth
-    const url = makeSpotifyAuthorizeUrl();
-    throw redirect(url.toString());
-  }
-
-  if (!user.data.onboarded) {
-    throw redirect("/onboard");
+    // authorizeSpotify();
   }
 }
 

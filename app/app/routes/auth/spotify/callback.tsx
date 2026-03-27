@@ -14,13 +14,13 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   }
 
   // send authorization code to our backend, expecting back a JWT
+  // this doesn't go through react query which is meh
   const { data, error } = await authSpotify({ body: { code: authorizationCode } });
 
   if (error) {
     return; // TODO: handle error
   }
 
-  console.log("updating");
   const store = getDefaultStore();
   store.set(accessTokenAtom, data.accessToken);
 

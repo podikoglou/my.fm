@@ -1,3 +1,5 @@
+import { redirect } from "react-router";
+
 const ENDPOINT = "https://accounts.spotify.com";
 const AUTHORIZE_ENDPOINT = `${ENDPOINT}/authorize`;
 const SCOPE = "user-read-private user-read-email";
@@ -16,4 +18,9 @@ export const makeSpotifyAuthorizeUrl = () => {
   authUrl.search = new URLSearchParams(params).toString();
 
   return authUrl;
+};
+
+export const authorizeSpotify = () => {
+  const url = makeSpotifyAuthorizeUrl();
+  throw redirect(url.toString());
 };

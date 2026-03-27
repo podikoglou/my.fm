@@ -1,4 +1,4 @@
-import { getDefaultStore, useAtom } from "jotai";
+import { getDefaultStore } from "jotai";
 import { useForm } from "react-hook-form";
 import { redirect, useNavigate } from "react-router";
 import { z } from "zod";
@@ -6,18 +6,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "~/components/ui/form";
 import { accessTokenAtom } from "~/state/auth";
-import { userAtom } from "~/state/user";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
-import { userOnboarding } from "~/lib/api";
-import { makeSpotifyAuthorizeUrl } from "~/lib/spotify";
+import { authorizeSpotify } from "~/lib/spotify";
+import { queryClient } from "~/lib/query";
+import { userMeOptions, userOnboardingMutation } from "~/lib/api/@tanstack/react-query.gen";
+import { useMutation } from "@tanstack/react-query";
 
 export async function clientLoader() {
   const store = getDefaultStore();
@@ -27,22 +27,24 @@ export async function clientLoader() {
 
   // if no access token, redirect to spotify to authenticate
   if (!accessToken) {
-    const url = makeSpotifyAuthorizeUrl();
-    throw redirect(url.toString());
+    authorizeSpotify();
   }
 
-  // ensure we have a user
-  const user = await store.get(userAtom);
+  // ensure we're onboarded
+  try {
+    const data = await queryClient.fetchQuery({
+      ...userMeOptions({}),
+    });
 
-  if (user.error || !user.data) {
+    // if not onboarded, make the user onboard
+    if (!data.onboarded) {
+      throw redirect("/onboard");
+    }
+  } catch (err) {
+    console.error(err);
+
     // if there's an error or no user data, redirect to spotify to re-auth
-    const url = makeSpotifyAuthorizeUrl();
-    throw redirect(url.toString());
-  }
-
-  // ensure we're not already onboarded
-  if (user.data.onboarded) {
-    throw redirect("/app");
+    // authorizeSpotify();
   }
 }
 
@@ -63,13 +65,16 @@ export default function Onboard() {
     },
   });
 
+  const userOnboard = useMutation({
+    ...userOnboardingMutation(),
+    onSuccess: () => navigate("/app"),
+    onError: (error) => console.error(error),
+  });
+
   const onSubmit = async (data: FormValues) => {
-    try {
-      await userOnboarding({ body: data });
-      navigate("/app");
-    } catch (e) {
-      console.error(e);
-    }
+    userOnboard.mutate({
+      body: data,
+    });
   };
 
   return (

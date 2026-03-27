@@ -1,8 +1,12 @@
-import { useAtom } from "jotai";
-import { userAtom } from "~/state/user";
+import { useQuery } from "@tanstack/react-query";
+import { userMeOptions } from "~/lib/api/@tanstack/react-query.gen";
 
 export default function AppIndex() {
-  const [user, _] = useAtom(userAtom);
+  const { data, error } = useQuery({
+    ...userMeOptions({}),
+  });
 
-  return <>{JSON.stringify(user)}</>;
+  console.log({ data, error });
+
+  return <>{JSON.stringify({ data, error })}</>;
 }
