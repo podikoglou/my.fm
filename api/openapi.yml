@@ -69,14 +69,14 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /user/onboarding:
+  /user/onboard:
     post:
       tags: [user]
       summary: Complete user onboarding.
       description: >
         Sets the user's name and username, marking them as onboarded.
         Cannot be called if the user is already onboarded.
-      operationId: userOnboarding
+      operationId: userOnboard
 
       requestBody:
         required: true

@@ -9,9 +9,9 @@ import type {
   UserMeData,
   UserMeErrors,
   UserMeResponses,
-  UserOnboardingData,
-  UserOnboardingErrors,
-  UserOnboardingResponses,
+  UserOnboardData,
+  UserOnboardErrors,
+  UserOnboardResponses,
 } from "./types.gen";
 
 export type Options<
@@ -70,12 +70,12 @@ export const userMe = <ThrowOnError extends boolean = false>(
  * Sets the user's name and username, marking them as onboarded. Cannot be called if the user is already onboarded.
  *
  */
-export const userOnboarding = <ThrowOnError extends boolean = false>(
-  options: Options<UserOnboardingData, ThrowOnError>,
+export const userOnboard = <ThrowOnError extends boolean = false>(
+  options: Options<UserOnboardData, ThrowOnError>,
 ) =>
-  (options.client ?? client).post<UserOnboardingResponses, UserOnboardingErrors, ThrowOnError>({
+  (options.client ?? client).post<UserOnboardResponses, UserOnboardErrors, ThrowOnError>({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/user/onboarding",
+    url: "/user/onboard",
     ...options,
     headers: {
       "Content-Type": "application/json",

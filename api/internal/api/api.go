@@ -60,8 +60,8 @@ type AuthSpotifyJSONBody struct {
 	Code string `json:"code"`
 }
 
-// UserOnboardingJSONBody defines parameters for UserOnboarding.
-type UserOnboardingJSONBody struct {
+// UserOnboardJSONBody defines parameters for UserOnboard.
+type UserOnboardJSONBody struct {
 	// Name The user's display name (1-50 characters).
 	Name string `json:"name"`
 
@@ -72,8 +72,8 @@ type UserOnboardingJSONBody struct {
 // AuthSpotifyJSONRequestBody defines body for AuthSpotify for application/json ContentType.
 type AuthSpotifyJSONRequestBody AuthSpotifyJSONBody
 
-// UserOnboardingJSONRequestBody defines body for UserOnboarding for application/json ContentType.
-type UserOnboardingJSONRequestBody UserOnboardingJSONBody
+// UserOnboardJSONRequestBody defines body for UserOnboard for application/json ContentType.
+type UserOnboardJSONRequestBody UserOnboardJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -83,9 +83,9 @@ type ServerInterface interface {
 	// Get user info.
 	// (GET /user/me)
 	UserMe(ctx *echo.Context) error
-	// Complete user onboarding.
-	// (POST /user/onboarding)
-	UserOnboarding(ctx *echo.Context) error
+	// Complete user onboard.
+	// (POST /user/onboard)
+	UserOnboard(ctx *echo.Context) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -113,14 +113,14 @@ func (w *ServerInterfaceWrapper) UserMe(ctx *echo.Context) error {
 	return err
 }
 
-// UserOnboarding converts echo context to params.
-func (w *ServerInterfaceWrapper) UserOnboarding(ctx *echo.Context) error {
+// UserOnboard converts echo context to params.
+func (w *ServerInterfaceWrapper) UserOnboard(ctx *echo.Context) error {
 	var err error
 
 	ctx.Set(string(BearerAuthScopes), []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UserOnboarding(ctx)
+	err = w.Handler.UserOnboard(ctx)
 	return err
 }
 
@@ -154,6 +154,6 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 
 	router.POST(baseURL+"/auth/spotify", wrapper.AuthSpotify)
 	router.GET(baseURL+"/user/me", wrapper.UserMe)
-	router.POST(baseURL+"/user/onboarding", wrapper.UserOnboarding)
+	router.POST(baseURL+"/user/onboard", wrapper.UserOnboard)
 
 }

@@ -16,7 +16,7 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { authorizeSpotify } from "~/lib/spotify";
 import { queryClient } from "~/lib/query";
-import { userMeOptions, userOnboardingMutation } from "~/lib/api/@tanstack/react-query.gen";
+import { userMeOptions, userOnboardMutation } from "~/lib/api/@tanstack/react-query.gen";
 import { useMutation } from "@tanstack/react-query";
 
 // NOTE: this loader should be almost identical with the loader in ./app/layout.tsx (just with the opposite logic)
@@ -72,7 +72,7 @@ export default function Onboard() {
   });
 
   const userOnboard = useMutation({
-    ...userOnboardingMutation(),
+    ...userOnboardMutation(),
     onSuccess: () => navigate("/app"),
     onError: (error) => console.error(error),
   });

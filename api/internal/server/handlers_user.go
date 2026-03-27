@@ -39,7 +39,7 @@ func (h *Handler) UserMe(c *echo.Context) error {
 }
 
 // UserOnboarding implements api.ServerInterface
-func (h *Handler) UserOnboarding(c *echo.Context) error {
+func (h *Handler) UserOnboard(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user, _ := serverauth.CurrentUser(c)
 
@@ -48,7 +48,7 @@ func (h *Handler) UserOnboarding(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "already onboarded"})
 	}
 
-	var req api.UserOnboardingJSONBody
+	var req api.UserOnboardJSONBody
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "invalid data"})
 	}

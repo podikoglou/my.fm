@@ -3,7 +3,7 @@
 import { queryOptions, type UseMutationOptions } from "@tanstack/react-query";
 
 import { client } from "../client.gen";
-import { authSpotify, type Options, userMe, userOnboarding } from "../sdk.gen";
+import { authSpotify, type Options, userMe, userOnboard } from "../sdk.gen";
 import type {
   AuthSpotifyData,
   AuthSpotifyError,
@@ -11,9 +11,9 @@ import type {
   UserMeData,
   UserMeError,
   UserMeResponse,
-  UserOnboardingData,
-  UserOnboardingError,
-  UserOnboardingResponse,
+  UserOnboardData,
+  UserOnboardError,
+  UserOnboardResponse,
 } from "../types.gen";
 
 /**
@@ -109,16 +109,16 @@ export const userMeOptions = (options?: Options<UserMeData>) =>
  * Sets the user's name and username, marking them as onboarded. Cannot be called if the user is already onboarded.
  *
  */
-export const userOnboardingMutation = (
-  options?: Partial<Options<UserOnboardingData>>,
-): UseMutationOptions<UserOnboardingResponse, UserOnboardingError, Options<UserOnboardingData>> => {
+export const userOnboardMutation = (
+  options?: Partial<Options<UserOnboardData>>,
+): UseMutationOptions<UserOnboardResponse, UserOnboardError, Options<UserOnboardData>> => {
   const mutationOptions: UseMutationOptions<
-    UserOnboardingResponse,
-    UserOnboardingError,
-    Options<UserOnboardingData>
+    UserOnboardResponse,
+    UserOnboardError,
+    Options<UserOnboardData>
   > = {
     mutationFn: async (fnOptions) => {
-      const { data } = await userOnboarding({
+      const { data } = await userOnboard({
         ...options,
         ...fnOptions,
         throwOnError: true,
