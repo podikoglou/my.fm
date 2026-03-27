@@ -27,10 +27,15 @@ export async function clientLoader() {
       throw redirect("/onboard");
     }
   } catch (err) {
+    // this is what the throw redirect(..) throws. we don't actually want to watch that, so we throw it back
+    if (err instanceof Response) {
+      throw err;
+    }
+
     console.error(err);
 
     // if there's an error or no user data, redirect to spotify to re-auth
-    // authorizeSpotify();
+    authorizeSpotify();
   }
 }
 
