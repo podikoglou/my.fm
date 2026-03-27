@@ -5,6 +5,7 @@ import { queryClient } from "~/lib/query";
 import { authorizeSpotify } from "~/lib/spotify";
 import { accessTokenAtom } from "~/state/auth";
 
+// NOTE: this loader should be almost identical with the loader in ../onboard.tsx (just with the opposite logic)
 export async function clientLoader() {
   const store = getDefaultStore();
 

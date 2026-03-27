@@ -19,6 +19,7 @@ import { queryClient } from "~/lib/query";
 import { userMeOptions, userOnboardingMutation } from "~/lib/api/@tanstack/react-query.gen";
 import { useMutation } from "@tanstack/react-query";
 
+// NOTE: this loader should be almost identical with the loader in ./app/layout.tsx (just with the opposite logic)
 export async function clientLoader() {
   const store = getDefaultStore();
 
