@@ -10,6 +10,8 @@ tags:
     description: Authentication-related operations
   - name: users
     description: User-related operations
+  - name: self
+    description: Operations related to the user's own user
 security:
   - BearerAuth: []
 paths:
@@ -53,17 +55,17 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /users/me:
+  /user:
     get:
-      tags: [users]
-      summary: Get user info.
+      tags: [users, self]
+      summary: Get the user's info.
       description: >
         Returns information about the currently authenticated user.
-      operationId: usersMe
+      operationId: user
 
       responses:
         '200':
-          $ref: '#/components/responses/UsersMeResponse'
+          $ref: '#/components/responses/UserResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
@@ -163,8 +165,8 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GeneralError'
-    UsersMeResponse:
-      description: Information about a user.
+    UserResponse:
+      description: Information about the user.
       content:
         application/json:
           schema:
