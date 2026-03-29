@@ -38,8 +38,8 @@ func (h *Handler) User(c *echo.Context) error {
 	})
 }
 
-// UsersOnboarding implements api.ServerInterface
-func (h *Handler) UsersOnboard(c *echo.Context) error {
+// PutUserProfile implements api.ServerInterface
+func (h *Handler) PutUserProfile(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user, _ := serverauth.CurrentUser(c)
 
@@ -48,7 +48,7 @@ func (h *Handler) UsersOnboard(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "already onboarded"})
 	}
 
-	var req api.UsersOnboardJSONBody
+	var req api.PutUserProfileJSONBody
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "invalid data"})
 	}

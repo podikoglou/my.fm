@@ -60,8 +60,8 @@ type AuthSpotifyJSONBody struct {
 	Code string `json:"code"`
 }
 
-// UsersOnboardJSONBody defines parameters for UsersOnboard.
-type UsersOnboardJSONBody struct {
+// PutUserProfileJSONBody defines parameters for PutUserProfile.
+type PutUserProfileJSONBody struct {
 	// Name The user's display name (1-50 characters).
 	Name string `json:"name"`
 
@@ -72,8 +72,8 @@ type UsersOnboardJSONBody struct {
 // AuthSpotifyJSONRequestBody defines body for AuthSpotify for application/json ContentType.
 type AuthSpotifyJSONRequestBody AuthSpotifyJSONBody
 
-// UsersOnboardJSONRequestBody defines body for UsersOnboard for application/json ContentType.
-type UsersOnboardJSONRequestBody UsersOnboardJSONBody
+// PutUserProfileJSONRequestBody defines body for PutUserProfile for application/json ContentType.
+type PutUserProfileJSONRequestBody PutUserProfileJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -84,8 +84,8 @@ type ServerInterface interface {
 	// (GET /user)
 	User(ctx *echo.Context) error
 	// Complete user onboarding.
-	// (POST /users/onboard)
-	UsersOnboard(ctx *echo.Context) error
+	// (PUT /user/profile)
+	PutUserProfile(ctx *echo.Context) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -113,14 +113,14 @@ func (w *ServerInterfaceWrapper) User(ctx *echo.Context) error {
 	return err
 }
 
-// UsersOnboard converts echo context to params.
-func (w *ServerInterfaceWrapper) UsersOnboard(ctx *echo.Context) error {
+// PutUserProfile converts echo context to params.
+func (w *ServerInterfaceWrapper) PutUserProfile(ctx *echo.Context) error {
 	var err error
 
 	ctx.Set(string(BearerAuthScopes), []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UsersOnboard(ctx)
+	err = w.Handler.PutUserProfile(ctx)
 	return err
 }
 
@@ -154,6 +154,6 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 
 	router.POST(baseURL+"/auth/spotify", wrapper.AuthSpotify)
 	router.GET(baseURL+"/user", wrapper.User)
-	router.POST(baseURL+"/users/onboard", wrapper.UsersOnboard)
+	router.PUT(baseURL+"/user/profile", wrapper.PutUserProfile)
 
 }
