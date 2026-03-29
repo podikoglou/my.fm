@@ -8,7 +8,7 @@ info:
 tags:
   - name: authentication
     description: Authentication-related operations
-  - name: user
+  - name: users
     description: User-related operations
 security:
   - BearerAuth: []
@@ -53,30 +53,30 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /user/me:
+  /users/me:
     get:
-      tags: [user]
+      tags: [users]
       summary: Get user info.
       description: >
         Returns information about the currently authenticated user.
-      operationId: userMe
+      operationId: usersMe
 
       responses:
         '200':
-          $ref: '#/components/responses/UserMeResponse'
+          $ref: '#/components/responses/UsersMeResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /user/onboard:
+  /users/onboard:
     post:
-      tags: [user]
+      tags: [users]
       summary: Complete user onboarding.
       description: >
         Sets the user's name and username, marking them as onboarded.
         Cannot be called if the user is already onboarded.
-      operationId: userOnboard
+      operationId: usersOnboard
 
       requestBody:
         required: true
@@ -163,7 +163,7 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GeneralError'
-    UserMeResponse:
+    UsersMeResponse:
       description: Information about a user.
       content:
         application/json:
