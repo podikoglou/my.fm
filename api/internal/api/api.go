@@ -54,8 +54,8 @@ type UserResponse struct {
 // bearerAuthContextKey is the context key for BearerAuth security scheme
 type bearerAuthContextKey string
 
-// AuthSpotifyJSONBody defines parameters for AuthSpotify.
-type AuthSpotifyJSONBody struct {
+// PostAuthSpotifyJSONBody defines parameters for PostAuthSpotify.
+type PostAuthSpotifyJSONBody struct {
 	// Code Authorization code from spotify.
 	Code string `json:"code"`
 }
@@ -69,8 +69,8 @@ type PutUserProfileJSONBody struct {
 	Username string `json:"username"`
 }
 
-// AuthSpotifyJSONRequestBody defines body for AuthSpotify for application/json ContentType.
-type AuthSpotifyJSONRequestBody AuthSpotifyJSONBody
+// PostAuthSpotifyJSONRequestBody defines body for PostAuthSpotify for application/json ContentType.
+type PostAuthSpotifyJSONRequestBody PostAuthSpotifyJSONBody
 
 // PutUserProfileJSONRequestBody defines body for PutUserProfile for application/json ContentType.
 type PutUserProfileJSONRequestBody PutUserProfileJSONBody
@@ -79,10 +79,10 @@ type PutUserProfileJSONRequestBody PutUserProfileJSONBody
 type ServerInterface interface {
 	// Authenticate with Spotify
 	// (POST /auth/spotify)
-	AuthSpotify(ctx *echo.Context) error
+	PostAuthSpotify(ctx *echo.Context) error
 	// Get the user's info.
 	// (GET /user)
-	User(ctx *echo.Context) error
+	GetUser(ctx *echo.Context) error
 	// Complete user onboarding.
 	// (PUT /user/profile)
 	PutUserProfile(ctx *echo.Context) error
@@ -93,23 +93,23 @@ type ServerInterfaceWrapper struct {
 	Handler ServerInterface
 }
 
-// AuthSpotify converts echo context to params.
-func (w *ServerInterfaceWrapper) AuthSpotify(ctx *echo.Context) error {
+// PostAuthSpotify converts echo context to params.
+func (w *ServerInterfaceWrapper) PostAuthSpotify(ctx *echo.Context) error {
 	var err error
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.AuthSpotify(ctx)
+	err = w.Handler.PostAuthSpotify(ctx)
 	return err
 }
 
-// User converts echo context to params.
-func (w *ServerInterfaceWrapper) User(ctx *echo.Context) error {
+// GetUser converts echo context to params.
+func (w *ServerInterfaceWrapper) GetUser(ctx *echo.Context) error {
 	var err error
 
 	ctx.Set(string(BearerAuthScopes), []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.User(ctx)
+	err = w.Handler.GetUser(ctx)
 	return err
 }
 
@@ -152,8 +152,8 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 		Handler: si,
 	}
 
-	router.POST(baseURL+"/auth/spotify", wrapper.AuthSpotify)
-	router.GET(baseURL+"/user", wrapper.User)
+	router.POST(baseURL+"/auth/spotify", wrapper.PostAuthSpotify)
+	router.GET(baseURL+"/user", wrapper.GetUser)
 	router.PUT(baseURL+"/user/profile", wrapper.PutUserProfile)
 
 }

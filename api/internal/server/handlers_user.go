@@ -23,8 +23,8 @@ func validateName(name string) bool {
 	return len(name) > 0 && len(name) <= 50
 }
 
-// User implements api.ServerInterface
-func (h *Handler) User(c *echo.Context) error {
+// GetUser implements api.ServerInterface
+func (h *Handler) GetUser(c *echo.Context) error {
 	user, _ := serverauth.CurrentUser(c)
 
 	onboarded := user.Onboarded.Valid && user.Onboarded.Int64 == 1

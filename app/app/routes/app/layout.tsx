@@ -1,6 +1,6 @@
 import { getDefaultStore } from "jotai";
 import { Outlet, redirect } from "react-router";
-import { userOptions } from "~/lib/api/@tanstack/react-query.gen";
+import { getUserOptions } from "~/lib/api/@tanstack/react-query.gen";
 import { queryClient } from "~/lib/query";
 import { authorizeSpotify } from "~/lib/spotify";
 import { accessTokenAtom } from "~/state/auth";
@@ -20,7 +20,7 @@ export async function clientLoader() {
   // ensure we're onboarded
   try {
     const data = await queryClient.fetchQuery({
-      ...userOptions({}),
+      ...getUserOptions({}),
     });
 
     // if not onboarded, make the user onboard

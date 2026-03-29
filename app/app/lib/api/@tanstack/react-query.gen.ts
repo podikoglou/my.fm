@@ -3,8 +3,8 @@
 import { queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { authSpotify, type Options, putUserProfile, user } from '../sdk.gen';
-import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse, PutUserProfileData, PutUserProfileError, PutUserProfileResponse, UserData, UserError, UserResponse } from '../types.gen';
+import { getUser, type Options, postAuthSpotify, putUserProfile } from '../sdk.gen';
+import type { GetUserData, GetUserError, GetUserResponse, PostAuthSpotifyData, PostAuthSpotifyError, PostAuthSpotifyResponse, PutUserProfileData, PutUserProfileError, PutUserProfileResponse } from '../types.gen';
 
 /**
  * Authenticate with Spotify
@@ -12,10 +12,10 @@ import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse, PutUserPro
  * Exchanges Spotify authorization code for my.fm access token. If no my.fm account exists with the associated Spotify email, one is created.
  *
  */
-export const authSpotifyMutation = (options?: Partial<Options<AuthSpotifyData>>): UseMutationOptions<AuthSpotifyResponse, AuthSpotifyError, Options<AuthSpotifyData>> => {
-    const mutationOptions: UseMutationOptions<AuthSpotifyResponse, AuthSpotifyError, Options<AuthSpotifyData>> = {
+export const postAuthSpotifyMutation = (options?: Partial<Options<PostAuthSpotifyData>>): UseMutationOptions<PostAuthSpotifyResponse, PostAuthSpotifyError, Options<PostAuthSpotifyData>> => {
+    const mutationOptions: UseMutationOptions<PostAuthSpotifyResponse, PostAuthSpotifyError, Options<PostAuthSpotifyData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await authSpotify({
+            const { data } = await postAuthSpotify({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -59,7 +59,7 @@ const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions
     return [params];
 };
 
-export const userQueryKey = (options?: Options<UserData>) => createQueryKey('user', options);
+export const getUserQueryKey = (options?: Options<GetUserData>) => createQueryKey('getUser', options);
 
 /**
  * Get the user's info.
@@ -67,9 +67,9 @@ export const userQueryKey = (options?: Options<UserData>) => createQueryKey('use
  * Returns information about the currently authenticated user.
  *
  */
-export const userOptions = (options?: Options<UserData>) => queryOptions<UserResponse, UserError, UserResponse, ReturnType<typeof userQueryKey>>({
+export const getUserOptions = (options?: Options<GetUserData>) => queryOptions<GetUserResponse, GetUserError, GetUserResponse, ReturnType<typeof getUserQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await user({
+        const { data } = await getUser({
             ...options,
             ...queryKey[0],
             signal,
@@ -77,7 +77,7 @@ export const userOptions = (options?: Options<UserData>) => queryOptions<UserRes
         });
         return data;
     },
-    queryKey: userQueryKey(options)
+    queryKey: getUserQueryKey(options)
 });
 
 /**

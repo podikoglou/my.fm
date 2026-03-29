@@ -22,7 +22,7 @@ paths:
       description: >
         Exchanges Spotify authorization code for my.fm access token.
         If no my.fm account exists with the associated Spotify email, one is created.
-      operationId: authSpotify
+      operationId: postAuthSpotify
 
       security: []
 
@@ -57,7 +57,7 @@ paths:
       summary: Get the user's info.
       description: >
         Returns information about the currently authenticated user.
-      operationId: user
+      operationId: getUser
 
       responses:
         '200':

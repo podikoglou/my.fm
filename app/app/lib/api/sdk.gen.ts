@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AuthSpotifyData, AuthSpotifyErrors, AuthSpotifyResponses, PutUserProfileData, PutUserProfileErrors, PutUserProfileResponses, UserData, UserErrors, UserResponses } from './types.gen';
+import type { GetUserData, GetUserErrors, GetUserResponses, PostAuthSpotifyData, PostAuthSpotifyErrors, PostAuthSpotifyResponses, PutUserProfileData, PutUserProfileErrors, PutUserProfileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -24,7 +24,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  * Exchanges Spotify authorization code for my.fm access token. If no my.fm account exists with the associated Spotify email, one is created.
  *
  */
-export const authSpotify = <ThrowOnError extends boolean = false>(options: Options<AuthSpotifyData, ThrowOnError>) => (options.client ?? client).post<AuthSpotifyResponses, AuthSpotifyErrors, ThrowOnError>({
+export const postAuthSpotify = <ThrowOnError extends boolean = false>(options: Options<PostAuthSpotifyData, ThrowOnError>) => (options.client ?? client).post<PostAuthSpotifyResponses, PostAuthSpotifyErrors, ThrowOnError>({
     url: '/auth/spotify',
     ...options,
     headers: {
@@ -39,7 +39,7 @@ export const authSpotify = <ThrowOnError extends boolean = false>(options: Optio
  * Returns information about the currently authenticated user.
  *
  */
-export const user = <ThrowOnError extends boolean = false>(options?: Options<UserData, ThrowOnError>) => (options?.client ?? client).get<UserResponses, UserErrors, ThrowOnError>({
+export const getUser = <ThrowOnError extends boolean = false>(options?: Options<GetUserData, ThrowOnError>) => (options?.client ?? client).get<GetUserResponses, GetUserErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/user',
     ...options

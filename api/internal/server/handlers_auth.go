@@ -14,12 +14,12 @@ import (
 	spotifyapi "github.com/zmb3/spotify/v2"
 )
 
-// AuthSpotify implements api.ServerInterface
-func (h *Handler) AuthSpotify(c *echo.Context) error {
+// PostAuthSpotify implements api.ServerInterface
+func (h *Handler) PostAuthSpotify(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	// read data
-	var req api.AuthSpotifyJSONBody
+	var req api.PostAuthSpotifyJSONBody
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "invalid data"})
 	}

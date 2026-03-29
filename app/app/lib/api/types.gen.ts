@@ -20,7 +20,7 @@ export type FormError = {
     };
 };
 
-export type AuthSpotifyData = {
+export type PostAuthSpotifyData = {
     body: {
         /**
          * Authorization code from spotify.
@@ -32,7 +32,7 @@ export type AuthSpotifyData = {
     url: '/auth/spotify';
 };
 
-export type AuthSpotifyErrors = {
+export type PostAuthSpotifyErrors = {
     /**
      * Invalid authorization code.
      */
@@ -43,9 +43,9 @@ export type AuthSpotifyErrors = {
     500: GeneralError;
 };
 
-export type AuthSpotifyError = AuthSpotifyErrors[keyof AuthSpotifyErrors];
+export type PostAuthSpotifyError = PostAuthSpotifyErrors[keyof PostAuthSpotifyErrors];
 
-export type AuthSpotifyResponses = {
+export type PostAuthSpotifyResponses = {
     /**
      * Response containing the access token
      */
@@ -57,16 +57,16 @@ export type AuthSpotifyResponses = {
     };
 };
 
-export type AuthSpotifyResponse = AuthSpotifyResponses[keyof AuthSpotifyResponses];
+export type PostAuthSpotifyResponse = PostAuthSpotifyResponses[keyof PostAuthSpotifyResponses];
 
-export type UserData = {
+export type GetUserData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/user';
 };
 
-export type UserErrors = {
+export type GetUserErrors = {
     /**
      * User is unauthorized.
      */
@@ -77,9 +77,9 @@ export type UserErrors = {
     500: GeneralError;
 };
 
-export type UserError = UserErrors[keyof UserErrors];
+export type GetUserError = GetUserErrors[keyof GetUserErrors];
 
-export type UserResponses = {
+export type GetUserResponses = {
     /**
      * Information about the user.
      */
@@ -107,7 +107,7 @@ export type UserResponses = {
     };
 };
 
-export type UserResponse = UserResponses[keyof UserResponses];
+export type GetUserResponse = GetUserResponses[keyof GetUserResponses];
 
 export type PutUserProfileData = {
     body: {

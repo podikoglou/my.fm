@@ -18,8 +18,8 @@ import { authorizeSpotify } from "~/lib/spotify";
 import { queryClient } from "~/lib/query";
 import {
   putUserProfileMutation,
-  userOptions,
-  userQueryKey,
+  getUserOptions,
+  getUserQueryKey,
 } from "~/lib/api/@tanstack/react-query.gen";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -38,7 +38,7 @@ export async function clientLoader() {
   // ensure we're onboarded
   try {
     const data = await queryClient.fetchQuery({
-      ...userOptions({}),
+      ...getUserOptions({}),
     });
 
     // if already onboarded, redirect to app
@@ -79,7 +79,7 @@ export default function OnboardPage() {
   const putUserProfile = useMutation({
     ...putUserProfileMutation(),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: userQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getUserQueryKey() });
       navigate("/app");
     },
     onError: (error) => console.error(error),
