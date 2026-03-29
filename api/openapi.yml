@@ -41,11 +41,7 @@ paths:
 
       responses:
         '200':
-          description: An access token for the user.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthSpotifyResponse'
+          $ref: '#/components/responses/AuthSpotifyResponse'
         '400':
           description: Invalid authorization code.
           content:
@@ -125,15 +121,6 @@ paths:
 
 components:
   schemas:
-    AuthSpotifyResponse:
-      description: Response containing the access token
-      type: object
-      required:
-        - accessToken
-      properties:
-        accessToken:
-          type: string
-          description: The access token for the my.fm user.
     GeneralError:
       description: A general API error
       type: object
@@ -193,6 +180,18 @@ components:
               onboarded:
                 type: boolean
                 description: Whether the user has finished being onboarded.
+    AuthSpotifyResponse:
+      description: Response containing the access token
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - accessToken
+            properties:
+              accessToken:
+                type: string
+                description: The access token for the my.fm user.
   securitySchemes:
     BearerAuth:
       description: Bearer token using a JWT

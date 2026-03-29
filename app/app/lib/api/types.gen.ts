@@ -5,16 +5,6 @@ export type ClientOptions = {
 };
 
 /**
- * Response containing the access token
- */
-export type AuthSpotifyResponse = {
-    /**
-     * The access token for the my.fm user.
-     */
-    accessToken: string;
-};
-
-/**
  * A general API error
  */
 export type GeneralError = {
@@ -57,12 +47,17 @@ export type AuthSpotifyError = AuthSpotifyErrors[keyof AuthSpotifyErrors];
 
 export type AuthSpotifyResponses = {
     /**
-     * An access token for the user.
+     * Response containing the access token
      */
-    200: AuthSpotifyResponse;
+    200: {
+        /**
+         * The access token for the my.fm user.
+         */
+        accessToken: string;
+    };
 };
 
-export type AuthSpotifyResponse2 = AuthSpotifyResponses[keyof AuthSpotifyResponses];
+export type AuthSpotifyResponse = AuthSpotifyResponses[keyof AuthSpotifyResponses];
 
 export type UserData = {
     body?: never;

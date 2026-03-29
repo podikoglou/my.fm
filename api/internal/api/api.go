@@ -11,12 +11,6 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
-// AuthSpotifyResponse Response containing the access token
-type AuthSpotifyResponse struct {
-	// AccessToken The access token for the my.fm user.
-	AccessToken string `json:"accessToken"`
-}
-
 // FormError Invalid form data
 type FormError struct {
 	Errors map[string]string `json:"errors"`
@@ -25,6 +19,12 @@ type FormError struct {
 // GeneralError A general API error
 type GeneralError struct {
 	Error string `json:"error"`
+}
+
+// AuthSpotifyResponse defines model for AuthSpotifyResponse.
+type AuthSpotifyResponse struct {
+	// AccessToken The access token for the my.fm user.
+	AccessToken string `json:"accessToken"`
 }
 
 // InternalServerError A general API error

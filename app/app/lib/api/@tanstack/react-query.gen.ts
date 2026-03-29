@@ -4,7 +4,7 @@ import { queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
 import { authSpotify, type Options, putUserProfile, user } from '../sdk.gen';
-import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse2, PutUserProfileData, PutUserProfileError, PutUserProfileResponse, UserData, UserError, UserResponse } from '../types.gen';
+import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse, PutUserProfileData, PutUserProfileError, PutUserProfileResponse, UserData, UserError, UserResponse } from '../types.gen';
 
 /**
  * Authenticate with Spotify
@@ -12,8 +12,8 @@ import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse2, PutUserPr
  * Exchanges Spotify authorization code for my.fm access token. If no my.fm account exists with the associated Spotify email, one is created.
  *
  */
-export const authSpotifyMutation = (options?: Partial<Options<AuthSpotifyData>>): UseMutationOptions<AuthSpotifyResponse2, AuthSpotifyError, Options<AuthSpotifyData>> => {
-    const mutationOptions: UseMutationOptions<AuthSpotifyResponse2, AuthSpotifyError, Options<AuthSpotifyData>> = {
+export const authSpotifyMutation = (options?: Partial<Options<AuthSpotifyData>>): UseMutationOptions<AuthSpotifyResponse, AuthSpotifyError, Options<AuthSpotifyData>> => {
+    const mutationOptions: UseMutationOptions<AuthSpotifyResponse, AuthSpotifyError, Options<AuthSpotifyData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await authSpotify({
                 ...options,
