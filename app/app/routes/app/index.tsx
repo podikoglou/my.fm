@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { userMeOptions } from "~/lib/api/@tanstack/react-query.gen";
+import { usersMeOptions } from "~/lib/api/@tanstack/react-query.gen";
 
 export default function AppIndex() {
   const { data, error } = useQuery({
-    ...userMeOptions({}),
+    ...usersMeOptions({}),
   });
 
   console.log({ data, error });
