@@ -3,8 +3,8 @@
 import { queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { authSpotify, type Options, usersMe, usersOnboard } from '../sdk.gen';
-import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse2, UsersMeData, UsersMeError, UsersMeResponse, UsersOnboardData, UsersOnboardError, UsersOnboardResponse } from '../types.gen';
+import { authSpotify, type Options, user, usersOnboard } from '../sdk.gen';
+import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse2, UserData, UserError, UserResponse, UsersOnboardData, UsersOnboardError, UsersOnboardResponse } from '../types.gen';
 
 /**
  * Authenticate with Spotify
@@ -59,17 +59,17 @@ const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions
     return [params];
 };
 
-export const usersMeQueryKey = (options?: Options<UsersMeData>) => createQueryKey('usersMe', options);
+export const userQueryKey = (options?: Options<UserData>) => createQueryKey('user', options);
 
 /**
- * Get user info.
+ * Get the user's info.
  *
  * Returns information about the currently authenticated user.
  *
  */
-export const usersMeOptions = (options?: Options<UsersMeData>) => queryOptions<UsersMeResponse, UsersMeError, UsersMeResponse, ReturnType<typeof usersMeQueryKey>>({
+export const userOptions = (options?: Options<UserData>) => queryOptions<UserResponse, UserError, UserResponse, ReturnType<typeof userQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await usersMe({
+        const { data } = await user({
             ...options,
             ...queryKey[0],
             signal,
@@ -77,7 +77,7 @@ export const usersMeOptions = (options?: Options<UsersMeData>) => queryOptions<U
         });
         return data;
     },
-    queryKey: usersMeQueryKey(options)
+    queryKey: userQueryKey(options)
 });
 
 /**

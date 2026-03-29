@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AuthSpotifyData, AuthSpotifyErrors, AuthSpotifyResponses, UsersMeData, UsersMeErrors, UsersMeResponses, UsersOnboardData, UsersOnboardErrors, UsersOnboardResponses } from './types.gen';
+import type { AuthSpotifyData, AuthSpotifyErrors, AuthSpotifyResponses, UserData, UserErrors, UserResponses, UsersOnboardData, UsersOnboardErrors, UsersOnboardResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -34,14 +34,14 @@ export const authSpotify = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
- * Get user info.
+ * Get the user's info.
  *
  * Returns information about the currently authenticated user.
  *
  */
-export const usersMe = <ThrowOnError extends boolean = false>(options?: Options<UsersMeData, ThrowOnError>) => (options?.client ?? client).get<UsersMeResponses, UsersMeErrors, ThrowOnError>({
+export const user = <ThrowOnError extends boolean = false>(options?: Options<UserData, ThrowOnError>) => (options?.client ?? client).get<UserResponses, UserErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/users/me',
+    url: '/user',
     ...options
 });
 

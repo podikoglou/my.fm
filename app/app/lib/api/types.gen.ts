@@ -64,14 +64,14 @@ export type AuthSpotifyResponses = {
 
 export type AuthSpotifyResponse2 = AuthSpotifyResponses[keyof AuthSpotifyResponses];
 
-export type UsersMeData = {
+export type UserData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/users/me';
+    url: '/user';
 };
 
-export type UsersMeErrors = {
+export type UserErrors = {
     /**
      * User is unauthorized.
      */
@@ -82,11 +82,11 @@ export type UsersMeErrors = {
     500: GeneralError;
 };
 
-export type UsersMeError = UsersMeErrors[keyof UsersMeErrors];
+export type UserError = UserErrors[keyof UserErrors];
 
-export type UsersMeResponses = {
+export type UserResponses = {
     /**
-     * Information about a user.
+     * Information about the user.
      */
     200: {
         /**
@@ -112,7 +112,7 @@ export type UsersMeResponses = {
     };
 };
 
-export type UsersMeResponse = UsersMeResponses[keyof UsersMeResponses];
+export type UserResponse = UserResponses[keyof UserResponses];
 
 export type UsersOnboardData = {
     body: {
