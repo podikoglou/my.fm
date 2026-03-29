@@ -3,8 +3,8 @@
 import { queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { authSpotify, type Options, user, usersOnboard } from '../sdk.gen';
-import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse2, UserData, UserError, UserResponse, UsersOnboardData, UsersOnboardError, UsersOnboardResponse } from '../types.gen';
+import { authSpotify, type Options, putUserProfile, user } from '../sdk.gen';
+import type { AuthSpotifyData, AuthSpotifyError, AuthSpotifyResponse2, PutUserProfileData, PutUserProfileError, PutUserProfileResponse, UserData, UserError, UserResponse } from '../types.gen';
 
 /**
  * Authenticate with Spotify
@@ -83,13 +83,13 @@ export const userOptions = (options?: Options<UserData>) => queryOptions<UserRes
 /**
  * Complete user onboarding.
  *
- * Sets the user's name and username, marking them as onboarded. Cannot be called if the user is already onboarded.
+ * Sets the user's name and username, marking them as onboarded. Can only be called once (cannot be called if the user is onboarded.)
  *
  */
-export const usersOnboardMutation = (options?: Partial<Options<UsersOnboardData>>): UseMutationOptions<UsersOnboardResponse, UsersOnboardError, Options<UsersOnboardData>> => {
-    const mutationOptions: UseMutationOptions<UsersOnboardResponse, UsersOnboardError, Options<UsersOnboardData>> = {
+export const putUserProfileMutation = (options?: Partial<Options<PutUserProfileData>>): UseMutationOptions<PutUserProfileResponse, PutUserProfileError, Options<PutUserProfileData>> => {
+    const mutationOptions: UseMutationOptions<PutUserProfileResponse, PutUserProfileError, Options<PutUserProfileData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await usersOnboard({
+            const { data } = await putUserProfile({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

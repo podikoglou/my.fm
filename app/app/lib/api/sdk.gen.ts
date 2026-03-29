@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AuthSpotifyData, AuthSpotifyErrors, AuthSpotifyResponses, UserData, UserErrors, UserResponses, UsersOnboardData, UsersOnboardErrors, UsersOnboardResponses } from './types.gen';
+import type { AuthSpotifyData, AuthSpotifyErrors, AuthSpotifyResponses, PutUserProfileData, PutUserProfileErrors, PutUserProfileResponses, UserData, UserErrors, UserResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -48,12 +48,12 @@ export const user = <ThrowOnError extends boolean = false>(options?: Options<Use
 /**
  * Complete user onboarding.
  *
- * Sets the user's name and username, marking them as onboarded. Cannot be called if the user is already onboarded.
+ * Sets the user's name and username, marking them as onboarded. Can only be called once (cannot be called if the user is onboarded.)
  *
  */
-export const usersOnboard = <ThrowOnError extends boolean = false>(options: Options<UsersOnboardData, ThrowOnError>) => (options.client ?? client).post<UsersOnboardResponses, UsersOnboardErrors, ThrowOnError>({
+export const putUserProfile = <ThrowOnError extends boolean = false>(options: Options<PutUserProfileData, ThrowOnError>) => (options.client ?? client).put<PutUserProfileResponses, PutUserProfileErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/users/onboard',
+    url: '/user/profile',
     ...options,
     headers: {
         'Content-Type': 'application/json',

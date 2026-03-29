@@ -114,7 +114,7 @@ export type UserResponses = {
 
 export type UserResponse = UserResponses[keyof UserResponses];
 
-export type UsersOnboardData = {
+export type PutUserProfileData = {
     body: {
         /**
          * The user's display name (1-50 characters).
@@ -127,10 +127,10 @@ export type UsersOnboardData = {
     };
     path?: never;
     query?: never;
-    url: '/users/onboard';
+    url: '/user/profile';
 };
 
-export type UsersOnboardErrors = {
+export type PutUserProfileErrors = {
     /**
      * Invalid request data. This can be due to: - User is already onboarded - Name is not between 1-50 characters - Username is not between 2-30 characters - Username contains invalid characters (only letters, numbers, underscores, and hyphens allowed)
      *
@@ -146,13 +146,13 @@ export type UsersOnboardErrors = {
     500: GeneralError;
 };
 
-export type UsersOnboardError = UsersOnboardErrors[keyof UsersOnboardErrors];
+export type PutUserProfileError = PutUserProfileErrors[keyof PutUserProfileErrors];
 
-export type UsersOnboardResponses = {
+export type PutUserProfileResponses = {
     /**
      * Onboarding completed successfully.
      */
     204: void;
 };
 
-export type UsersOnboardResponse = UsersOnboardResponses[keyof UsersOnboardResponses];
+export type PutUserProfileResponse = PutUserProfileResponses[keyof PutUserProfileResponses];
