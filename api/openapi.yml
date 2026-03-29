@@ -71,14 +71,14 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /users/onboard:
-    post:
-      tags: [users]
+  /user/profile:
+    put:
+      tags: [users, self]
       summary: Complete user onboarding.
       description: >
         Sets the user's name and username, marking them as onboarded.
-        Cannot be called if the user is already onboarded.
-      operationId: usersOnboard
+        Can only be called once (cannot be called if the user is onboarded.)
+      operationId: putUserProfile
 
       requestBody:
         required: true
@@ -121,7 +121,7 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/InternalServerError' 
 
 components:
   schemas:
