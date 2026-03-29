@@ -33,8 +33,8 @@ type InternalServerError = GeneralError
 // UnauthorizedError A general API error
 type UnauthorizedError = GeneralError
 
-// UserMeResponse defines model for UserMeResponse.
-type UserMeResponse struct {
+// UsersMeResponse defines model for UsersMeResponse.
+type UsersMeResponse struct {
 	// Email The email of the user as per the auth provider.
 	Email string `json:"email"`
 
@@ -60,8 +60,8 @@ type AuthSpotifyJSONBody struct {
 	Code string `json:"code"`
 }
 
-// UserOnboardJSONBody defines parameters for UserOnboard.
-type UserOnboardJSONBody struct {
+// UsersOnboardJSONBody defines parameters for UsersOnboard.
+type UsersOnboardJSONBody struct {
 	// Name The user's display name (1-50 characters).
 	Name string `json:"name"`
 
@@ -72,8 +72,8 @@ type UserOnboardJSONBody struct {
 // AuthSpotifyJSONRequestBody defines body for AuthSpotify for application/json ContentType.
 type AuthSpotifyJSONRequestBody AuthSpotifyJSONBody
 
-// UserOnboardJSONRequestBody defines body for UserOnboard for application/json ContentType.
-type UserOnboardJSONRequestBody UserOnboardJSONBody
+// UsersOnboardJSONRequestBody defines body for UsersOnboard for application/json ContentType.
+type UsersOnboardJSONRequestBody UsersOnboardJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -81,11 +81,11 @@ type ServerInterface interface {
 	// (POST /auth/spotify)
 	AuthSpotify(ctx *echo.Context) error
 	// Get user info.
-	// (GET /user/me)
-	UserMe(ctx *echo.Context) error
-	// Complete user onboard.
-	// (POST /user/onboard)
-	UserOnboard(ctx *echo.Context) error
+	// (GET /users/me)
+	UsersMe(ctx *echo.Context) error
+	// Complete user onboarding.
+	// (POST /users/onboard)
+	UsersOnboard(ctx *echo.Context) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -102,25 +102,25 @@ func (w *ServerInterfaceWrapper) AuthSpotify(ctx *echo.Context) error {
 	return err
 }
 
-// UserMe converts echo context to params.
-func (w *ServerInterfaceWrapper) UserMe(ctx *echo.Context) error {
+// UsersMe converts echo context to params.
+func (w *ServerInterfaceWrapper) UsersMe(ctx *echo.Context) error {
 	var err error
 
 	ctx.Set(string(BearerAuthScopes), []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UserMe(ctx)
+	err = w.Handler.UsersMe(ctx)
 	return err
 }
 
-// UserOnboard converts echo context to params.
-func (w *ServerInterfaceWrapper) UserOnboard(ctx *echo.Context) error {
+// UsersOnboard converts echo context to params.
+func (w *ServerInterfaceWrapper) UsersOnboard(ctx *echo.Context) error {
 	var err error
 
 	ctx.Set(string(BearerAuthScopes), []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UserOnboard(ctx)
+	err = w.Handler.UsersOnboard(ctx)
 	return err
 }
 
@@ -153,7 +153,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	}
 
 	router.POST(baseURL+"/auth/spotify", wrapper.AuthSpotify)
-	router.GET(baseURL+"/user/me", wrapper.UserMe)
-	router.POST(baseURL+"/user/onboard", wrapper.UserOnboard)
+	router.GET(baseURL+"/users/me", wrapper.UsersMe)
+	router.POST(baseURL+"/users/onboard", wrapper.UsersOnboard)
 
 }
