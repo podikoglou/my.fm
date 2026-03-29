@@ -33,8 +33,8 @@ type InternalServerError = GeneralError
 // UnauthorizedError A general API error
 type UnauthorizedError = GeneralError
 
-// UsersMeResponse defines model for UsersMeResponse.
-type UsersMeResponse struct {
+// UserResponse defines model for UserResponse.
+type UserResponse struct {
 	// Email The email of the user as per the auth provider.
 	Email string `json:"email"`
 
@@ -80,9 +80,9 @@ type ServerInterface interface {
 	// Authenticate with Spotify
 	// (POST /auth/spotify)
 	AuthSpotify(ctx *echo.Context) error
-	// Get user info.
-	// (GET /users/me)
-	UsersMe(ctx *echo.Context) error
+	// Get the user's info.
+	// (GET /user)
+	User(ctx *echo.Context) error
 	// Complete user onboarding.
 	// (POST /users/onboard)
 	UsersOnboard(ctx *echo.Context) error
@@ -102,14 +102,14 @@ func (w *ServerInterfaceWrapper) AuthSpotify(ctx *echo.Context) error {
 	return err
 }
 
-// UsersMe converts echo context to params.
-func (w *ServerInterfaceWrapper) UsersMe(ctx *echo.Context) error {
+// User converts echo context to params.
+func (w *ServerInterfaceWrapper) User(ctx *echo.Context) error {
 	var err error
 
 	ctx.Set(string(BearerAuthScopes), []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UsersMe(ctx)
+	err = w.Handler.User(ctx)
 	return err
 }
 
@@ -153,7 +153,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	}
 
 	router.POST(baseURL+"/auth/spotify", wrapper.AuthSpotify)
-	router.GET(baseURL+"/users/me", wrapper.UsersMe)
+	router.GET(baseURL+"/user", wrapper.User)
 	router.POST(baseURL+"/users/onboard", wrapper.UsersOnboard)
 
 }

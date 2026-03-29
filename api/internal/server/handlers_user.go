@@ -23,13 +23,13 @@ func validateName(name string) bool {
 	return len(name) > 0 && len(name) <= 50
 }
 
-// UsersMe implements api.ServerInterface
-func (h *Handler) UsersMe(c *echo.Context) error {
+// User implements api.ServerInterface
+func (h *Handler) User(c *echo.Context) error {
 	user, _ := serverauth.CurrentUser(c)
 
 	onboarded := user.Onboarded.Valid && user.Onboarded.Int64 == 1
 
-	return c.JSON(200, api.UsersMeResponse{
+	return c.JSON(200, api.UserResponse{
 		Id:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
