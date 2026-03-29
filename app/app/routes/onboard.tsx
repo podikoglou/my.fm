@@ -16,7 +16,11 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { authorizeSpotify } from "~/lib/spotify";
 import { queryClient } from "~/lib/query";
-import { userMeOptions, userMeQueryKey, userOnboardMutation } from "~/lib/api/@tanstack/react-query.gen";
+import {
+  putUserProfileMutation,
+  userOptions,
+  userQueryKey,
+} from "~/lib/api/@tanstack/react-query.gen";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 // NOTE: this loader should be almost identical with the loader in ./app/layout.tsx (just with the opposite logic)
@@ -34,7 +38,7 @@ export async function clientLoader() {
   // ensure we're onboarded
   try {
     const data = await queryClient.fetchQuery({
-      ...userMeOptions({}),
+      ...userOptions({}),
     });
 
     // if already onboarded, redirect to app
@@ -72,17 +76,17 @@ export default function Onboard() {
     },
   });
 
-  const userOnboard = useMutation({
-    ...userOnboardMutation(),
+  const putUserProfile = useMutation({
+    ...putUserProfileMutation(),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: userMeQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: userQueryKey() });
       navigate("/app");
     },
     onError: (error) => console.error(error),
   });
 
   const onSubmit = async (data: FormValues) => {
-    userOnboard.mutate({
+    putUserProfile.mutate({
       body: data,
     });
   };

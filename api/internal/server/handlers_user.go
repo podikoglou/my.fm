@@ -23,13 +23,13 @@ func validateName(name string) bool {
 	return len(name) > 0 && len(name) <= 50
 }
 
-// UserMe implements api.ServerInterface
-func (h *Handler) UserMe(c *echo.Context) error {
+// User implements api.ServerInterface
+func (h *Handler) User(c *echo.Context) error {
 	user, _ := serverauth.CurrentUser(c)
 
 	onboarded := user.Onboarded.Valid && user.Onboarded.Int64 == 1
 
-	return c.JSON(200, api.UserMeResponse{
+	return c.JSON(200, api.UserResponse{
 		Id:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
@@ -38,8 +38,8 @@ func (h *Handler) UserMe(c *echo.Context) error {
 	})
 }
 
-// UserOnboarding implements api.ServerInterface
-func (h *Handler) UserOnboard(c *echo.Context) error {
+// PutUserProfile implements api.ServerInterface
+func (h *Handler) PutUserProfile(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user, _ := serverauth.CurrentUser(c)
 
@@ -48,7 +48,7 @@ func (h *Handler) UserOnboard(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "already onboarded"})
 	}
 
-	var req api.UserOnboardJSONBody
+	var req api.PutUserProfileJSONBody
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "invalid data"})
 	}

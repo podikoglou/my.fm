@@ -8,8 +8,10 @@ info:
 tags:
   - name: authentication
     description: Authentication-related operations
-  - name: user
+  - name: users
     description: User-related operations
+  - name: self
+    description: Operations related to the user's own user
 security:
   - BearerAuth: []
 paths:
@@ -53,30 +55,30 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /user/me:
+  /user:
     get:
-      tags: [user]
-      summary: Get user info.
+      tags: [users, self]
+      summary: Get the user's info.
       description: >
         Returns information about the currently authenticated user.
-      operationId: userMe
+      operationId: user
 
       responses:
         '200':
-          $ref: '#/components/responses/UserMeResponse'
+          $ref: '#/components/responses/UserResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /user/onboard:
-    post:
-      tags: [user]
+  /user/profile:
+    put:
+      tags: [users, self]
       summary: Complete user onboarding.
       description: >
         Sets the user's name and username, marking them as onboarded.
-        Cannot be called if the user is already onboarded.
-      operationId: userOnboard
+        Can only be called once (cannot be called if the user is onboarded.)
+      operationId: putUserProfile
 
       requestBody:
         required: true
@@ -119,7 +121,7 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/InternalServerError' 
 
 components:
   schemas:
@@ -163,8 +165,8 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GeneralError'
-    UserMeResponse:
-      description: Information about a user.
+    UserResponse:
+      description: Information about the user.
       content:
         application/json:
           schema:
