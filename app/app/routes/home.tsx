@@ -9,6 +9,6 @@ export function meta({}: Route.MetaArgs) {
 
 export function clientLoader({ params }: Route.ClientLoaderArgs) {}
 
-export default function Home() {
+export default function IndexPage() {
   return <></>;
 }

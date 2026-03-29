@@ -65,7 +65,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function Onboard() {
+export default function OnboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const form = useForm<FormValues>({

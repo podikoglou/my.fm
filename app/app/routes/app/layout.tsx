@@ -40,7 +40,7 @@ export async function clientLoader() {
   }
 }
 
-export default function Layout() {
+export default function AppLayout() {
   return (
     <>
       <Outlet />
