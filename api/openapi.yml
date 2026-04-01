@@ -62,6 +62,12 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/UserResponse'
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
@@ -118,6 +124,31 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError' 
+
+  /users/{username}:
+    get:
+      tags: [users]
+      summary: Get a user's public profile.
+      description: >
+        Returns some public information about a given user.
+      operationId: getUsers
+
+      parameters:
+        - name: username
+          description: The username of the user.
+          in: path
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          $ref: '#/components/responses/UsersResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 
 components:
   schemas:
@@ -192,6 +223,27 @@ components:
               accessToken:
                 type: string
                 description: The access token for the my.fm user.
+    UsersResponse:
+      description: Information about a given user.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - id
+              - name
+              - username
+            properties:
+              id:
+                type: string
+                description: The ID of the user.
+              name:
+                type: string
+                description: The name of the user.
+              username:
+                type: string
+                description: The username of the user.
+
   securitySchemes:
     BearerAuth:
       description: Bearer token using a JWT
