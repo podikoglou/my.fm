@@ -43,7 +43,7 @@ func (h *Handler) GetUsers(c *echo.Context, username string) error {
 	user, err := h.q.GetUserByUsername(c.Request().Context(), username)
 
 	if err != nil {
-		return c.JSON(200, api.GeneralError{Error: "user not found"})
+		return c.JSON(404, api.GeneralError{Error: "user not found"})
 	}
 
 	return c.JSON(200, api.UsersResponse{
