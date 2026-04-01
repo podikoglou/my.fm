@@ -29,7 +29,7 @@ func (h *Handler) GetUser(c *echo.Context) error {
 
 	onboarded := user.Onboarded.Valid && user.Onboarded.Int64 == 1
 
-	return c.JSON(200, api.UserResponse{
+	return c.JSON(http.StatusOK, api.UserResponse{
 		Id:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
@@ -41,16 +41,16 @@ func (h *Handler) GetUser(c *echo.Context) error {
 // GetUsers implements api.ServerInterface
 func (h *Handler) GetUsers(c *echo.Context, username string) error {
 	if !validateUsername(username) {
-		return c.JSON(400, api.GeneralError{Error: "invalid username"})
+		return c.JSON(http.StatusBadRequest, api.GeneralError{Error: "invalid username"})
 	}
 
 	user, err := h.q.GetUserByUsername(c.Request().Context(), username)
 
 	if err != nil {
-		return c.JSON(404, api.GeneralError{Error: "user not found"})
+		return c.JSON(http.StatusNotFound, api.GeneralError{Error: "user not found"})
 	}
 
-	return c.JSON(200, api.UsersResponse{
+	return c.JSON(http.StatusOK, api.UsersResponse{
 		Id:       user.ID,
 		Name:     user.Username,
 		Username: user.Name,
@@ -97,5 +97,5 @@ func (h *Handler) PutUserProfile(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, api.GeneralError{Error: err.Error()})
 	}
 
-	return c.NoContent(204)
+	return c.NoContent(http.StatusNoContent)
 }
