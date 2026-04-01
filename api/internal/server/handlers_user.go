@@ -38,6 +38,21 @@ func (h *Handler) GetUser(c *echo.Context) error {
 	})
 }
 
+// GetUsers implements api.ServerInterface
+func (h *Handler) GetUsers(c *echo.Context, username string) error {
+	user, err := h.q.GetUserByUsername(c.Request().Context(), username)
+
+	if err != nil {
+		return c.JSON(200, api.GeneralError{Error: "user not found"})
+	}
+
+	return c.JSON(200, api.UsersResponse{
+		Id:       user.ID,
+		Name:     user.Username,
+		Username: user.Name,
+	})
+}
+
 // PutUserProfile implements api.ServerInterface
 func (h *Handler) PutUserProfile(c *echo.Context) error {
 	ctx := c.Request().Context()

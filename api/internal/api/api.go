@@ -4,7 +4,11 @@
 package api
 
 import (
+	"fmt"
+	"net/http"
+
 	"github.com/labstack/echo/v5"
+	"github.com/oapi-codegen/runtime"
 )
 
 const (
@@ -51,6 +55,18 @@ type UserResponse struct {
 	Username string `json:"username"`
 }
 
+// UsersResponse defines model for UsersResponse.
+type UsersResponse struct {
+	// Id The ID of the user.
+	Id string `json:"id"`
+
+	// Name The name of the user.
+	Name string `json:"name"`
+
+	// Username The username of the user.
+	Username string `json:"username"`
+}
+
 // bearerAuthContextKey is the context key for BearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -86,6 +102,9 @@ type ServerInterface interface {
 	// Complete user onboarding.
 	// (PUT /user/profile)
 	PutUserProfile(ctx *echo.Context) error
+	// Get a user's public profile.
+	// (GET /users/{username})
+	GetUsers(ctx *echo.Context, username string) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -124,6 +143,24 @@ func (w *ServerInterfaceWrapper) PutUserProfile(ctx *echo.Context) error {
 	return err
 }
 
+// GetUsers converts echo context to params.
+func (w *ServerInterfaceWrapper) GetUsers(ctx *echo.Context) error {
+	var err error
+	// ------------- Path parameter "username" -------------
+	var username string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "username", ctx.Param("username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter username: %s", err))
+	}
+
+	ctx.Set(string(BearerAuthScopes), []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetUsers(ctx, username)
+	return err
+}
+
 // This is a simple interface which specifies echo.Route addition functions which
 // are present on both echo.Echo and echo.Group, since we want to allow using
 // either of them for path registration
@@ -155,5 +192,6 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/auth/spotify", wrapper.PostAuthSpotify)
 	router.GET(baseURL+"/user", wrapper.GetUser)
 	router.PUT(baseURL+"/user/profile", wrapper.PutUserProfile)
+	router.GET(baseURL+"/users/:username", wrapper.GetUsers)
 
 }
