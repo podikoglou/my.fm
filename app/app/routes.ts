@@ -4,7 +4,12 @@ export default [
   layout("routes/layout.tsx", [
     index("routes/home.tsx"),
 
-    ...prefix("app", [layout("routes/app/layout.tsx", [index("routes/app/index.tsx")])]),
+    ...prefix("app", [
+      layout("routes/app/layout.tsx", [
+        index("routes/app/index.tsx"),
+        route("user/:username", "routes/app/user.tsx"),
+      ]),
+    ]),
 
     route("onboard", "routes/onboard.tsx"),
     ...prefix("auth", [route("spotify/callback", "routes/auth/spotify/callback.tsx")]),
