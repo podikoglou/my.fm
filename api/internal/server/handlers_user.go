@@ -40,6 +40,10 @@ func (h *Handler) GetUser(c *echo.Context) error {
 
 // GetUsers implements api.ServerInterface
 func (h *Handler) GetUsers(c *echo.Context, username string) error {
+	if !validateUsername(username) {
+		return c.JSON(400, api.GeneralError{Error: "invalid username"})
+	}
+
 	user, err := h.q.GetUserByUsername(c.Request().Context(), username)
 
 	if err != nil {
