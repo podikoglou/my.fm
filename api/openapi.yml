@@ -62,12 +62,6 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/UserResponse'
-        '404':
-          description: User not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GeneralError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
@@ -148,6 +142,12 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralError'
         '400':
           description: Invalid username
           content:
