@@ -3,8 +3,8 @@
 import { queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { getUser, type Options, postAuthSpotify, putUserProfile } from '../sdk.gen';
-import type { GetUserData, GetUserError, GetUserResponse, PostAuthSpotifyData, PostAuthSpotifyError, PostAuthSpotifyResponse, PutUserProfileData, PutUserProfileError, PutUserProfileResponse } from '../types.gen';
+import { getUser, getUsers, type Options, postAuthSpotify, putUserProfile } from '../sdk.gen';
+import type { GetUserData, GetUserError, GetUserResponse, GetUsersData, GetUsersError, GetUsersResponse, PostAuthSpotifyData, PostAuthSpotifyError, PostAuthSpotifyResponse, PutUserProfileData, PutUserProfileError, PutUserProfileResponse } from '../types.gen';
 
 /**
  * Authenticate with Spotify
@@ -99,3 +99,24 @@ export const putUserProfileMutation = (options?: Partial<Options<PutUserProfileD
     };
     return mutationOptions;
 };
+
+export const getUsersQueryKey = (options: Options<GetUsersData>) => createQueryKey('getUsers', options);
+
+/**
+ * Get a user's public profile.
+ *
+ * Returns some public information about a given user.
+ *
+ */
+export const getUsersOptions = (options: Options<GetUsersData>) => queryOptions<GetUsersResponse, GetUsersError, GetUsersResponse, ReturnType<typeof getUsersQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getUsers({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getUsersQueryKey(options)
+});

@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetUserData, GetUserErrors, GetUserResponses, PostAuthSpotifyData, PostAuthSpotifyErrors, PostAuthSpotifyResponses, PutUserProfileData, PutUserProfileErrors, PutUserProfileResponses } from './types.gen';
+import type { GetUserData, GetUserErrors, GetUserResponses, GetUsersData, GetUsersErrors, GetUsersResponses, PostAuthSpotifyData, PostAuthSpotifyErrors, PostAuthSpotifyResponses, PutUserProfileData, PutUserProfileErrors, PutUserProfileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -59,4 +59,16 @@ export const putUserProfile = <ThrowOnError extends boolean = false>(options: Op
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Get a user's public profile.
+ *
+ * Returns some public information about a given user.
+ *
+ */
+export const getUsers = <ThrowOnError extends boolean = false>(options: Options<GetUsersData, ThrowOnError>) => (options.client ?? client).get<GetUsersResponses, GetUsersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/users/{username}',
+    ...options
 });

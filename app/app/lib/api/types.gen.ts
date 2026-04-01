@@ -151,3 +151,58 @@ export type PutUserProfileResponses = {
 };
 
 export type PutUserProfileResponse = PutUserProfileResponses[keyof PutUserProfileResponses];
+
+export type GetUsersData = {
+    body?: never;
+    path: {
+        /**
+         * The username of the user.
+         */
+        username: string;
+    };
+    query?: never;
+    url: '/users/{username}';
+};
+
+export type GetUsersErrors = {
+    /**
+     * Invalid username
+     */
+    400: GeneralError;
+    /**
+     * User is unauthorized.
+     */
+    401: GeneralError;
+    /**
+     * User not found.
+     */
+    404: GeneralError;
+    /**
+     * Unexpected internal error.
+     */
+    500: GeneralError;
+};
+
+export type GetUsersError = GetUsersErrors[keyof GetUsersErrors];
+
+export type GetUsersResponses = {
+    /**
+     * Information about a given user.
+     */
+    200: {
+        /**
+         * The ID of the user.
+         */
+        id: string;
+        /**
+         * The name of the user.
+         */
+        name: string;
+        /**
+         * The username of the user.
+         */
+        username: string;
+    };
+};
+
+export type GetUsersResponse = GetUsersResponses[keyof GetUsersResponses];
