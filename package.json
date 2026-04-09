@@ -1,0 +1,8 @@
+{
+  "name": "my.fm",
+  "version": "1.0.0",
+  "workspaces": [
+    "api/",
+    "app/"
+  ]
+}
