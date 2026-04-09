@@ -9,9 +9,12 @@
     "fmt:check": "oxfmt --check"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.2",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.12.12"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.10"
   }
 }
