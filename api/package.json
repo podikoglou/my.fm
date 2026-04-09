@@ -6,8 +6,9 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check"
-    "drizzle:generate": "drizzle-kit generate"
+    "fmt:check": "oxfmt --check",
+    "drizzle:generate": "drizzle-kit generate",
+    "drizzle:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@libsql/client": "^0.17.2",
