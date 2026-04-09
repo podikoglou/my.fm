@@ -8,6 +8,13 @@ import (
 	"database/sql"
 )
 
+type Scrobble struct {
+	ID         string
+	UserID     string
+	CreatedAt  string
+	SpotifyUri string
+}
+
 type User struct {
 	ID                     string
 	Username               string

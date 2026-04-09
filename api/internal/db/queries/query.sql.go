@@ -11,11 +11,8 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (
-  id, username, name, email, onboarded
-) VALUES (
-  ?, ?, ?, ?, FALSE
-)
+INSERT INTO users(id, username, name, email, onboarded)
+VALUES (?, ?, ?, ?, FALSE)
 RETURNING id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded
 `
 
@@ -49,9 +46,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded FROM users
-WHERE email = ?
-LIMIT 1
+SELECT id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded FROM users WHERE email = ? LIMIT 1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -72,9 +67,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded FROM users
-WHERE id = ?
-LIMIT 1
+SELECT id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded FROM users WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetUserById(ctx context.Context, id string) (User, error) {
@@ -95,9 +88,7 @@ func (q *Queries) GetUserById(ctx context.Context, id string) (User, error) {
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded FROM users
-WHERE username = ?
-LIMIT 1
+SELECT id, username, name, email, spotify_access_token, spotify_refresh_token, spotify_token_expiration, created_at, onboarded FROM users WHERE username = ? LIMIT 1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -118,11 +109,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 }
 
 const onboardUser = `-- name: OnboardUser :exec
-UPDATE users
-set username = ?,
-    name = ?,
-    onboarded = true
-WHERE id = ?
+UPDATE users SET username = ?, name = ?, onboarded = true WHERE id = ?
 `
 
 type OnboardUserParams struct {
@@ -138,10 +125,12 @@ func (q *Queries) OnboardUser(ctx context.Context, arg OnboardUserParams) error 
 
 const updateUserSpotifyTokens = `-- name: UpdateUserSpotifyTokens :exec
 UPDATE users
-set spotify_access_token = ?,
-    spotify_refresh_token = ?,
-    spotify_token_expiration = ?
-WHERE id = ?
+SET
+  spotify_access_token = ?,
+  spotify_refresh_token = ?,
+  spotify_token_expiration = ?
+WHERE
+  id = ?
 `
 
 type UpdateUserSpotifyTokensParams struct {
