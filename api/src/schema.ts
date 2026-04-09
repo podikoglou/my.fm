@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const usersTable = sqliteTable("users", {
@@ -5,7 +6,7 @@ export const usersTable = sqliteTable("users", {
   username: text().notNull().unique(),
   name: text().notNull(),
   email: text().notNull(),
-  createdAt: integer({ mode: "timestamp" }),
+  createdAt: integer({ mode: "timestamp" }).default(sql`now()`),
 
   spotifyAccessCode: text(),
   spotifyRefreshToken: text(),

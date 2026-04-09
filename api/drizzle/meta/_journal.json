@@ -15,6 +15,13 @@
       "when": 1775758879957,
       "tag": "0001_illegal_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775929272257,
+      "tag": "0002_useful_carmella_unuscione",
+      "breakpoints": true
     }
   ]
 }
