@@ -12,6 +12,8 @@ tags:
     description: User-related operations
   - name: self
     description: Operations related to the user's own user
+  - name: scrobbling
+    description: Scrobbling-related operations
 security:
   - BearerAuth: []
 paths:
@@ -155,6 +157,50 @@ paths:
               schema:
                 $ref: '#/components/schemas/GeneralError'
 
+  /scrobbles:
+    put:
+      tags: [self, scrobbling]
+      summary: Record a track play
+      description: >
+        Logs the play of a track in the database and informs any other
+        concerned components.
+      operationId: scrobble
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+              properties:
+                date:
+                  type: string
+                  description: Unix time (in seconds) of the the player 
+                spotifyUri:
+                  type: string
+                  description: Spotify's internal idenifier for the track
+
+      responses:
+        '200':
+          $ref: '#/components/responses/ScrobbleResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '404':
+          description: Track not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralError'
+        '400':
+          description: Invalid date or Spotify URI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralError'
 
 components:
   schemas:
@@ -249,6 +295,26 @@ components:
               username:
                 type: string
                 description: The username of the user.
+    ScrobbleResponse:
+      description: Information about a scrobble.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - id
+              - name
+              - username
+            properties:
+              id:
+                type: string
+                description: The ID of the scrobbje.
+              date:
+                type: string
+                description: The UNIX timestamp (in seconds) of the scrobble.
+              spotifyUri:
+                type: string
+                description: The Spotify URI of the scrobbled track.
 
   securitySchemes:
     BearerAuth:

@@ -34,6 +34,18 @@ type AuthSpotifyResponse struct {
 // InternalServerError A general API error
 type InternalServerError = GeneralError
 
+// ScrobbleResponse defines model for ScrobbleResponse.
+type ScrobbleResponse struct {
+	// Date The UNIX timestamp (in seconds) of the scrobble.
+	Date *string `json:"date,omitempty"`
+
+	// Id The ID of the scrobbje.
+	Id string `json:"id"`
+
+	// SpotifyUri The Spotify URI of the scrobbled track.
+	SpotifyUri *string `json:"spotifyUri,omitempty"`
+}
+
 // UnauthorizedError A general API error
 type UnauthorizedError = GeneralError
 
@@ -76,6 +88,15 @@ type PostAuthSpotifyJSONBody struct {
 	Code string `json:"code"`
 }
 
+// ScrobbleJSONBody defines parameters for Scrobble.
+type ScrobbleJSONBody struct {
+	// Date Unix time (in seconds) of the the player
+	Date string `json:"date"`
+
+	// SpotifyUri Spotify's internal idenifier for the track
+	SpotifyUri *string `json:"spotifyUri,omitempty"`
+}
+
 // PutUserProfileJSONBody defines parameters for PutUserProfile.
 type PutUserProfileJSONBody struct {
 	// Name The user's display name (1-50 characters).
@@ -88,6 +109,9 @@ type PutUserProfileJSONBody struct {
 // PostAuthSpotifyJSONRequestBody defines body for PostAuthSpotify for application/json ContentType.
 type PostAuthSpotifyJSONRequestBody PostAuthSpotifyJSONBody
 
+// ScrobbleJSONRequestBody defines body for Scrobble for application/json ContentType.
+type ScrobbleJSONRequestBody ScrobbleJSONBody
+
 // PutUserProfileJSONRequestBody defines body for PutUserProfile for application/json ContentType.
 type PutUserProfileJSONRequestBody PutUserProfileJSONBody
 
@@ -96,6 +120,9 @@ type ServerInterface interface {
 	// Authenticate with Spotify
 	// (POST /auth/spotify)
 	PostAuthSpotify(ctx *echo.Context) error
+	// Record a track play
+	// (PUT /scrobbles)
+	Scrobble(ctx *echo.Context) error
 	// Get the user's info.
 	// (GET /user)
 	GetUser(ctx *echo.Context) error
@@ -118,6 +145,17 @@ func (w *ServerInterfaceWrapper) PostAuthSpotify(ctx *echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.PostAuthSpotify(ctx)
+	return err
+}
+
+// Scrobble converts echo context to params.
+func (w *ServerInterfaceWrapper) Scrobble(ctx *echo.Context) error {
+	var err error
+
+	ctx.Set(string(BearerAuthScopes), []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.Scrobble(ctx)
 	return err
 }
 
@@ -190,6 +228,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	}
 
 	router.POST(baseURL+"/auth/spotify", wrapper.PostAuthSpotify)
+	router.PUT(baseURL+"/scrobbles", wrapper.Scrobble)
 	router.GET(baseURL+"/user", wrapper.GetUser)
 	router.PUT(baseURL+"/user/profile", wrapper.PutUserProfile)
 	router.GET(baseURL+"/users/:username", wrapper.GetUsers)
