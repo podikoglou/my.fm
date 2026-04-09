@@ -23,3 +23,8 @@ WHERE
 
 -- name: OnboardUser :exec
 UPDATE users SET username = ?, name = ?, onboarded = true WHERE id = ?;
+
+-- name: CreateScrobble :one
+INSERT INTO scrobbles(id, user_id, created_at, spotify_uri)
+VALUES (?, ?, ?, ?)
+RETURNING *;

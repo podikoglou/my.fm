@@ -10,6 +10,36 @@ import (
 	"database/sql"
 )
 
+const createScrobble = `-- name: CreateScrobble :one
+INSERT INTO scrobbles(id, user_id, created_at, spotify_uri)
+VALUES (?, ?, ?, ?)
+RETURNING id, user_id, created_at, spotify_uri
+`
+
+type CreateScrobbleParams struct {
+	ID         string
+	UserID     string
+	CreatedAt  string
+	SpotifyUri string
+}
+
+func (q *Queries) CreateScrobble(ctx context.Context, arg CreateScrobbleParams) (Scrobble, error) {
+	row := q.db.QueryRowContext(ctx, createScrobble,
+		arg.ID,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.SpotifyUri,
+	)
+	var i Scrobble
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.SpotifyUri,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users(id, username, name, email, onboarded)
 VALUES (?, ?, ?, ?, FALSE)
