@@ -1,1 +1,2 @@
-data.db
+# deps
+node_modules/
