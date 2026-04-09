@@ -1,3 +1,4 @@
 [tools]
 "aqua:pressly/goose" = "latest"
 "github:LalitMaganti/syntaqlite" = "latest"
+sqlc = "latest"
