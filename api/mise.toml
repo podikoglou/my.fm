@@ -1,4 +1,5 @@
 [tools]
 "aqua:pressly/goose" = "latest"
 "github:LalitMaganti/syntaqlite" = "latest"
+oapi-codegen = "latest"
 sqlc = "latest"
