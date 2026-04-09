@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "my.fm",
+      "devDependencies": {
+        "oxfmt": "^0.41.0",
+        "oxlint": "^1.56.0",
+      },
     },
     "api": {
       "name": "my.fm",
@@ -12,8 +16,6 @@
       },
       "devDependencies": {
         "@types/bun": "latest",
-        "oxfmt": "^0.41.0",
-        "oxlint": "^1.56.0",
       },
     },
     "app": {
@@ -45,8 +47,6 @@
         "@types/node": "^22",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
-        "oxfmt": "^0.41.0",
-        "oxlint": "^1.56.0",
         "tailwindcss": "^4.2.2",
         "typescript": "^5.9.3",
         "vite": "^7.1.7",
