@@ -13,3 +13,14 @@ export const usersTable = sqliteTable("users", {
 
   onboarded: integer({ mode: "boolean" }),
 });
+
+export const scrobblesTable = sqliteTable("scrobbles", {
+  id: text().primaryKey(),
+  createdAt: integer({ mode: "timestamp" }),
+
+  userId: text()
+    .notNull()
+    .references(() => usersTable.id),
+
+  spotifyUri: text().notNull(),
+});
