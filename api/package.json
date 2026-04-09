@@ -1,5 +1,5 @@
 {
-  "name": "my.fm",
+  "name": "@my.fm/api",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "typecheck": "react-router typegen && tsc",
