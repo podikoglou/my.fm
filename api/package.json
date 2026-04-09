@@ -9,11 +9,11 @@
     "fmt:check": "oxfmt --check"
   },
   "dependencies": {
-    "hono": "^4.12.12",
-    "oxfmt": "^0.41.0",
-    "oxlint": "^1.56.0"
+    "hono": "^4.12.12"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0"
   }
 }
