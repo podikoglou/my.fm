@@ -15,6 +15,9 @@ export const users = sqliteTable("users", {
   onboarded: integer({ mode: "boolean" }),
 });
 
+export type UserInsert = typeof users.$inferInsert;
+export type User = typeof users.$inferSelect;
+
 export const scrobbles = sqliteTable("scrobbles", {
   id: text().primaryKey(),
   createdAt: integer({ mode: "timestamp" }),
@@ -25,3 +28,6 @@ export const scrobbles = sqliteTable("scrobbles", {
 
   spotifyUri: text().notNull(),
 });
+
+export type ScrobbleInsert = typeof scrobbles.$inferInsert;
+export type Scrobble = typeof scrobbles.$inferSelect;
