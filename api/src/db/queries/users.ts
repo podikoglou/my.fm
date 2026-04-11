@@ -18,5 +18,8 @@ export async function createNewUser(
 ) {
   const id = nanoid();
 
-  await db.insert(users).values({ ...values, id, username: id, onboarded: true });
+  return await db
+    .insert(users)
+    .values({ ...values, id, username: id, onboarded: true })
+    .returning();
 }
