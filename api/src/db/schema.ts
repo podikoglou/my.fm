@@ -8,7 +8,7 @@ export const users = sqliteTable("users", {
   email: text().notNull(),
   createdAt: integer({ mode: "timestamp" }).default(sql`now()`),
 
-  spotifyAccessCode: text(),
+  spotifyAccessToken: text(),
   spotifyRefreshToken: text(),
   spotifyTokenExpiration: text(),
 
