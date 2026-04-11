@@ -1,13 +1,14 @@
 import { Hono } from "hono";
 import { jwt } from "hono/jwt";
 import type { JwtVariables } from "hono/jwt";
+import { env } from "./env";
 
 type Env = {
   Variables: JwtVariables;
 };
 
 const jwtMiddleware = jwt({
-  secret: process.env.JWT_SECRET!,
+  secret: env.SECRET,
   alg: "HS256",
 });
 
