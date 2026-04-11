@@ -11,6 +11,7 @@
     "drizzle:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.7.6",
     "@libsql/client": "^0.17.2",
     "@spotify/web-api-ts-sdk": "^1.2.0",
     "drizzle-orm": "^0.45.2",
