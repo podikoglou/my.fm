@@ -1,9 +1,20 @@
 import { Hono } from "hono";
+import { jwt } from "hono/jwt";
+import type { JwtVariables } from "hono/jwt";
 
-const app = new Hono();
+type Env = {
+  Variables: JwtVariables;
+};
 
-app.get("/", (c) => {
-  return c.text("Hello Hono!");
+const jwtMiddleware = jwt({
+  secret: process.env.JWT_SECRET!,
+  alg: "HS256",
 });
 
-export default app;
+const testApp = new Hono<Env>()
+  .use(jwtMiddleware)
+  .get("/", (c) => c.json(c.var) /* <-- this is supposed to test auth */);
+
+const app = new Hono<Env>().route("/test", testApp);
+
+export type AppType = typeof app;
