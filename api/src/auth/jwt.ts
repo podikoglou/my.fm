@@ -6,11 +6,11 @@ import { Temporal } from "@js-temporal/polyfill";
 const JWT_DURATION = Temporal.Duration.from({ hours: 24 });
 
 export type JwtPayload = {
-  id: User["id"];
+  userId: User["id"];
   exp: number;
 };
 
-export async function createJwt(userId: JwtPayload["id"]): Promise<string> {
+export async function createJwt(userId: JwtPayload["userId"]): Promise<string> {
   const exp = Temporal.Now.instant().add(JWT_DURATION);
 
   return sign({ userId, exp: exp.epochMilliseconds / 1000 }, env.SECRET);

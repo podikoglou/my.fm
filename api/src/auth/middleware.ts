@@ -13,10 +13,10 @@ const jwtMiddleware = jwt({
 });
 
 const lazyUserMiddleware: MiddlewareHandler<Env> = async (c, next) => {
-  const { id }: JwtPayload = c.get("jwtPayload");
+  const { userId }: JwtPayload = c.get("jwtPayload");
 
   c.set("getUser", async () => {
-    const user = await findUserById(id);
+    const user = await findUserById(userId);
 
     // we shouldn't leave the request handlers handle this, we handle this ourselves here.
     // below we are throwing an HTTPException - that's an acceptable way for middlewares to
