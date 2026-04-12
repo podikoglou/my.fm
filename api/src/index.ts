@@ -11,3 +11,8 @@ export type Env = {
 const app = new Hono<Env>().route("/auth", auth).route("/user", user);
 
 export type AppType = typeof app;
+
+export default {
+  port: 8080,
+  fetch: app.fetch,
+};
