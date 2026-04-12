@@ -38,7 +38,7 @@ export async function findUserById(id: User["id"]) {
   });
 }
 
-export async function findUserByUsername(username: User["username"]) {
+export async function findUserByUsernamePublic(username: User["username"]) {
   return await db.query.users.findFirst({
     where: eq(users.username, username),
     columns: {

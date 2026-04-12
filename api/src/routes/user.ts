@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "..";
 import { jwtMiddleware, type JwtPayload } from "../jwt";
-import { findUserById, findUserByIdPublic, findUserByUsername } from "../db/queries/users";
+import { findUserById, findUserByIdPublic, findUserByUsernamePublic } from "../db/queries/users";
 import { zValidator } from "@hono/zod-validator";
 import z from "zod";
 
@@ -15,7 +15,7 @@ export default new Hono<Env>()
   })
   .get("/byUsername", zValidator("form", z.object({ username: z.string() })), async (c) => {
     const { username } = c.req.valid("form");
-    const user = await findUserByUsername(username);
+    const user = await findUserByUsernamePublic(username);
 
     return c.json(user ?? { error: "User not found" });
   })
