@@ -1,6 +1,7 @@
 import { sign } from "hono/jwt";
 import { env } from "../env";
 import type { User } from "../db/schema";
+import { Temporal } from "@js-temporal/polyfill";
 
 const JWT_DURATION = Temporal.Duration.from({ hours: 24 });
 
