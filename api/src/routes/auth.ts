@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import z from "zod";
 import { exchangeCode, withAccessToken } from "../spotify";
 import { createNewUser } from "../db/queries/users";
+import { createJwt } from "../jwt";
 
 export default new Hono().post(
   "/spotify",
@@ -27,12 +28,26 @@ export default new Hono().post(
       Temporal.Duration.from({ seconds: accessToken.expires_in }),
     );
 
-    await createNewUser({
+    // create new user in the database
+    const result = await createNewUser({
       name: profile.display_name,
       email: profile.email,
       spotifyAccessToken: accessToken.access_token,
       spotifyRefreshToken: accessToken.refresh_token,
       spotifyTokenExpiration: expiration.epochMilliseconds.toString(),
     });
+
+    // TODO: could we prettify this error handling?
+
+    const user = result[0];
+    if (!user) {
+      console.error("Error creating user: ", { result });
+      return c.json({ error: "Error creating user" });
+    }
+
+    // create JWT for user
+    const jwt = await createJwt(user.id);
+
+    return { accessToken: jwt };
   },
 );
