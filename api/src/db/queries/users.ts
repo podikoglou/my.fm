@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { db } from "..";
-import { users, type UserInsert } from "../schema";
+import { users, type User, type UserInsert } from "../schema";
+import { eq } from "drizzle-orm";
 
 /**
  * This creates a new user. New users are typically created and are immediately put in the onboarding state
@@ -22,4 +23,17 @@ export async function createNewUser(
     .insert(users)
     .values({ ...values, id, username: id, onboarded: true })
     .returning();
+}
+
+export async function findUserById(id: User["id"]) {
+  return await db.query.users.findFirst({
+    where: eq(users.id, id),
+    columns: {
+      id: true,
+      username: true,
+      name: true,
+      email: true,
+      onboarded: true,
+    },
+  });
 }
