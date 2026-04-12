@@ -10,7 +10,7 @@ export async function clientLoader({ params }: Route.LoaderArgs) {
 export default function AppUserPage({ loaderData: { username } }: Route.ComponentProps) {
   const { data, error } = useQuery({
     queryKey: ["user", username],
-    queryFn: () => parseResponse(apiClient.user.byUsername.$get({ form: { username } })),
+    queryFn: () => parseResponse(apiClient.user.byUsername.$get({ query: { username } })),
     retry: false,
   });
 

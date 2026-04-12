@@ -13,14 +13,14 @@ export default new Hono<Env>()
 
     return c.json({ id, username, name, email, onboarded }, 200);
   })
-  .get("/byUsername", zValidator("form", z.object({ username: z.string() })), async (c) => {
-    const { username } = c.req.valid("form");
+  .get("/byUsername", zValidator("query", z.object({ username: z.string() })), async (c) => {
+    const { username } = c.req.valid("query");
     const user = await findUserByUsernamePublic(username);
 
     return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
   })
-  .get("/byId", zValidator("form", z.object({ id: z.nanoid() })), async (c) => {
-    const { id } = c.req.valid("form");
+  .get("/byId", zValidator("query", z.object({ id: z.nanoid() })), async (c) => {
+    const { id } = c.req.valid("query");
     const user = await findUserByIdPublic(id);
 
     return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
