@@ -13,7 +13,8 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
