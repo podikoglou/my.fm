@@ -21,7 +21,7 @@ export async function createNewUser(
 
   return await db
     .insert(users)
-    .values({ ...values, id, username: id, onboarded: true })
+    .values({ ...values, id, username: id, onboarded: false })
     .returning();
 }
 
