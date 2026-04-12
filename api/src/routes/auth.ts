@@ -48,6 +48,6 @@ export default new Hono().post(
     // create JWT for user
     const jwt = await createJwt(user.id);
 
-    return { accessToken: jwt };
+    return c.json({ accessToken: jwt });
   },
 );
