@@ -9,23 +9,7 @@ import {
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { Route } from "./+types/root";
 import "./app.css";
-import { getDefaultStore } from "jotai";
-import { accessTokenAtom } from "./state/auth";
-import { client } from "./lib/api/client.gen";
 import { queryClient } from "./lib/query";
-
-// add API client request interceptor that gets access token
-const store = getDefaultStore();
-
-client.interceptors.request.use((request) => {
-  const accessToken = store.get(accessTokenAtom);
-
-  if (accessToken) {
-    request.headers.set("Authorization", `Bearer ${accessToken}`);
-  }
-
-  return request;
-});
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },

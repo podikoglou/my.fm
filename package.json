@@ -1,0 +1,19 @@
+{
+  "name": "my.fm",
+  "version": "1.0.0",
+  "workspaces": [
+    "api/",
+    "app/"
+  ],
+  "scripts": {
+    "prepare": "husky",
+    "fmt": "bun run --filter '@my.fm/*' fmt",
+    "lint": "bun run --filter '@my.fm/*' lint",
+    "typecheck": "bun run --filter '@my.fm/*' typecheck"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0"
+  }
+}
