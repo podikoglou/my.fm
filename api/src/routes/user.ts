@@ -1,9 +1,15 @@
 import { Hono } from "hono";
 import type { Env } from "..";
 import { jwtMiddleware, type JwtPayload } from "../jwt";
-import { findUserById, findUserByIdPublic, findUserByUsernamePublic } from "../db/queries/users";
+import {
+  findUserById,
+  findUserByIdPublic,
+  findUserByUsernamePublic,
+  onboardUser,
+} from "../db/queries/users";
 import { zValidator } from "@hono/zod-validator";
 import z from "zod";
+import { usernameSchema, nameSchema } from "../data/validators";
 
 export default new Hono<Env>()
   .use("/*", jwtMiddleware)
@@ -24,4 +30,14 @@ export default new Hono<Env>()
     const user = await findUserByIdPublic(id);
 
     return c.json(user ?? { error: "User not found" });
-  });
+  })
+  .put(
+    "/onboard",
+    zValidator("form", z.object({ username: usernameSchema, name: nameSchema })),
+    async (c) => {
+      const { username, name } = c.req.valid("form");
+      const { id }: JwtPayload = c.get("jwtPayload");
+
+      await onboardUser(id, { username, name });
+    },
+  );

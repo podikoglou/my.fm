@@ -59,3 +59,13 @@ export async function findUserByIdPublic(id: User["id"]) {
     },
   });
 }
+
+export async function onboardUser(
+  id: User["id"],
+  values: {
+    username: User["username"];
+    name: User["name"];
+  },
+) {
+  await db.update(users).set(values).where(eq(users.id, id));
+}
