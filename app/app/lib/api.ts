@@ -11,6 +11,6 @@ function getAuthHeader() {
   return { Authorization: `Bearer ${token}` };
 }
 
-export const apiClient = hc<AppType>("/", {
+export const apiClient = hc<AppType>(import.meta.env.VITE_API_URL, {
   headers: getAuthHeader(),
 });
