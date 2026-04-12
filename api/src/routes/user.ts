@@ -29,8 +29,12 @@ export default new Hono<Env>()
     "/onboard",
     zValidator("form", z.object({ username: usernameSchema, name: nameSchema })),
     async (c) => {
-      const { id } = await c.get("getUser")();
+      const { id, onboarded } = await c.get("getUser")();
       const { username, name } = c.req.valid("form");
+
+      if (onboarded) {
+        return c.json({ error: "Already onboarded" });
+      }
 
       await onboardUser(id, { username, name });
     },

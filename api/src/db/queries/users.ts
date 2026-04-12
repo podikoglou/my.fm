@@ -60,5 +60,8 @@ export async function onboardUser(
     name: User["name"];
   },
 ) {
-  return await db.update(users).set(values).where(eq(users.id, id));
+  return await db
+    .update(users)
+    .set({ ...values, onboarded: true })
+    .where(eq(users.id, id));
 }
