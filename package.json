@@ -8,7 +8,8 @@
   "scripts": {
     "prepare": "husky",
     "fmt": "bun run --filter '@my.fm/*' fmt",
-    "lint": "bun run --filter '@my.fm/*' lint"
+    "lint": "bun run --filter '@my.fm/*' lint",
+    "typecheck": "bun run --filter '@my.fm/*' typecheck"
   },
   "devDependencies": {
     "husky": "^9.1.7",
