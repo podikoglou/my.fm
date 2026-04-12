@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { getUserOptions } from "~/lib/api/@tanstack/react-query.gen";
+import { parseResponse } from "hono/client";
+import { apiClient } from "~/lib/api";
 
 export default function AppIndexPage() {
   const { data, error } = useQuery({
-    ...getUserOptions({}),
+    queryKey: ["user", "me"],
+    queryFn: () => parseResponse(apiClient.user.me.$get()),
   });
 
   console.log({ data, error });

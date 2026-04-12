@@ -1,8 +1,9 @@
+import { apiClient } from "~/lib/api";
+import { parseResponse } from "hono/client";
 import { getDefaultStore } from "jotai";
 import { accessTokenAtom } from "~/state/auth";
 import type { Route } from "./+types/callback";
 import { redirect } from "react-router";
-import { postAuthSpotify } from "~/lib/api";
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // parse code from spotify redirect
@@ -15,11 +16,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   // send authorization code to our backend, expecting back a JWT
   // this doesn't go through react query which is meh
-  const { data, error } = await postAuthSpotify({ body: { code: authorizationCode } });
-
-  if (error) {
-    return; // TODO: handle error
-  }
+  const data = await parseResponse(
+    apiClient.auth.spotify.$post({ form: { code: authorizationCode } }),
+  );
 
   const store = getDefaultStore();
   store.set(accessTokenAtom, data.accessToken);

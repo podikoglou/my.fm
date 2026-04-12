@@ -16,12 +16,9 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { authorizeSpotify } from "~/lib/spotify";
 import { queryClient } from "~/lib/query";
-import {
-  putUserProfileMutation,
-  getUserOptions,
-  getUserQueryKey,
-} from "~/lib/api/@tanstack/react-query.gen";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "~/lib/api";
+import { parseResponse } from "hono/client";
+import { useMutation } from "@tanstack/react-query";
 
 // NOTE: this loader should be almost identical with the loader in ./app/layout.tsx (just with the opposite logic)
 export async function clientLoader() {
@@ -38,7 +35,8 @@ export async function clientLoader() {
   // ensure we're onboarded
   try {
     const data = await queryClient.fetchQuery({
-      ...getUserOptions({}),
+      queryKey: ["user", "me"],
+      queryFn: () => parseResponse(apiClient.user.me.$get()),
     });
 
     // if already onboarded, redirect to app
@@ -52,7 +50,6 @@ export async function clientLoader() {
     }
 
     console.error(err);
-
     // if there's an error or no user data, redirect to spotify to re-auth
     authorizeSpotify();
   }
@@ -67,7 +64,6 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function OnboardPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -76,19 +72,17 @@ export default function OnboardPage() {
     },
   });
 
-  const putUserProfile = useMutation({
-    ...putUserProfileMutation(),
+  const onboard = useMutation({
+    mutationFn: (data: FormValues) => parseResponse(apiClient.user.onboard.$put({ form: data })),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: getUserQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
       navigate("/app");
     },
     onError: (error) => console.error(error),
   });
 
   const onSubmit = async (data: FormValues) => {
-    putUserProfile.mutate({
-      body: data,
-    });
+    onboard.mutate(data);
   };
 
   return (

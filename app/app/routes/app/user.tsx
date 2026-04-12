@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { getUsersOptions } from "~/lib/api/@tanstack/react-query.gen";
+import { apiClient } from "~/lib/api";
+import { parseResponse } from "hono/client";
 import type { Route } from "./+types/user";
 
 export async function clientLoader({ params }: Route.LoaderArgs) {
@@ -8,7 +9,8 @@ export async function clientLoader({ params }: Route.LoaderArgs) {
 
 export default function AppUserPage({ loaderData: { username } }: Route.ComponentProps) {
   const { data, error } = useQuery({
-    ...getUsersOptions({ path: { username } }),
+    queryKey: ["user", username],
+    queryFn: () => parseResponse(apiClient.user.byUsername.$get({ form: { username } })),
   });
 
   return <>{JSON.stringify({ data, error })}</>;
