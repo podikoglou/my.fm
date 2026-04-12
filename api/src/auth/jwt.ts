@@ -1,4 +1,4 @@
-import { jwt, sign } from "hono/jwt";
+import { sign } from "hono/jwt";
 import { env } from "../env";
 import type { User } from "../db/schema";
 
@@ -8,11 +8,6 @@ export type JwtPayload = {
   id: User["id"];
   exp: number;
 };
-
-export const jwtMiddleware = jwt({
-  secret: env.SECRET,
-  alg: "HS256",
-});
 
 export async function createJwt(userId: JwtPayload["id"]): Promise<string> {
   const exp = Temporal.Now.instant().add(JWT_DURATION);

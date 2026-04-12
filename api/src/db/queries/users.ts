@@ -28,13 +28,6 @@ export async function createNewUser(
 export async function findUserById(id: User["id"]) {
   return await db.query.users.findFirst({
     where: eq(users.id, id),
-    columns: {
-      id: true,
-      username: true,
-      name: true,
-      email: true,
-      onboarded: true,
-    },
   });
 }
 
@@ -67,5 +60,5 @@ export async function onboardUser(
     name: User["name"];
   },
 ) {
-  await db.update(users).set(values).where(eq(users.id, id));
+  return await db.update(users).set(values).where(eq(users.id, id));
 }
