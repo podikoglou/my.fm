@@ -11,6 +11,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
   const { data, error } = useQuery({
     queryKey: ["user", username],
     queryFn: () => parseResponse(apiClient.user.byUsername.$get({ form: { username } })),
+    retry: false,
   });
 
   return <>{JSON.stringify({ data, error })}</>;
