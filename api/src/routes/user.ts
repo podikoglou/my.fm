@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "..";
-import { jwtMiddleware, type JwtPayload } from "../jwt";
+import { jwtMiddleware, type JwtPayload } from "../auth/jwt";
 import {
   findUserById,
   findUserByIdPublic,

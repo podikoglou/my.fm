@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import z from "zod";
 import { exchangeCode, withAccessToken } from "../spotify";
 import { createNewUser } from "../db/queries/users";
-import { createJwt } from "../jwt";
+import { createJwt } from "../auth/jwt";
 
 export default new Hono().post(
   "/spotify",
