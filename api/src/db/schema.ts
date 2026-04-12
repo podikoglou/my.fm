@@ -5,7 +5,7 @@ export const users = sqliteTable("users", {
   id: text().primaryKey(),
   username: text().notNull().unique(),
   name: text().notNull(),
-  email: text().notNull(),
+  email: text().notNull().unique(),
   createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
 
   spotifyAccessToken: text(),
