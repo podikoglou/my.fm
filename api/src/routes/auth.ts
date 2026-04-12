@@ -37,17 +37,15 @@ export default new Hono().post(
       spotifyTokenExpiration: expiration.epochMilliseconds.toString(),
     });
 
-    // TODO: could we prettify this error handling?
-
     const user = result[0];
     if (!user) {
       console.error("Error creating user: ", { result });
-      return c.json({ error: "Error creating user" });
+      return c.json({ error: "Error creating user" }, 500);
     }
 
     // create JWT for user
     const jwt = await createJwt(user.id);
 
-    return c.json({ accessToken: jwt });
+    return c.json({ accessToken: jwt }, 200);
   },
 );

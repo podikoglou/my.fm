@@ -11,19 +11,19 @@ export default new Hono<Env>()
   .get("/me", async (c) => {
     const { id, username, name, email, onboarded } = await c.get("getUser")();
 
-    return c.json({ id, username, name, email, onboarded });
+    return c.json({ id, username, name, email, onboarded }, 200);
   })
   .get("/byUsername", zValidator("form", z.object({ username: z.string() })), async (c) => {
     const { username } = c.req.valid("form");
     const user = await findUserByUsernamePublic(username);
 
-    return c.json(user ?? { error: "User not found" });
+    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
   })
   .get("/byId", zValidator("form", z.object({ id: z.nanoid() })), async (c) => {
     const { id } = c.req.valid("form");
     const user = await findUserByIdPublic(id);
 
-    return c.json(user ?? { error: "User not found" });
+    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
   })
   .put(
     "/onboard",
@@ -33,9 +33,10 @@ export default new Hono<Env>()
       const { username, name } = c.req.valid("form");
 
       if (onboarded) {
-        return c.json({ error: "Already onboarded" });
+        return c.json({ error: "Already onboarded" }, 400);
       }
 
       await onboardUser(id, { username, name });
+      return c.json({ ok: true }, 200);
     },
   );
