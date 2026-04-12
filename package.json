@@ -5,7 +5,12 @@
     "api/",
     "app/"
   ],
+  "scripts": {
+    "prepare": "husky",
+    "fmt": "bun run --filter '@my.fm/*' fmt"
+  },
   "devDependencies": {
+    "husky": "^9.1.7",
     "oxfmt": "^0.41.0",
     "oxlint": "^1.56.0"
   }
