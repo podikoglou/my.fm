@@ -31,6 +31,12 @@ export async function findUserById(id: User["id"]) {
   });
 }
 
+export async function findUserByEmail(email: User["email"]) {
+  return await db.query.users.findFirst({
+    where: eq(users.email, email),
+  });
+}
+
 export async function findUserByUsernamePublic(username: User["username"]) {
   return await db.query.users.findFirst({
     where: eq(users.username, username),

@@ -2,9 +2,10 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import z from "zod";
 import { exchangeCode, withAccessToken } from "../spotify";
-import { createNewUser } from "../db/queries/users";
+import { createNewUser, findUserByEmail } from "../db/queries/users";
 import { Temporal } from "@js-temporal/polyfill";
 import { createJwt } from "../auth/jwt";
+import type { User } from "../db/schema";
 
 export default new Hono().post(
   "/spotify",
@@ -24,24 +25,28 @@ export default new Hono().post(
     // fetch user's profile data
     const profile = await spotify.currentUser.profile();
 
-    // compute expiration
-    const expiration = Temporal.Now.instant().add(
-      Temporal.Duration.from({ seconds: accessToken.expires_in }),
-    );
+    // check if user already exists
+    let user: User | undefined = await findUserByEmail(profile.email);
 
-    // create new user in the database
-    const result = await createNewUser({
-      name: profile.display_name,
-      email: profile.email,
-      spotifyAccessToken: accessToken.access_token,
-      spotifyRefreshToken: accessToken.refresh_token,
-      spotifyTokenExpiration: expiration.epochMilliseconds.toString(),
-    });
-
-    const user = result[0];
     if (!user) {
-      console.error("Error creating user: ", { result });
-      return c.json({ error: "Error creating user" }, 500);
+      // create new user in the database
+      const expiration = Temporal.Now.instant().add(
+        Temporal.Duration.from({ seconds: accessToken.expires_in }),
+      );
+
+      const result = await createNewUser({
+        name: profile.display_name,
+        email: profile.email,
+        spotifyAccessToken: accessToken.access_token,
+        spotifyRefreshToken: accessToken.refresh_token,
+        spotifyTokenExpiration: expiration.epochMilliseconds.toString(),
+      });
+
+      user = result[0];
+      if (!user) {
+        console.error("Error creating user: ", { result });
+        return c.json({ error: "Error creating user" }, 500);
+      }
     }
 
     // create JWT for user
