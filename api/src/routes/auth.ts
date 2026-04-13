@@ -6,6 +6,7 @@ import { createNewUser, findUserByEmail } from "../db/queries/users";
 import { Temporal } from "@js-temporal/polyfill";
 import { createJwt } from "../auth/jwt";
 import type { User } from "../db/schema";
+import { fetchQueue } from "../scheduler/queue";
 
 export default new Hono().post(
   "/spotify",
@@ -48,6 +49,18 @@ export default new Hono().post(
         console.error("Error creating user: ", { result });
         return c.json({ error: "Error creating user" }, 500);
       }
+
+      // add to fetch queue
+      // TODO: deduplicate this, this piece of codealready exists in the codebase
+      fetchQueue.push({
+        userId: user.id,
+        accessToken: {
+          access_token: user.spotifyAccessToken!,
+          token_type: "Bearer",
+          expires_in: Number(user.spotifyTokenExpiration),
+          refresh_token: user.spotifyRefreshToken!,
+        },
+      });
     }
 
     // create JWT for user
