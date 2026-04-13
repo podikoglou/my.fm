@@ -64,6 +64,13 @@
       "when": 1776088498401,
       "tag": "0008_gifted_angel",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1776097132758,
+      "tag": "0009_dry_quasar",
+      "breakpoints": true
     }
   ]
 }

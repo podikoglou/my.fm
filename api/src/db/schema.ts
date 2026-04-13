@@ -14,6 +14,7 @@ export const users = sqliteTable("users", {
   spotifyAccessToken: text(),
   spotifyRefreshToken: text(),
   spotifyTokenExpiration: text(),
+  lastRecentTracksFetchTime: integer({ mode: "timestamp" }),
 
   onboarded: integer({ mode: "boolean" }),
 });
