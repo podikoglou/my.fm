@@ -1,6 +1,6 @@
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { honoLogger } from "@logtape/hono";
-import { getPrettyFormatter, prettyFormatter } from "@logtape/pretty";
+import { getPrettyFormatter } from "@logtape/pretty";
 import { getLogger as getDrizzleLogger } from "@logtape/drizzle-orm";
 import { env } from "./env";
 
