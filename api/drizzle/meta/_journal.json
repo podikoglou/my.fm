@@ -29,6 +29,13 @@
       "when": 1776086940137,
       "tag": "0003_lean_ultimates",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1776087020416,
+      "tag": "0004_simple_cerise",
+      "breakpoints": true
     }
   ]
 }

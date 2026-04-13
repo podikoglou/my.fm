@@ -22,7 +22,7 @@ export type User = typeof users.$inferSelect;
 
 export const scrobbles = sqliteTable("scrobbles", {
   id: text().primaryKey(),
-  createdAt: integer({ mode: "timestamp" }),
+  createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
 
   userId: text()
     .notNull()
