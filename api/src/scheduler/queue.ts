@@ -6,6 +6,7 @@ import { logger } from "../logger";
 export type QueueItem = {
   userId: User["id"];
   accessToken: AccessToken;
+  lastRecentTracksFetchTime: Date | null;
 };
 
 export class FetchQueue {
@@ -51,6 +52,7 @@ export async function seedFetchQueue() {
         expires_in: Number(user.spotifyTokenExpiration),
         refresh_token: user.spotifyRefreshToken,
       },
+      lastRecentTracksFetchTime: user.lastRecentTracksFetchTime,
     });
   }
 }
