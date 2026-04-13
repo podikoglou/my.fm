@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { UserX } from "lucide-react";
 import { ErrorCard } from "~/components/error-card";
 import { TrackList } from "~/components/track-list";
+import { UserTrackList } from "~/components/user-track-list";
 
 export async function clientLoader({ params }: Route.LoaderArgs) {
   return params;
@@ -68,9 +69,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
       </CardHeader>
 
       <CardContent className="flex-1 min-h-0 overflow-hidden">
-        <TrackList
-          tracks={[{ title: "Starman - 2012 Remaster", artist: "David Bowie", age: "1m" }]}
-        />
+        <UserTrackList username={username} />
       </CardContent>
     </>
   );
