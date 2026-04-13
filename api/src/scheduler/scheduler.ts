@@ -32,7 +32,10 @@ export function setupScheduler() {
     for (const play of plays) {
       logger.debug`fetched play ${play}`;
 
+      // create album in db (skipped if exists)
+      // TODO: update if anything changed
       const album = play.track.album;
+
       await createAlbum({
         spotifyUri: album.uri,
         name: album.name,
@@ -42,6 +45,8 @@ export function setupScheduler() {
         imageUrl: album.images[0]?.url ?? "",
       });
 
+      // create track in db (skipped if exists)
+      // TODO: update if anything changed
       await createTrack({
         spotifyUri: play.track.uri,
         name: play.track.name,
