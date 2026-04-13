@@ -8,6 +8,7 @@ import type { User } from "./db/schema";
 import { cors } from "hono/cors";
 import { seedFetchQueue } from "./scheduler/queue";
 import { setupScheduler } from "./scheduler/scheduler";
+import scrobble from "./routes/scrobble";
 
 export type Env = {
   Variables: JwtVariables & { getUser: () => Promise<User> };
@@ -21,6 +22,7 @@ const app = new Hono<Env>()
   .use("/*", cors())
   .route("/auth", auth)
   .route("/user", user)
+  .route("/scrobble", scrobble)
   .onError((err, c) => {
     const status = err instanceof HTTPException ? err.status : 500;
     return c.json({ error: err.message ?? "Internal server error" }, status);
