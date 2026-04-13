@@ -29,6 +29,7 @@ export const scrobbles = sqliteTable("scrobbles", {
     .references(() => users.id),
 
   trackSpotifyUri: text().notNull(),
+  albumSpotifyUri: text().notNull(),
 
   scrobbleDate: integer({ mode: "timestamp" }),
 });

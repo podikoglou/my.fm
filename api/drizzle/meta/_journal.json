@@ -43,6 +43,13 @@
       "when": 1776087096771,
       "tag": "0005_legal_dreaming_celestial",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776087133883,
+      "tag": "0006_overjoyed_zuras",
+      "breakpoints": true
     }
   ]
 }
