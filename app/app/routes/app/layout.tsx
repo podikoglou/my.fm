@@ -5,6 +5,7 @@ import { parseResponse } from "hono/client";
 import { queryClient } from "~/lib/query";
 import { authorizeSpotify } from "~/lib/spotify";
 import { accessTokenAtom } from "~/state/auth";
+import { Card } from "~/components/ui/card";
 
 // NOTE: this loader should be almost identical with the loader in ../onboard.tsx (just with the opposite logic)
 export async function clientLoader() {
@@ -44,8 +45,10 @@ export async function clientLoader() {
 
 export default function AppLayout() {
   return (
-    <>
-      <Outlet />
-    </>
+    <div className="min-h-screen flex p-4">
+      <Card className="w-full max-w-lg h-[42rem] m-auto overflow-hidden">
+        <Outlet />
+      </Card>
+    </div>
   );
 }
