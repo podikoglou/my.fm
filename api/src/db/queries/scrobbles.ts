@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "..";
 import { scrobbles, type ScrobbleInsert, type User } from "../schema";
 
@@ -20,6 +20,7 @@ export async function findRecentScrobblesByUserId(
 ) {
   return await db.query.scrobbles.findMany({
     where: eq(scrobbles.userId, userId),
+    orderBy: [desc(scrobbles.scrobbleDate)],
     offset,
     limit,
     with: {
