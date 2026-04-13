@@ -8,6 +8,8 @@ export const users = sqliteTable("users", {
   email: text().notNull().unique(),
   createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
 
+  avatarUrl: text(),
+
   spotifyAccessToken: text(),
   spotifyRefreshToken: text(),
   spotifyTokenExpiration: text(),

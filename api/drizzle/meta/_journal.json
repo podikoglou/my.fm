@@ -15,6 +15,13 @@
       "when": 1776033731276,
       "tag": "0001_shiny_dexter_bennett",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776039677488,
+      "tag": "0002_superb_wraith",
+      "breakpoints": true
     }
   ]
 }
