@@ -44,11 +44,5 @@ export async function clientLoader() {
 }
 
 export default function AppLayout() {
-  return (
-    <div className="min-h-screen flex p-4">
-      <Card className="w-full max-w-lg h-[42rem] m-auto overflow-hidden">
-        <Outlet />
-      </Card>
-    </div>
-  );
+  return <Outlet />;
 }
