@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { JwtVariables } from "hono/jwt";
 import { HTTPException } from "hono/http-exception";
+import { httpLogger } from "./logger";
 import auth from "./routes/auth";
 import user from "./routes/user";
 import type { User } from "./db/schema";
@@ -11,6 +12,7 @@ export type Env = {
 };
 
 const app = new Hono<Env>()
+  .use(httpLogger)
   .use("/*", cors())
   .route("/auth", auth)
   .route("/user", user)
