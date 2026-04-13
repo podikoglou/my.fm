@@ -17,6 +17,7 @@
         "@hono/zod-validator": "^0.7.6",
         "@js-temporal/polyfill": "^0.5.1",
         "@libsql/client": "^0.17.2",
+        "@logtape/drizzle-orm": "^2.0.5",
         "@logtape/hono": "^2.0.5",
         "@logtape/logtape": "^2.0.5",
         "@spotify/web-api-ts-sdk": "^1.2.0",
@@ -239,6 +240,8 @@
     "@libsql/linux-x64-musl": ["@libsql/linux-x64-musl@0.5.29", "", { "os": "linux", "cpu": "x64" }, "sha512-gquqwA/39tH4pFl+J9n3SOMSymjX+6kZ3kWgY3b94nXFTwac9bnFNMffIomgvlFaC4ArVqMnOZD3nuJ3H3VO1w=="],
 
     "@libsql/win32-x64-msvc": ["@libsql/win32-x64-msvc@0.5.29", "", { "os": "win32", "cpu": "x64" }, "sha512-4/0CvEdhi6+KjMxMaVbFM2n2Z44escBRoEYpR+gZg64DdetzGnYm8mcNLcoySaDJZNaBd6wz5DNdgRmcI4hXcg=="],
+
+    "@logtape/drizzle-orm": ["@logtape/drizzle-orm@2.0.5", "", { "peerDependencies": { "@logtape/logtape": "^2.0.5" } }, "sha512-woM4x9J7B4XzoQTY1bzR6uJVlqezn6oY6flV+rDD6lsuwP2llNVvptgCOGjRutDye+6WZldSUIGe7UFK/faBzA=="],
 
     "@logtape/hono": ["@logtape/hono@2.0.5", "", { "peerDependencies": { "@logtape/logtape": "^2.0.5", "hono": "^4.0.0" } }, "sha512-1cFybsNPBUxi+d63vJZhXHBoYebiONBowLR3Pjg6EQUnzRPc7XihCTyJvbbWn+vEQ8ShRRQ9Hdrffagpa7m7PA=="],
 
