@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
@@ -86,3 +87,30 @@ export const tracks = sqliteTable("tracks", {
 
 export type TrackInsert = typeof tracks.$inferInsert;
 export type Track = typeof tracks.$inferSelect;
+
+export const usersRelations = relations(users, ({ many }) => ({
+  scrobbles: many(scrobbles),
+}));
+
+export const scrobblesRelations = relations(scrobbles, ({ one }) => ({
+  user: one(users, {
+    fields: [scrobbles.userId],
+    references: [users.id],
+  }),
+  track: one(tracks, {
+    fields: [scrobbles.trackSpotifyUri],
+    references: [tracks.spotifyUri],
+  }),
+  album: one(albums, {
+    fields: [scrobbles.albumSpotifyUri],
+    references: [albums.spotifyUri],
+  }),
+}));
+
+export const albumsRelations = relations(albums, ({ many }) => ({
+  scrobbles: many(scrobbles),
+}));
+
+export const tracksRelations = relations(tracks, ({ many }) => ({
+  scrobbles: many(scrobbles),
+}));
