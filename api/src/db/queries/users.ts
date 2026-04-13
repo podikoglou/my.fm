@@ -97,6 +97,11 @@ export async function findUsersWithSpotify() {
       spotifyAccessToken: true,
       spotifyRefreshToken: true,
       spotifyTokenExpiration: true,
+      lastRecentTracksFetchTime: true,
     },
   });
+}
+
+export async function updateLastRecentTracksFetchTime(userId: User["id"], timestamp: Date) {
+  await db.update(users).set({ lastRecentTracksFetchTime: timestamp }).where(eq(users.id, userId));
 }
