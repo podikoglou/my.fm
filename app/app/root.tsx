@@ -11,6 +11,9 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { queryClient } from "./lib/query";
 import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { CardLayout } from "./components/ui/card-layout";
+import { Frown } from "lucide-react";
+import { ErrorCard } from "./components/error-card";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -70,20 +73,21 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <div className="container mx-auto py-12 max-w-md">
-      <div className="min-h-screen flex p-4">
-        <Card className="w-full max-w-lg h-[42rem] m-auto overflow-hidden">
-          <CardHeader>
-            <CardTitle className="text-3xl font-bold">{title}</CardTitle>
-            <CardDescription className="text-muted-foreground">{description}</CardDescription>
+    <CardLayout>
+      <ErrorCard
+        icon={<Frown />}
+        title={<>{title}</>}
+        description={
+          <>
+            {description}
             {stack && (
               <pre className="mt-2 text-left w-full rounded-lg bg-muted p-4 overflow-x-auto text-xs text-muted-foreground">
                 <code>{stack}</code>
               </pre>
             )}
-          </CardHeader>
-        </Card>
-      </div>
-    </div>
+          </>
+        }
+      />
+    </CardLayout>
   );
 }
