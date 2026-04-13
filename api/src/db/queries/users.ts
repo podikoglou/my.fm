@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 /**
  * This creates a new user. New users are typically created and are immediately put in the onboarding state
- * (onboarded = 1).
+ * (onboarded = 0).
  *
  * Since we only support Spotify authentication right now, we also assume that the user
  * is being created through the Spotify auth flow, and that we have the access token, and that we have the
