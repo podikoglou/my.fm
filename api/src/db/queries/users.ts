@@ -14,7 +14,12 @@ import { eq } from "drizzle-orm";
 export async function createNewUser(
   values: Pick<
     UserInsert,
-    "name" | "email" | "spotifyAccessToken" | "spotifyRefreshToken" | "spotifyTokenExpiration"
+    | "name"
+    | "email"
+    | "spotifyAccessToken"
+    | "spotifyRefreshToken"
+    | "spotifyTokenExpiration"
+    | "avatarUrl"
   >,
 ) {
   const id = nanoid();

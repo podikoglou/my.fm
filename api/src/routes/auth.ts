@@ -40,6 +40,7 @@ export default new Hono().post(
         spotifyAccessToken: accessToken.access_token,
         spotifyRefreshToken: accessToken.refresh_token,
         spotifyTokenExpiration: expiration.epochMilliseconds.toString(),
+        avatarUrl: profile.images[0]?.url,
       });
 
       user = result[0];
