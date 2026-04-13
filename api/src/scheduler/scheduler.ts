@@ -25,7 +25,7 @@ export function setupScheduler() {
     // TODO: this should be a part of the item. the initial (seed) fetch
     // should fetch as many as possible and the subsequent ones should
     // fetch an amount that's a function of the last time we fetched
-    const limit = 1;
+    const limit = 6;
 
     const apiClient = withAccessToken(item.accessToken);
     const { items: plays } = await apiClient.player.getRecentlyPlayedTracks(limit);
