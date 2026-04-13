@@ -9,5 +9,6 @@ export async function createScrobble(
   return await db
     .insert(scrobbles)
     .values({ ...values, id })
+    .onConflictDoNothing()
     .returning();
 }
