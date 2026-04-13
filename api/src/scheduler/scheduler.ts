@@ -3,6 +3,8 @@
 import { getLogger } from "@logtape/logtape";
 import { withAccessToken } from "../spotify";
 import { fetchQueue } from "./queue";
+import { createAlbum } from "../db/queries/albums";
+import { createTrack } from "../db/queries/tracks";
 
 const logger = getLogger(["my.fm", "scheduler"]);
 
@@ -29,6 +31,28 @@ export function setupScheduler() {
 
     for (const play of plays) {
       logger.debug`fetched play ${play}`;
+
+      const album = play.track.album;
+      await createAlbum({
+        spotifyUri: album.uri,
+        name: album.name,
+        releaseDate: album.release_date,
+        totalTracks: album.total_tracks,
+        albumType: album.album_type,
+        imageUrl: album.images[0]?.url ?? "",
+      });
+
+      await createTrack({
+        spotifyUri: play.track.uri,
+        name: play.track.name,
+        trackNumber: play.track.track_number,
+        releaseDate: album.release_date,
+        totalTracks: album.total_tracks,
+        albumType: album.album_type,
+        imageUrl: album.images[0]?.url ?? "",
+        explicit: play.track.explicit,
+        duration: play.track.duration_ms,
+      });
     }
   }, INTERVAL);
 }
