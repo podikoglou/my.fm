@@ -31,8 +31,9 @@ export function UserTrackList({ username }: { username: string }) {
       <div className="h-full overflow-y-auto space-y-1 pr-1">
         {data.map((scrobble) => (
           <Track
-            artist={"unknown"}
+            artist={scrobble.album.name}
             title={scrobble.track.name}
+            imageUrl={scrobble.album.imageUrl}
             extra={<span className="text-xs text-muted-foreground shrink-0">{4}</span>}
           />
         ))}
