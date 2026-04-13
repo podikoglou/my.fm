@@ -3,7 +3,7 @@ import { db } from "..";
 import { scrobbles, type ScrobbleInsert } from "../schema";
 
 export async function addScrobble(
-  values: Pick<ScrobbleInsert, "userId" | "spotifyUri" | "scrobbleDate">,
+  values: Pick<ScrobbleInsert, "userId" | "trackSpotifyUri" | "albumSpotifyUri" | "scrobbleDate">,
 ) {
   const id = nanoid();
 
