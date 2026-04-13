@@ -60,6 +60,7 @@ export default new Hono().post(
           expires_in: Number(user.spotifyTokenExpiration),
           refresh_token: user.spotifyRefreshToken!,
         },
+        lastRecentTracksFetchTime: null,
       });
     }
 

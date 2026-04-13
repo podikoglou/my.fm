@@ -6,11 +6,15 @@ import { fetchQueue } from "./queue";
 import { createAlbum } from "../db/queries/albums";
 import { createTrack } from "../db/queries/tracks";
 import { createScrobble } from "../db/queries/scrobbles";
+import { updateLastRecentTracksFetchTime } from "../db/queries/users";
 
 const logger = getLogger(["my.fm", "scheduler"]);
 
 // but it's okay for now (especially for one user)
 const INTERVAL = 5 * 1000;
+
+const FETCH_LIMIT_INITIAL = 50;
+const FETCH_LIMIT_REGULAR = 6;
 
 export function setupScheduler() {
   logger.debug`Setting scheduler up`;
@@ -22,19 +26,35 @@ export function setupScheduler() {
       return;
     }
 
-    // TODO: this should be a part of the item. the initial (seed) fetch
-    // should fetch as many as possible and the subsequent ones should
-    // fetch an amount that's a function of the last time we fetched
-    const limit = 6;
+    const limit = item.lastRecentTracksFetchTime ? FETCH_LIMIT_REGULAR : FETCH_LIMIT_INITIAL;
 
     const apiClient = withAccessToken(item.accessToken);
-    const { items: plays } = await apiClient.player.getRecentlyPlayedTracks(limit);
 
-    for (const play of plays) {
+    let plays;
+
+    if (item.lastRecentTracksFetchTime) {
+      // if we've fetched before, don't re-fetch the same tracks
+      plays = await apiClient.player.getRecentlyPlayedTracks(limit, {
+        type: "after",
+        timestamp: item.lastRecentTracksFetchTime.getTime(),
+      });
+      logger.debug`fetched ${plays.total} recently played tracks (after ${item.lastRecentTracksFetchTime})`;
+    } else {
+      // if we haven't feched before, don't have an "after"
+      plays = await apiClient.player.getRecentlyPlayedTracks(limit);
+      logger.debug`fetched ${plays.total} recently played tracks (initial)`;
+    }
+
+    let mostRecentScrobbleDate: Date | null = null;
+
+    for (const play of plays.items) {
       logger.debug`fetched play ${play}`;
 
-      // create album in db (skipped if exists)
-      // TODO: update if anything changed
+      const scrobbleDate = new Date(play.played_at);
+      if (!mostRecentScrobbleDate || scrobbleDate > mostRecentScrobbleDate) {
+        mostRecentScrobbleDate = scrobbleDate;
+      }
+
       const album = play.track.album;
 
       await createAlbum({
@@ -46,8 +66,6 @@ export function setupScheduler() {
         imageUrl: album.images[0]?.url ?? "",
       });
 
-      // create track in db (skipped if exists)
-      // TODO: update if anything changed
       await createTrack({
         spotifyUri: play.track.uri,
         name: play.track.name,
@@ -60,16 +78,18 @@ export function setupScheduler() {
         duration: play.track.duration_ms,
       });
 
-      // create scrobble in db
-
-      const scrobbleDate = new Date(play.played_at);
-
       await createScrobble({
         userId: item.userId,
         trackSpotifyUri: play.track.uri,
         albumSpotifyUri: album.uri,
         scrobbleDate: scrobbleDate,
       });
+    }
+
+    if (mostRecentScrobbleDate) {
+      await updateLastRecentTracksFetchTime(item.userId, mostRecentScrobbleDate);
+    } else if (item.lastRecentTracksFetchTime) {
+      await updateLastRecentTracksFetchTime(item.userId, new Date());
     }
   }, INTERVAL);
 }
