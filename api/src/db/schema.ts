@@ -29,6 +29,8 @@ export const scrobbles = sqliteTable("scrobbles", {
     .references(() => users.id),
 
   spotifyUri: text().notNull(),
+
+  scrobbleDate: integer({ mode: "timestamp" }),
 });
 
 export type ScrobbleInsert = typeof scrobbles.$inferInsert;

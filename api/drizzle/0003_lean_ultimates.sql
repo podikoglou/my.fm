@@ -1,0 +1,1 @@
+ALTER TABLE `scrobbles` ADD `scrobbleDate` integer;
