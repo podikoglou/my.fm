@@ -5,6 +5,23 @@ import { apiClient } from "~/lib/api";
 import { ErrorCard } from "./error-card";
 import { Track } from "./track-card";
 
+function formatTimeAgo(date: Date) {
+  const then = Temporal.Instant.fromEpochMilliseconds(date.getTime());
+  const now = Temporal.Now.instant();
+
+  const units = ["hours", "minutes", "seconds"] as const;
+
+  for (const unit of units) {
+    const duration = now.since(then, { largestUnit: unit, smallestUnit: unit });
+
+    if (duration.total(unit) >= 1) {
+      return new Intl.DurationFormat("en-US", { style: "narrow" }).format(duration);
+    }
+  }
+
+  return "just now";
+}
+
 export function UserTrackList({ username }: { username: string }) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -68,7 +85,11 @@ export function UserTrackList({ username }: { username: string }) {
             artist={scrobble.album.name}
             title={scrobble.track.name}
             imageUrl={scrobble.album.imageUrl}
-            extra={<span className="text-xs text-muted-foreground shrink-0">{4}</span>}
+            extra={
+              <span className="text-xs text-muted-foreground shrink-0">
+                {scrobble.scrobbleDate ? formatTimeAgo(new Date(scrobble.scrobbleDate)) : null}
+              </span>
+            }
           />
         ))}
         <div ref={sentinelRef} className="h-1" />
