@@ -5,6 +5,7 @@ import { withAccessToken } from "../spotify";
 import { fetchQueue } from "./queue";
 import { createAlbum } from "../db/queries/albums";
 import { createTrack } from "../db/queries/tracks";
+import { createScrobble } from "../db/queries/scrobbles";
 
 const logger = getLogger(["my.fm", "scheduler"]);
 
@@ -57,6 +58,13 @@ export function setupScheduler() {
         imageUrl: album.images[0]?.url ?? "",
         explicit: play.track.explicit,
         duration: play.track.duration_ms,
+      });
+
+      // create scrobble in db
+      await createScrobble({
+        userId: item.userId,
+        trackSpotifyUri: play.track.uri,
+        albumSpotifyUri: album.uri,
       });
     }
   }, INTERVAL);
