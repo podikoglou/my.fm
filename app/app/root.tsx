@@ -10,6 +10,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { Route } from "./+types/root";
 import "./app.css";
 import { queryClient } from "./lib/query";
+import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -51,28 +52,38 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
+  let title = "Something went wrong";
+  let description = "An unexpected error occurred.";
   let stack: string | undefined;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
-    details =
-      error.status === 404 ? "The requested page could not be found." : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
+    if (error.status === 404) {
+      title = "Page Not Found";
+      description = "The page you're looking for doesn't exist.";
+    } else {
+      title = `${error.status}`;
+      description = error.statusText || "An unexpected error occurred.";
+    }
+  } else if (error instanceof Error) {
+    description = error.message || description;
+    stack = import.meta.env.DEV ? error.stack : undefined;
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
-    </main>
+    <div className="container mx-auto py-12 max-w-md">
+      <div className="min-h-screen flex p-4">
+        <Card className="w-full max-w-lg h-[42rem] m-auto overflow-hidden">
+          <CardHeader>
+            <CardTitle className="text-3xl font-bold">{title}</CardTitle>
+            <CardDescription className="text-muted-foreground">{description}</CardDescription>
+            {stack && (
+              <pre className="mt-2 text-left w-full rounded-lg bg-muted p-4 overflow-x-auto text-xs text-muted-foreground">
+                <code>{stack}</code>
+              </pre>
+            )}
+          </CardHeader>
+        </Card>
+      </div>
+    </div>
   );
 }
