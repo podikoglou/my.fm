@@ -1,5 +1,6 @@
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { honoLogger } from "@logtape/hono";
+import { getPrettyFormatter, prettyFormatter } from "@logtape/pretty";
 import { getLogger as getDrizzleLogger } from "@logtape/drizzle-orm";
 import { env } from "./env";
 
@@ -7,7 +8,11 @@ const logLevel = env.LOG_LEVEL;
 
 await configure({
   sinks: {
-    console: getConsoleSink(),
+    console: getConsoleSink({
+      formatter: getPrettyFormatter({
+        wordWrap: false,
+      }),
+    }),
   },
   loggers: [
     {

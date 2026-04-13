@@ -20,6 +20,7 @@
         "@logtape/drizzle-orm": "^2.0.5",
         "@logtape/hono": "^2.0.5",
         "@logtape/logtape": "^2.0.5",
+        "@logtape/pretty": "^2.0.5",
         "@spotify/web-api-ts-sdk": "^1.2.0",
         "drizzle-orm": "^0.45.2",
         "hono": "^4.12.12",
@@ -246,6 +247,8 @@
     "@logtape/hono": ["@logtape/hono@2.0.5", "", { "peerDependencies": { "@logtape/logtape": "^2.0.5", "hono": "^4.0.0" } }, "sha512-1cFybsNPBUxi+d63vJZhXHBoYebiONBowLR3Pjg6EQUnzRPc7XihCTyJvbbWn+vEQ8ShRRQ9Hdrffagpa7m7PA=="],
 
     "@logtape/logtape": ["@logtape/logtape@2.0.5", "", {}, "sha512-UizDkh20ZPJVOddRxG1F77WhHdlNl/sbQgoO8T534R7XvUBMAJ9En9f35u+meW2tRsNLvjz6R87Zanwf53tspQ=="],
+
+    "@logtape/pretty": ["@logtape/pretty@2.0.5", "", { "peerDependencies": { "@logtape/logtape": "^2.0.5" } }, "sha512-jU5pYL0CW0tFmxBS5umMF5VEMq1vXLvkqKrj7KRHnSlb5SrBOSCYl0w4q7FmPPFVADmgTmzVVr6IcIWwK/2Nig=="],
 
     "@mjackson/node-fetch-server": ["@mjackson/node-fetch-server@0.2.0", "", {}, "sha512-EMlH1e30yzmTpGLQjlFmaDAjyOeZhng1/XCd7DExR8PNAnG/G1tyruZxEoUe11ClnwGhGrtsdnyyUx1frSzjng=="],
 
