@@ -19,6 +19,7 @@ import { queryClient } from "~/lib/query";
 import { apiClient } from "~/lib/api";
 import { parseResponse } from "hono/client";
 import { useMutation } from "@tanstack/react-query";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 
 // NOTE: this loader should be almost identical with the loader in ./app/layout.tsx (just with the opposite logic)
 export async function clientLoader() {
@@ -87,64 +88,70 @@ export default function OnboardPage() {
 
   return (
     <div className="flex w-96 flex-col gap-6">
-      <div>
-        <h1 className="text-4xl font-extrabold">One more thing...</h1>
-        <p>We need some more information about you to know you better.</p>
-      </div>
+      <CardHeader className="flex flex-col gap-4 flex-1">
+        <div>
+          <CardTitle className="text-3xl font-bold">One more thing...</CardTitle>
+          <CardDescription className="mt-2">
+            We need some more information about you to know you better.
+          </CardDescription>
+        </div>
+      </CardHeader>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex w-96 flex-col gap-4">
-          <FormField
-            name="..."
-            render={() => (
-              <FormField
-                name="name"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        className="w-full"
-                        placeholder="kyle"
-                        aria-invalid={!!form.formState.errors.name}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-          />
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+            <FormField
+              name="..."
+              render={() => (
+                <FormField
+                  name="name"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="w-full"
+                          placeholder="kyle"
+                          aria-invalid={!!form.formState.errors.name}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            />
 
-          <FormField
-            name="..."
-            render={() => (
-              <FormField
-                name="username"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input
-                        className="w-full"
-                        placeholder="kyles"
-                        aria-invalid={!!form.formState.errors.name}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-          />
+            <FormField
+              name="..."
+              render={() => (
+                <FormField
+                  name="username"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="w-full"
+                          placeholder="kyles"
+                          aria-invalid={!!form.formState.errors.name}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            />
 
-          <Button type="submit">Submit</Button>
-        </form>
-      </Form>
+            <Button type="submit">Submit</Button>
+          </form>
+        </Form>
+      </CardContent>
     </div>
   );
 }
