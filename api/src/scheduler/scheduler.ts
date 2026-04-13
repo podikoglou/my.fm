@@ -61,10 +61,14 @@ export function setupScheduler() {
       });
 
       // create scrobble in db
+
+      const scrobbleDate = new Date(play.played_at);
+
       await createScrobble({
         userId: item.userId,
         trackSpotifyUri: play.track.uri,
         albumSpotifyUri: album.uri,
+        scrobbleDate: scrobbleDate,
       });
     }
   }, INTERVAL);
