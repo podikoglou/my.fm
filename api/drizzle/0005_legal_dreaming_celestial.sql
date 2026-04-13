@@ -1,0 +1,1 @@
+ALTER TABLE `scrobbles` RENAME COLUMN "spotifyUri" TO "trackSpotifyUri";
