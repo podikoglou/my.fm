@@ -1,6 +1,9 @@
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { honoLogger } from "@logtape/hono";
 import { getLogger as getDrizzleLogger } from "@logtape/drizzle-orm";
+import { env } from "./env";
+
+const logLevel = env.LOG_LEVEL;
 
 await configure({
   sinks: {
@@ -8,23 +11,23 @@ await configure({
   },
   loggers: [
     {
-      category: "my.fm",
-      lowestLevel: "debug",
-      sinks: ["console"],
-    },
-    {
-      category: ["hono"],
-      lowestLevel: "info",
-      sinks: ["console"],
-    },
-    {
       category: ["logtape", "meta"],
       lowestLevel: "warning",
       sinks: ["console"],
     },
     {
+      category: "my.fm",
+      lowestLevel: logLevel,
+      sinks: ["console"],
+    },
+    {
+      category: ["hono"],
+      lowestLevel: logLevel,
+      sinks: ["console"],
+    },
+    {
       category: ["drizzle", "db"],
-      lowestLevel: "debug",
+      lowestLevel: logLevel,
       sinks: ["console"],
     },
   ],
@@ -34,7 +37,7 @@ export const logger = getLogger("my.fm");
 
 export const httpLogger = honoLogger({
   category: ["hono", "http"],
-  level: "info",
+  level: "trace",
   format: "dev",
 });
 

@@ -6,6 +6,7 @@ const envSchema = z.object({
   SPOTIFY_REDIRECT_URI: z.string(),
   DATABASE_URL: z.string(),
   SECRET: z.string(),
+  LOG_LEVEL: z.enum(["debug", "info", "warning", "error", "fatal", "trace"]).default("info"),
 });
 
 export const env = envSchema.parse(process.env);
