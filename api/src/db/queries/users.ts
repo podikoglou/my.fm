@@ -49,6 +49,7 @@ export async function findUserByUsernamePublic(username: User["username"]) {
       id: true,
       username: true,
       name: true,
+      avatarUrl: true,
     },
   });
 }
@@ -60,6 +61,7 @@ export async function findUserByIdPublic(id: User["id"]) {
       id: true,
       username: true,
       name: true,
+      avatarUrl: true,
     },
   });
 }
