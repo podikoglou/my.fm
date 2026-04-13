@@ -55,3 +55,29 @@ export const albums = sqliteTable("albums", {
 
 export type AlbumInsert = typeof albums.$inferInsert;
 export type Album = typeof albums.$inferSelect;
+
+export const tracks = sqliteTable("tracks", {
+  spotifyUri: text().primaryKey(),
+  createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
+
+  name: text().notNull(),
+  trackNumber: integer(),
+
+  // this is not always known to good precision and sometimes it may be a range
+  // rather than a concrete value, so we don't bother properly parsing it
+  releaseDate: text().notNull(),
+
+  totalTracks: integer().notNull(),
+
+  albumType: text().notNull(),
+  imageUrl: text().notNull(),
+
+  // I can't tell if the API is required to give this or not but it's a shame to make it nullable
+  explicit: integer({ mode: "boolean" }).default(false),
+
+  // I can't tell if the API is required to give this or not but it's a shame to make it nullable
+  duration: integer().default(0),
+});
+
+export type TrackInsert = typeof tracks.$inferInsert;
+export type Track = typeof tracks.$inferSelect;
