@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 import { db } from "..";
 import { users, type User, type UserInsert } from "../schema";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull, and } from "drizzle-orm";
 
 /**
  * This creates a new user. New users are typically created and are immediately put in the onboarding state
@@ -77,4 +77,26 @@ export async function onboardUser(
     .update(users)
     .set({ ...values, onboarded: true })
     .where(eq(users.id, id));
+}
+
+/**
+ * Returns a list of User IDs and their spotify access tokens. This is used for seeding the fetch queue
+ */
+export async function findUsersWithSpotify() {
+  return await db.query.users.findMany({
+    // the return type for this still has the below fields as nullable,
+    // would be nice if we could somehow make them non nullable on the
+    // type level since they're not nullable in practice because of this
+    where: and(
+      isNotNull(users.spotifyAccessToken),
+      isNotNull(users.spotifyRefreshToken),
+      isNotNull(users.spotifyTokenExpiration),
+    ),
+    columns: {
+      id: true,
+      spotifyAccessToken: true,
+      spotifyRefreshToken: true,
+      spotifyTokenExpiration: true,
+    },
+  });
 }

@@ -6,10 +6,13 @@ import auth from "./routes/auth";
 import user from "./routes/user";
 import type { User } from "./db/schema";
 import { cors } from "hono/cors";
+import { seedFetchQueue } from "./scheduler/queue";
 
 export type Env = {
   Variables: JwtVariables & { getUser: () => Promise<User> };
 };
+
+await seedFetchQueue();
 
 const app = new Hono<Env>()
   .use(httpLogger)
