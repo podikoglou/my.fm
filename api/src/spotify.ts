@@ -2,6 +2,20 @@ import { SpotifyApi, type AccessToken } from "@spotify/web-api-ts-sdk";
 
 import { env } from "./env";
 import ky from "ky";
+import type { User } from "./db/schema";
+
+export function makeAccessTokenFromUser({
+  spotifyAccessToken,
+  spotifyTokenExpiration,
+  spotifyRefreshToken,
+}: Pick<User, "spotifyAccessToken" | "spotifyTokenExpiration" | "spotifyRefreshToken">) {
+  return {
+    access_token: spotifyAccessToken,
+    token_type: "Bearer",
+    expires_in: Number(spotifyTokenExpiration),
+    refresh_token: spotifyRefreshToken,
+  };
+}
 
 /**
  * Given the access token from a user (which we get by exchanging the authorization code for it),
@@ -15,7 +29,7 @@ export function withAccessToken(accessToken: AccessToken) {
  * Exchanges an authorization code (which we got from the redirect) for an access token.
  */
 export async function exchangeCode(code: string): Promise<AccessToken> {
-  // for whatever, @spotify/the web-api-ts-sdk  doesn't seem to provide this or maybe I'm blind
+  // for whatever reason, @spotify/the web-api-ts-sdk  doesn't seem to provide this or maybe I'm blind
   return (
     ky
       .post("https://accounts.spotify.com/api/token", {
@@ -39,4 +53,23 @@ export async function exchangeCode(code: string): Promise<AccessToken> {
       //    than to create our own
       .json<AccessToken>()
   );
+}
+
+/**
+ * Exchagnes a refresh access token for a new AccessToken
+ */
+export async function refreshAccessToken(refreshToken: string): Promise<AccessToken> {
+  return ky
+    .post("https://accounts.spotify.com/api/token", {
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(`${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`).toString("base64"),
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
+    })
+    .json<AccessToken>();
 }
