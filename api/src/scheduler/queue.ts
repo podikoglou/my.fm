@@ -1,13 +1,21 @@
-import type { AccessToken } from "@spotify/web-api-ts-sdk";
 import type { User } from "../db/schema";
 import { findUsersWithSpotify } from "../db/queries/users";
 import { logger } from "../logger";
+import z from "zod";
+import { accessTokenSchema } from "../spotify";
 
-export type QueueItem = {
-  userId: User["id"];
-  accessToken: AccessToken;
-  lastRecentTracksFetchTime: Date | null;
-};
+export type QueueItem = User["id"];
+
+export const queueItemDataSchema = accessTokenSchema
+  .extend({
+    lastRecentTracksFetchTime: z.date().nullable(),
+  })
+  .transform(({ lastRecentTracksFetchTime, ...accessToken }) => ({
+    lastRecentTracksFetchTime,
+    accessToken,
+  }));
+
+export type QueueItemData = z.infer<typeof queueItemDataSchema>;
 
 export class FetchQueue {
   private inner: QueueItem[] = [];
@@ -39,20 +47,5 @@ export async function seedFetchQueue() {
 
   logger.info(`Seeding fetch queue with ${users.length} items`);
 
-  for (const user of users) {
-    if (!user.spotifyAccessToken || !user.spotifyRefreshToken || !user.spotifyTokenExpiration) {
-      continue;
-    }
-
-    fetchQueue.push({
-      userId: user.id,
-      accessToken: {
-        access_token: user.spotifyAccessToken,
-        token_type: "Bearer",
-        expires_in: Number(user.spotifyTokenExpiration),
-        refresh_token: user.spotifyRefreshToken,
-      },
-      lastRecentTracksFetchTime: user.lastRecentTracksFetchTime,
-    });
-  }
+  users.forEach((user) => fetchQueue.push(user.id));
 }

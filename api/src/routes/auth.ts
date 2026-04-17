@@ -1,9 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import z from "zod";
-import { exchangeCode, withAccessToken } from "../spotify";
+import { exchangeCode, userDataToAccessToken, withAccessToken } from "../spotify";
 import { createNewUser, findUserByEmail } from "../db/queries/users";
-import { Temporal } from "@js-temporal/polyfill";
 import { createJwt } from "../auth/jwt";
 import type { User } from "../db/schema";
 import { fetchQueue } from "../scheduler/queue";
@@ -30,18 +29,11 @@ export default new Hono().post(
     let user: User | undefined = await findUserByEmail(profile.email);
 
     if (!user) {
-      // create new user in the database
-      const expiration = Temporal.Now.instant().add(
-        Temporal.Duration.from({ seconds: accessToken.expires_in }),
-      );
-
       const result = await createNewUser({
         name: profile.display_name,
         email: profile.email,
-        spotifyAccessToken: accessToken.access_token,
-        spotifyRefreshToken: accessToken.refresh_token,
-        spotifyTokenExpiration: expiration.epochMilliseconds.toString(),
         avatarUrl: profile.images[0]?.url,
+        ...userDataToAccessToken.encode(accessToken),
       });
 
       user = result[0];
@@ -51,17 +43,7 @@ export default new Hono().post(
       }
 
       // add to fetch queue
-      // TODO: deduplicate this, this piece of codealready exists in the codebase
-      fetchQueue.push({
-        userId: user.id,
-        accessToken: {
-          access_token: user.spotifyAccessToken!,
-          token_type: "Bearer",
-          expires_in: Number(user.spotifyTokenExpiration),
-          refresh_token: user.spotifyRefreshToken!,
-        },
-        lastRecentTracksFetchTime: null,
-      });
+      fetchQueue.push(user.id);
     }
 
     // create JWT for user

@@ -84,9 +84,6 @@ export async function onboardUser(
  */
 export async function findUsersWithSpotify() {
   return await db.query.users.findMany({
-    // the return type for this still has the below fields as nullable,
-    // would be nice if we could somehow make them non nullable on the
-    // type level since they're not nullable in practice because of this
     where: and(
       isNotNull(users.spotifyAccessToken),
       isNotNull(users.spotifyRefreshToken),
@@ -94,6 +91,14 @@ export async function findUsersWithSpotify() {
     ),
     columns: {
       id: true,
+    },
+  });
+}
+
+export async function findUserQueueDataById(id: User["id"]) {
+  return await db.query.users.findFirst({
+    where: eq(users.id, id),
+    columns: {
       spotifyAccessToken: true,
       spotifyRefreshToken: true,
       spotifyTokenExpiration: true,

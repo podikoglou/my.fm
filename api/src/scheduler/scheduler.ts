@@ -1,15 +1,14 @@
-// this is a very important constnat, and there's different ways to tweak this,
-
 import { getLogger } from "@logtape/logtape";
 import { withAccessToken } from "../spotify";
-import { fetchQueue } from "./queue";
+import { fetchQueue, queueItemDataSchema } from "./queue";
 import { createAlbum } from "../db/queries/albums";
 import { createTrack } from "../db/queries/tracks";
 import { createScrobble } from "../db/queries/scrobbles";
-import { updateLastRecentTracksFetchTime } from "../db/queries/users";
+import { findUserQueueDataById, updateLastRecentTracksFetchTime } from "../db/queries/users";
 
 const logger = getLogger(["my.fm", "scheduler"]);
 
+// this is a very important constnat, and there's different ways to tweak this,
 // but it's okay for now (especially for one user)
 const INTERVAL = 5 * 1000;
 
@@ -20,28 +19,49 @@ export function setupScheduler() {
   logger.debug`Setting scheduler up`;
 
   setInterval(async () => {
-    const item = fetchQueue.pop();
+    const userId = fetchQueue.pop();
 
-    if (!item) {
+    if (!userId) {
+      logger.warn`No items in the queue`;
       return;
     }
 
-    const limit = item.lastRecentTracksFetchTime ? FETCH_LIMIT_REGULAR : FETCH_LIMIT_INITIAL;
+    // fetch relevant up-to-date data about the user
+    const rawItemData = await findUserQueueDataById(userId);
 
-    const apiClient = withAccessToken(item.accessToken);
+    if (!rawItemData) {
+      logger.warn`User in queue disappeared`;
+      return;
+    }
+
+    // parse data
+    const { data: itemData, success: parseSuccess } = queueItemDataSchema.safeParse(rawItemData);
+
+    if (!parseSuccess) {
+      logger.error`Couldn't parse queue item data (invalid data in db?)`;
+      return;
+    }
+
+    // create API client
+    const apiClient = withAccessToken(itemData.accessToken);
+
+    // fetch plays
+    const limit = itemData.lastRecentTracksFetchTime ? FETCH_LIMIT_REGULAR : FETCH_LIMIT_INITIAL;
 
     let plays;
 
-    if (item.lastRecentTracksFetchTime) {
+    if (itemData.lastRecentTracksFetchTime) {
       // if we've fetched before, don't re-fetch the same tracks
       plays = await apiClient.player.getRecentlyPlayedTracks(limit, {
         type: "after",
-        timestamp: item.lastRecentTracksFetchTime.getTime(),
+        timestamp: itemData.lastRecentTracksFetchTime.getTime(),
       });
-      logger.debug`fetched ${plays.total} recently played tracks (after ${item.lastRecentTracksFetchTime})`;
+
+      logger.debug`fetched ${plays.total} recently played tracks (after ${itemData.lastRecentTracksFetchTime})`;
     } else {
       // if we haven't feched before, don't have an "after"
       plays = await apiClient.player.getRecentlyPlayedTracks(limit);
+
       logger.debug`fetched ${plays.total} recently played tracks (initial)`;
     }
 
@@ -79,7 +99,7 @@ export function setupScheduler() {
       });
 
       await createScrobble({
-        userId: item.userId,
+        userId,
         trackSpotifyUri: play.track.uri,
         albumSpotifyUri: album.uri,
         scrobbleDate: scrobbleDate,
@@ -87,9 +107,9 @@ export function setupScheduler() {
     }
 
     if (mostRecentScrobbleDate) {
-      await updateLastRecentTracksFetchTime(item.userId, mostRecentScrobbleDate);
-    } else if (item.lastRecentTracksFetchTime) {
-      await updateLastRecentTracksFetchTime(item.userId, new Date());
+      await updateLastRecentTracksFetchTime(userId, mostRecentScrobbleDate);
+    } else if (itemData.lastRecentTracksFetchTime) {
+      await updateLastRecentTracksFetchTime(userId, new Date());
     }
   }, INTERVAL);
 }
