@@ -23,11 +23,22 @@ export const userDataToAccessToken = z.codec(
   accessTokenSchema,
   {
     decode: ({ spotifyAccessToken, spotifyRefreshToken, spotifyTokenExpiration }) => {
-      return accessTokenSchema.parse({
+      const expirationInstant = Temporal.Instant.fromEpochMilliseconds(
+        Number(spotifyTokenExpiration),
+      );
+
+      // get the difference between now and the expiration in seconds
+      const expiresInSeconds = Temporal.Now.instant()
+        .until(expirationInstant)
+        .total({ unit: "seconds" });
+
+      return {
         access_token: spotifyAccessToken,
         refresh_token: spotifyRefreshToken,
-        expires_in: spotifyTokenExpiration,
-      });
+
+        // Math.floor to ensure integer, Math.max to clamp negative times to 0 if already expired
+        expires_in: Math.max(0, Math.floor(expiresInSeconds)),
+      };
     },
     encode: ({ access_token, refresh_token, expires_in }) => ({
       spotifyAccessToken: access_token,
