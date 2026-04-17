@@ -2,20 +2,42 @@ import { SpotifyApi, type AccessToken } from "@spotify/web-api-ts-sdk";
 
 import { env } from "./env";
 import ky from "ky";
-import type { User } from "./db/schema";
+import z from "zod";
+import { Temporal } from "@js-temporal/polyfill";
 
-export function makeAccessTokenFromUser({
-  spotifyAccessToken,
-  spotifyTokenExpiration,
-  spotifyRefreshToken,
-}: Pick<User, "spotifyAccessToken" | "spotifyTokenExpiration" | "spotifyRefreshToken">) {
-  return {
-    access_token: spotifyAccessToken,
-    token_type: "Bearer",
-    expires_in: Number(spotifyTokenExpiration),
-    refresh_token: spotifyRefreshToken,
-  };
-}
+// z.infer<typeof accessTokenSchema> should be equal to AccessToken (from @spotify/web-api-ts-sdk)
+export const accessTokenSchema = z.object({
+  access_token: z.string(),
+  token_type: z.string().default("Bearer"),
+  expires_in: z.number(),
+  refresh_token: z.string(),
+  expires: z.number().optional(),
+});
+
+export const userDataToAccessToken = z.codec(
+  z.object({
+    spotifyAccessToken: z.string(),
+    spotifyRefreshToken: z.string(),
+    spotifyTokenExpiration: z.string(),
+  }),
+  accessTokenSchema,
+  {
+    decode: ({ spotifyAccessToken, spotifyRefreshToken, spotifyTokenExpiration }) => {
+      return accessTokenSchema.parse({
+        access_token: spotifyAccessToken,
+        refresh_token: spotifyRefreshToken,
+        expires_in: spotifyTokenExpiration,
+      });
+    },
+    encode: ({ access_token, refresh_token, expires_in }) => ({
+      spotifyAccessToken: access_token,
+      spotifyRefreshToken: refresh_token,
+      spotifyTokenExpiration: Temporal.Now.instant()
+        .add(Temporal.Duration.from({ seconds: expires_in }))
+        .epochMilliseconds.toString(),
+    }),
+  },
+);
 
 /**
  * Given the access token from a user (which we get by exchanging the authorization code for it),
