@@ -6,16 +6,19 @@ import { ErrorCard } from "./error-card";
 import { Track } from "./track-card";
 
 function formatTimeAgo(date: Date) {
-  const then = Temporal.Instant.fromEpochMilliseconds(date.getTime());
-  const now = Temporal.Now.instant();
+  const tz = Temporal.Now.timeZoneId();
+  const then = Temporal.Instant.fromEpochMilliseconds(date.getTime()).toZonedDateTimeISO(tz);
+  const now = Temporal.Now.zonedDateTimeISO(tz);
 
-  const units = ["hours", "minutes", "seconds"] as const;
+  const duration = now.since(then, { largestUnit: "years" });
+
+  const units = ["years", "months", "weeks", "days", "hours", "minutes", "seconds"] as const;
 
   for (const unit of units) {
-    const duration = now.since(then, { largestUnit: unit, smallestUnit: unit });
-
-    if (duration.total(unit) >= 1) {
-      return new Intl.DurationFormat("en-US", { style: "narrow" }).format(duration);
+    if (duration[unit] >= 1) {
+      return new Intl.DurationFormat("en-US", { style: "narrow" }).format({
+        [unit]: duration[unit],
+      });
     }
   }
 
