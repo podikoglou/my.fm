@@ -1,3 +1,4 @@
+import { formatDistanceToNow } from "date-fns";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
 import { useEffect, useRef } from "react";
@@ -6,23 +7,7 @@ import { ErrorCard } from "./error-card";
 import { Track } from "./track-card";
 
 function formatTimeAgo(date: Date) {
-  const tz = Temporal.Now.timeZoneId();
-  const then = Temporal.Instant.fromEpochMilliseconds(date.getTime()).toZonedDateTimeISO(tz);
-  const now = Temporal.Now.zonedDateTimeISO(tz);
-
-  const duration = now.since(then, { largestUnit: "years" });
-
-  const units = ["years", "months", "weeks", "days", "hours", "minutes", "seconds"] as const;
-
-  for (const unit of units) {
-    if (duration[unit] >= 1) {
-      return new Intl.DurationFormat("en-US", { style: "narrow" }).format({
-        [unit]: duration[unit],
-      });
-    }
-  }
-
-  return "just now";
+  return formatDistanceToNow(date, { addSuffix: true });
 }
 
 export function UserTrackList({ username }: { username: string }) {
