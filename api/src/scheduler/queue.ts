@@ -2,17 +2,20 @@ import type { User } from "../db/schema";
 import { findUsersWithSpotify } from "../db/queries/users";
 import { logger } from "../logger";
 import z from "zod";
-import { accessTokenSchema } from "../spotify";
+import { userDataToAccessToken } from "../spotify";
 
 export type QueueItem = User["id"];
 
-export const queueItemDataSchema = accessTokenSchema
-  .extend({
+export const queueItemDataSchema = z
+  .object({
+    spotifyAccessToken: z.string(),
+    spotifyRefreshToken: z.string(),
+    spotifyTokenExpiration: z.date(),
     lastRecentTracksFetchTime: z.date().nullable(),
   })
-  .transform(({ lastRecentTracksFetchTime, ...accessToken }) => ({
+  .transform(({ lastRecentTracksFetchTime, ...dbData }) => ({
     lastRecentTracksFetchTime,
-    accessToken,
+    accessToken: userDataToAccessToken.parse(dbData),
   }));
 
 export type QueueItemData = z.infer<typeof queueItemDataSchema>;

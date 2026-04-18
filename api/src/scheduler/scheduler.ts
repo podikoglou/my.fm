@@ -1,10 +1,14 @@
 import { getLogger } from "@logtape/logtape";
-import { withAccessToken } from "../spotify";
+import { ensureFreshAccessToken, userDataToAccessToken, withAccessToken } from "../spotify";
 import { fetchQueue, queueItemDataSchema } from "./queue";
 import { createAlbum } from "../db/queries/albums";
 import { createTrack } from "../db/queries/tracks";
 import { createScrobble } from "../db/queries/scrobbles";
-import { findUserQueueDataById, updateLastRecentTracksFetchTime } from "../db/queries/users";
+import {
+  findUserQueueDataById,
+  updateLastRecentTracksFetchTime,
+  updateUserAccessToken,
+} from "../db/queries/users";
 
 const logger = getLogger(["my.fm", "scheduler"]);
 
@@ -42,8 +46,11 @@ export function setupScheduler() {
       return;
     }
 
-    // create API client
-    const apiClient = withAccessToken(itemData.accessToken);
+    // refresh token if needed, then create API client
+    const accessToken = await ensureFreshAccessToken(itemData.accessToken, async (newToken) => {
+      await updateUserAccessToken(userId, userDataToAccessToken.encode(newToken));
+    });
+    const apiClient = withAccessToken(accessToken);
 
     // fetch plays
     const limit = itemData.lastRecentTracksFetchTime ? FETCH_LIMIT_REGULAR : FETCH_LIMIT_INITIAL;

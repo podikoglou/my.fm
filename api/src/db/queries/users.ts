@@ -107,6 +107,13 @@ export async function findUserQueueDataById(id: User["id"]) {
   });
 }
 
+export async function updateUserAccessToken(
+  id: User["id"],
+  values: Pick<User, "spotifyAccessToken" | "spotifyRefreshToken" | "spotifyTokenExpiration">,
+) {
+  return await db.update(users).set(values).where(eq(users.id, id));
+}
+
 export async function updateLastRecentTracksFetchTime(userId: User["id"], timestamp: Date) {
   await db.update(users).set({ lastRecentTracksFetchTime: timestamp }).where(eq(users.id, userId));
 }

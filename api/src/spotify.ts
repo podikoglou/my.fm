@@ -107,3 +107,25 @@ export async function refreshAccessToken(refreshToken: string): Promise<AccessTo
     })
     .json<AccessToken>();
 }
+
+const REFRESH_THRESHOLD_SECONDS = 60;
+
+/**
+ * Refreshes an AccessToken if it is near / past its expiration, or else return it as it is.
+ */
+export async function ensureFreshAccessToken(
+  accessToken: AccessToken,
+  onRefresh?: (newToken: AccessToken) => Promise<void>,
+): Promise<AccessToken> {
+  if (accessToken.expires_in > REFRESH_THRESHOLD_SECONDS) {
+    return accessToken;
+  }
+
+  const newToken = await refreshAccessToken(accessToken.refresh_token);
+
+  if (onRefresh) {
+    await onRefresh(newToken);
+  }
+
+  return newToken;
+}
