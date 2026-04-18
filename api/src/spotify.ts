@@ -18,16 +18,16 @@ export const userDataToAccessToken = z.codec(
   z.object({
     spotifyAccessToken: z.string(),
     spotifyRefreshToken: z.string(),
-    spotifyTokenExpiration: z.string(),
+    spotifyTokenExpiration: z.date(),
   }),
   accessTokenSchema,
   {
     decode: ({ spotifyAccessToken, spotifyRefreshToken, spotifyTokenExpiration }) => {
+      // get the difference between now and the expiration in seconds
       const expirationInstant = Temporal.Instant.fromEpochMilliseconds(
-        Number(spotifyTokenExpiration),
+        spotifyTokenExpiration.getTime(),
       );
 
-      // get the difference between now and the expiration in seconds
       const expiresInSeconds = Temporal.Now.instant()
         .until(expirationInstant)
         .total({ unit: "seconds" });
@@ -43,9 +43,10 @@ export const userDataToAccessToken = z.codec(
     encode: ({ access_token, refresh_token, expires_in }) => ({
       spotifyAccessToken: access_token,
       spotifyRefreshToken: refresh_token,
-      spotifyTokenExpiration: Temporal.Now.instant()
-        .add(Temporal.Duration.from({ seconds: expires_in }))
-        .epochMilliseconds.toString(),
+      spotifyTokenExpiration: new Date(
+        Temporal.Now.instant().add(Temporal.Duration.from({ seconds: expires_in }))
+          .epochMilliseconds,
+      ),
     }),
   },
 );
