@@ -1,9 +1,7 @@
 import { sign } from "hono/jwt";
+import { add } from "date-fns";
 import { env } from "../env";
 import type { User } from "../db/schema";
-import { Temporal } from "@js-temporal/polyfill";
-
-const JWT_DURATION = Temporal.Duration.from({ hours: 24 });
 
 export type JwtPayload = {
   userId: User["id"];
@@ -11,7 +9,7 @@ export type JwtPayload = {
 };
 
 export async function createJwt(userId: JwtPayload["userId"]): Promise<string> {
-  const exp = Temporal.Now.instant().add(JWT_DURATION);
+  const exp = add(new Date(), { hours: 24 });
 
-  return sign({ userId, exp: exp.epochMilliseconds / 1000 }, env.SECRET);
+  return sign({ userId, exp: exp.getTime() / 1000 }, env.SECRET);
 }

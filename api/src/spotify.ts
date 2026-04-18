@@ -3,7 +3,7 @@ import { SpotifyApi, type AccessToken } from "@spotify/web-api-ts-sdk";
 import { env } from "./env";
 import ky from "ky";
 import z from "zod";
-import { Temporal } from "@js-temporal/polyfill";
+import { add, differenceInSeconds } from "date-fns";
 
 // z.infer<typeof accessTokenSchema> should be equal to AccessToken (from @spotify/web-api-ts-sdk)
 export const accessTokenSchema = z.object({
@@ -23,14 +23,7 @@ export const userDataToAccessToken = z.codec(
   accessTokenSchema,
   {
     decode: ({ spotifyAccessToken, spotifyRefreshToken, spotifyTokenExpiration }) => {
-      // get the difference between now and the expiration in seconds
-      const expirationInstant = Temporal.Instant.fromEpochMilliseconds(
-        spotifyTokenExpiration.getTime(),
-      );
-
-      const expiresInSeconds = Temporal.Now.instant()
-        .until(expirationInstant)
-        .total({ unit: "seconds" });
+      const expiresInSeconds = differenceInSeconds(spotifyTokenExpiration, new Date());
 
       return {
         access_token: spotifyAccessToken,
@@ -43,10 +36,7 @@ export const userDataToAccessToken = z.codec(
     encode: ({ access_token, refresh_token, expires_in }) => ({
       spotifyAccessToken: access_token,
       spotifyRefreshToken: refresh_token,
-      spotifyTokenExpiration: new Date(
-        Temporal.Now.instant().add(Temporal.Duration.from({ seconds: expires_in }))
-          .epochMilliseconds,
-      ),
+      spotifyTokenExpiration: add(new Date(), { seconds: expires_in }),
     }),
   },
 );
