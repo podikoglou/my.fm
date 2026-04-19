@@ -2,21 +2,11 @@ import type { User } from "../db/schema";
 import { findUsersWithSpotify } from "../db/queries/users";
 import { logger } from "../logger";
 import z from "zod";
-import { userDataToAccessToken } from "../spotify";
-
 export type QueueItem = User["id"];
 
-export const queueItemDataSchema = z
-  .object({
-    spotifyAccessToken: z.string(),
-    spotifyRefreshToken: z.string(),
-    spotifyTokenExpiration: z.date(),
-    lastRecentTracksFetchTime: z.date().nullable(),
-  })
-  .transform(({ lastRecentTracksFetchTime, ...dbData }) => ({
-    lastRecentTracksFetchTime,
-    accessToken: userDataToAccessToken.parse(dbData),
-  }));
+export const queueItemDataSchema = z.object({
+  lastRecentTracksFetchTime: z.date().nullable(),
+});
 
 export type QueueItemData = z.infer<typeof queueItemDataSchema>;
 
@@ -30,7 +20,6 @@ export class FetchQueue {
   pop(): QueueItem | undefined {
     const item = this.inner.pop();
 
-    // we re-add it to the queue
     if (item) {
       this.push(item);
     }
@@ -46,9 +35,9 @@ export class FetchQueue {
 export const fetchQueue = new FetchQueue();
 
 export async function seedFetchQueue() {
-  const users = await findUsersWithSpotify();
+  const accounts = await findUsersWithSpotify();
 
-  logger.info(`Seeding fetch queue with ${users.length} items`);
+  logger.info(`Seeding fetch queue with ${accounts.length} items`);
 
-  users.forEach((user) => fetchQueue.push(user.id));
+  accounts.forEach((account) => fetchQueue.push(account.userId));
 }
