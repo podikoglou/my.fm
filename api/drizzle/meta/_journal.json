@@ -78,6 +78,13 @@
       "when": 1776550806773,
       "tag": "0010_tense_ben_urich",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1776596527996,
+      "tag": "0011_illegal_firestar",
+      "breakpoints": true
     }
   ]
 }

@@ -7,7 +7,12 @@ export const users = sqliteTable("users", {
   username: text().notNull().unique(),
   name: text().notNull(),
   email: text().notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).default(false).notNull(),
+
   createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .$onUpdate(() => new Date())
+    .notNull(),
 
   avatarUrl: text(),
 
