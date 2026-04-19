@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { JwtVariables } from "hono/jwt";
 import { HTTPException } from "hono/http-exception";
 import { httpLogger } from "./logger";
-import auth from "./routes/auth";
+import { auth } from "./auth";
 import user from "./routes/user";
 import type { User } from "./db/schema";
 import { cors } from "hono/cors";
@@ -20,7 +20,9 @@ setupScheduler();
 const app = new Hono<Env>()
   .use(httpLogger)
   .use("/*", cors())
-  .route("/auth", auth)
+  .on(["POST", "GET"], "/auth/*", (c) => {
+    return auth.handler(c.req.raw);
+  })
   .route("/user", user)
   .route("/scrobble", scrobble)
   .onError((err, c) => {
