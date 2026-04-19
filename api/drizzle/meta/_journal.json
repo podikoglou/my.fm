@@ -85,6 +85,13 @@
       "when": 1776596527996,
       "tag": "0011_illegal_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1776596591028,
+      "tag": "0012_illegal_ozymandias",
+      "breakpoints": true
     }
   ]
 }

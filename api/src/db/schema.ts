@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text().primaryKey(),
@@ -27,6 +27,24 @@ export const users = sqliteTable("users", {
 export type UserInsert = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .$onUpdate(() => new Date())
+      .notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("session_userId_idx").on(table.userId)],
+);
 export const scrobbles = sqliteTable("scrobbles", {
   id: text().primaryKey(),
   createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
