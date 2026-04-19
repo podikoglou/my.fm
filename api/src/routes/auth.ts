@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import z from "zod";
 import { exchangeCode, userDataToAccessToken, withAccessToken } from "../spotify";
-import { createNewUser, findUserByEmail } from "../db/queries/users";
+import { createNewUser, findUserByEmail, updateUserAccessToken } from "../db/queries/users";
 import { createJwt } from "../auth/jwt";
 import type { User } from "../db/schema";
 import { fetchQueue } from "../scheduler/queue";
@@ -28,7 +28,11 @@ export default new Hono().post(
     // check if user already exists
     let user: User | undefined = await findUserByEmail(profile.email);
 
-    if (!user) {
+    if (user) {
+      // if user exists, simply update the spotify token in the db
+      await updateUserAccessToken(user.id, userDataToAccessToken.encode(accessToken));
+    } else {
+      // if user doens't exist, create it
       const result = await createNewUser({
         name: profile.display_name,
         email: profile.email,
