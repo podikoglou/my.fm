@@ -88,6 +88,21 @@ export const verification = sqliteTable(
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
+
+export const sessionRelations = relations(sessions, ({ one }) => ({
+  user: one(users, {
+    fields: [sessions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const accountRelations = relations(accounts, ({ one }) => ({
+  user: one(users, {
+    fields: [accounts.userId],
+    references: [users.id],
+  }),
+}));
+
 export const scrobbles = sqliteTable("scrobbles", {
   id: text().primaryKey(),
   createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
@@ -157,6 +172,8 @@ export type Track = typeof tracks.$inferSelect;
 
 export const usersRelations = relations(users, ({ many }) => ({
   scrobbles: many(scrobbles),
+  sessions: many(sessions),
+  accounts: many(accounts),
 }));
 
 export const scrobblesRelations = relations(scrobbles, ({ one }) => ({
