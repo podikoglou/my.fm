@@ -99,9 +99,6 @@ export async function findUserQueueDataById(id: User["id"]) {
   return await db.query.users.findFirst({
     where: eq(users.id, id),
     columns: {
-      spotifyAccessToken: true,
-      spotifyRefreshToken: true,
-      spotifyTokenExpiration: true,
       lastRecentTracksFetchTime: true,
     },
   });
