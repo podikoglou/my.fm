@@ -1,17 +1,20 @@
 import { Hono } from "hono";
-import type { JwtVariables } from "hono/jwt";
 import { HTTPException } from "hono/http-exception";
 import { httpLogger } from "./logger";
 import { auth } from "./auth";
 import user from "./routes/user";
-import type { User } from "./db/schema";
 import { cors } from "hono/cors";
 import { seedFetchQueue } from "./scheduler/queue";
 import { setupScheduler } from "./scheduler/scheduler";
 import scrobble from "./routes/scrobble";
+import type { User } from "./db/schema";
 
 export type Env = {
-  Variables: JwtVariables & { getUser: () => Promise<User> };
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+    getUserData: () => Promise<User>;
+  };
 };
 
 await seedFetchQueue();

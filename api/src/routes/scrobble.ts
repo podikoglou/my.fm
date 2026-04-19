@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import type { Env } from "..";
 import { zValidator } from "@hono/zod-validator";
 import z from "zod";
-import { authMiddleware } from "../auth/middleware";
 import { findRecentScrobblesByUserId } from "../db/queries/scrobbles";
 import { findUserByUsernamePublic } from "../db/queries/users";
+import { authMiddleware } from "../auth";
 
 export default new Hono<Env>().use("/*", authMiddleware).get(
   "/getRecent",
