@@ -5,7 +5,8 @@ const envSchema = z.object({
   SPOTIFY_CLIENT_SECRET: z.string(),
   SPOTIFY_REDIRECT_URI: z.string(),
   DATABASE_URL: z.string(),
-  SECRET: z.string(),
+  BETTER_AUTH_SECRET: z.string(),
+  BETTER_AUTH_URL: z.string(),
   LOG_LEVEL: z.enum(["debug", "info", "warning", "error", "fatal", "trace"]).default("info"),
 });
 
