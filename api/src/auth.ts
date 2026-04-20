@@ -7,6 +7,7 @@ import type { MiddlewareHandler } from "hono";
 import type { Env } from ".";
 import { findUserById } from "./db/queries/users";
 import { HTTPException } from "hono/http-exception";
+import { nanoid } from "nanoid";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -31,6 +32,7 @@ export const auth = betterAuth({
       image: "avatarUrl",
     },
   },
+  advanced: { database: { generateId: () => nanoid() } },
 });
 
 export const authMiddleware: MiddlewareHandler<Env> = async (c, next) => {
