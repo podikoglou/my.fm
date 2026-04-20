@@ -1,12 +1,13 @@
 import { getLogger } from "@logtape/logtape";
-import { fetchQueue } from "./queue";
-import { createAlbum } from "../db/queries/albums";
-import { createTrack } from "../db/queries/tracks";
-import { createScrobble } from "../db/queries/scrobbles";
-import { findUserQueueDataById, updateLastRecentTracksFetchTime } from "../db/queries/users";
-import { auth } from "../auth";
 import { SpotifyApi } from "@spotify/web-api-ts-sdk";
+
+import { auth } from "../auth";
+import { createAlbum } from "../db/queries/albums";
+import { createScrobble } from "../db/queries/scrobbles";
+import { createTrack } from "../db/queries/tracks";
+import { findUserQueueDataById, updateLastRecentTracksFetchTime } from "../db/queries/users";
 import { env } from "../env";
+import { fetchQueue } from "./queue";
 
 const logger = getLogger(["my.fm", "scheduler"]);
 

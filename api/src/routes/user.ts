@@ -1,10 +1,12 @@
-import { Hono } from "hono";
-import type { Env } from "..";
-import { findUserByIdPublic, findUserByUsernamePublic, onboardUser } from "../db/queries/users";
 import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import z from "zod";
-import { usernameSchema, nameSchema } from "../data/validators";
+
+import type { Env } from "..";
+
 import { authMiddleware } from "../auth";
+import { usernameSchema, nameSchema } from "../data/validators";
+import { findUserByIdPublic, findUserByUsernamePublic, onboardUser } from "../db/queries/users";
 
 export default new Hono<Env>()
   .use("/*", authMiddleware)

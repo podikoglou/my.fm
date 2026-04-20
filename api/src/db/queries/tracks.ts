@@ -1,6 +1,7 @@
+import { eq } from "drizzle-orm";
+
 import { db } from "..";
 import { tracks, type TrackInsert } from "../schema";
-import { eq } from "drizzle-orm";
 
 export async function createTrack(values: TrackInsert) {
   return await db.insert(tracks).values(values).onConflictDoNothing().returning();

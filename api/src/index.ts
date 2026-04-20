@@ -1,14 +1,16 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
-import { httpLogger } from "./logger";
+
+import type { User } from "./db/schema";
+
 import { auth } from "./auth";
 import { env } from "./env";
+import { httpLogger } from "./logger";
+import scrobble from "./routes/scrobble";
 import user from "./routes/user";
-import { cors } from "hono/cors";
 import { seedFetchQueue } from "./scheduler/queue";
 import { setupScheduler } from "./scheduler/scheduler";
-import scrobble from "./routes/scrobble";
-import type { User } from "./db/schema";
 
 export type Env = {
   Variables: {

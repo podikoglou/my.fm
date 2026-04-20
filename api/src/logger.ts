@@ -1,7 +1,8 @@
-import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
-import { honoLogger } from "@logtape/hono";
-import { getPrettyFormatter } from "@logtape/pretty";
 import { getLogger as getDrizzleLogger } from "@logtape/drizzle-orm";
+import { honoLogger } from "@logtape/hono";
+import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
+import { getPrettyFormatter } from "@logtape/pretty";
+
 import { env } from "./env";
 
 const logLevel = env.LOG_LEVEL;

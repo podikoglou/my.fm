@@ -1,13 +1,16 @@
+import type { MiddlewareHandler } from "hono";
+
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "./db";
-import * as schema from "./db/schema";
-import { env } from "./env";
-import type { MiddlewareHandler } from "hono";
-import type { Env } from ".";
-import { findUserById } from "./db/queries/users";
 import { HTTPException } from "hono/http-exception";
 import { nanoid } from "nanoid";
+
+import type { Env } from ".";
+
+import { db } from "./db";
+import { findUserById } from "./db/queries/users";
+import * as schema from "./db/schema";
+import { env } from "./env";
 import { fetchQueue } from "./scheduler/queue";
 
 export const auth = betterAuth({

@@ -1,7 +1,9 @@
+import z from "zod";
+
 import type { User } from "../db/schema";
+
 import { findUsersWithSpotify } from "../db/queries/users";
 import { logger } from "../logger";
-import z from "zod";
 export type QueueItem = User["id"];
 
 export const queueItemDataSchema = z.object({

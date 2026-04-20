@@ -1,6 +1,7 @@
+import { eq } from "drizzle-orm";
+
 import { db } from "..";
 import { accounts, users, type User } from "../schema";
-import { eq } from "drizzle-orm";
 
 export async function findUserById(id: User["id"]) {
   return await db.query.users.findFirst({
