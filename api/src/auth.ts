@@ -31,8 +31,29 @@ export const auth = betterAuth({
     fields: {
       image: "avatarUrl",
     },
+
+    additionalFields: {
+      username: {
+        type: "string",
+        required: true,
+      },
+    },
   },
   advanced: { database: { generateId: () => nanoid() } },
+  databaseHooks: {
+    user: {
+      create: {
+        async before(user) {
+          return {
+            data: {
+              ...user,
+              username: user.id,
+            },
+          };
+        },
+      },
+    },
+  },
 });
 
 export const authMiddleware: MiddlewareHandler<Env> = async (c, next) => {
