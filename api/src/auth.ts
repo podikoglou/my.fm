@@ -18,6 +18,7 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
+  trustedOrigins: [env.FRONTEND_URL],
   socialProviders: {
     spotify: {
       clientId: env.SPOTIFY_CLIENT_ID,
