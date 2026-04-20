@@ -26,6 +26,11 @@ export const auth = betterAuth({
       redirectURI: env.SPOTIFY_REDIRECT_URI,
     },
   },
+  user: {
+    fields: {
+      image: "avatarUrl",
+    },
+  },
 });
 
 export const authMiddleware: MiddlewareHandler<Env> = async (c, next) => {
