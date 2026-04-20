@@ -8,6 +8,7 @@ import type { Env } from ".";
 import { findUserById } from "./db/queries/users";
 import { HTTPException } from "hono/http-exception";
 import { nanoid } from "nanoid";
+import { fetchQueue } from "./scheduler/queue";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -50,6 +51,10 @@ export const auth = betterAuth({
               username: nanoid(),
             },
           };
+        },
+        async after(user) {
+          // add user to fetch queue
+          fetchQueue.push(user.id);
         },
       },
     },
