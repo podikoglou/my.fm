@@ -20,7 +20,7 @@ export function setupScheduler() {
 
   setInterval(async () => {
     // get item from queue
-    const userId = fetchQueue.pop();
+    const userId = fetchQueue.next();
 
     if (!userId) {
       logger.warn`No items in the queue`;

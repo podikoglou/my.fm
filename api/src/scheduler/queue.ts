@@ -17,7 +17,7 @@ export class FetchQueue {
     this.inner.push(item);
   }
 
-  pop(): QueueItem | undefined {
+  next(): QueueItem | undefined {
     const item = this.inner.shift();
 
     if (item) {
