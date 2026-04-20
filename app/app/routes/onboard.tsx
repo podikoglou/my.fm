@@ -1,4 +1,3 @@
-import { getDefaultStore } from "jotai";
 import { useForm } from "react-hook-form";
 import { redirect, useNavigate } from "react-router";
 import { z } from "zod";
@@ -11,48 +10,20 @@ import {
   FormLabel,
   FormMessage,
 } from "~/components/ui/form";
-import { accessTokenAtom } from "~/state/auth";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
-import { authorizeSpotify } from "~/lib/spotify";
 import { queryClient } from "~/lib/query";
 import { apiClient } from "~/lib/api";
 import { parseResponse } from "hono/client";
 import { useMutation } from "@tanstack/react-query";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { requireAuth } from "~/lib/auth-guard";
 
-// NOTE: this loader should be almost identical with the loader in ./app/layout.tsx (just with the opposite logic)
 export async function clientLoader() {
-  const store = getDefaultStore();
+  const { user } = await requireAuth("/onboard");
 
-  // ensure we've got an access token
-  const accessToken = store.get(accessTokenAtom);
-
-  // if no access token, redirect to spotify to authenticate
-  if (!accessToken) {
-    authorizeSpotify();
-  }
-
-  // ensure we're onboarded
-  try {
-    const data = await queryClient.fetchQuery({
-      queryKey: ["user", "me"],
-      queryFn: () => parseResponse(apiClient.user.me.$get()),
-    });
-
-    // if already onboarded, redirect to app
-    if (data.onboarded) {
-      throw redirect("/app");
-    }
-  } catch (err) {
-    // this is what the throw redirect(..) throws. we don't actually want to watch that, so we throw it back
-    if (err instanceof Response) {
-      throw err;
-    }
-
-    console.error(err);
-    // if there's an error or no user data, redirect to spotify to re-auth
-    authorizeSpotify();
+  if (user && user.onboarded) {
+    throw redirect("/app");
   }
 }
 
@@ -69,7 +40,7 @@ export default function OnboardPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      username: "", // we *couuld* use user.username which is from spotify, but it's gibberish
+      username: "",
     },
   });
 
