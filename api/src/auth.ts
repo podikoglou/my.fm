@@ -11,8 +11,12 @@ import { HTTPException } from "hono/http-exception";
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "sqlite",
-    schema,
-    usePlural: true,
+    schema: {
+      user: schema.users,
+      account: schema.accounts,
+      session: schema.sessions,
+      verification: schema.verification,
+    },
   }),
   socialProviders: {
     spotify: {
