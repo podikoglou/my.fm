@@ -9,10 +9,10 @@ may get rate limited by Spotify after a certain number of users)
 ## Stack
 
 On the fronend, my.fm uses [React 19](https://react.dev). For the design
-system, we use [Tailwind](https://tailwindcss.com) and
-[9ui](https://www.9ui.dev/) components (which in turn use [Base
-UI](https://base-ui.com/)). For routing, we use [React
-Router](https://reactrouter.com).
+system, [Tailwind](https://tailwindcss.com) with [9ui](https://www.9ui.dev/)
+components (which in turn use [Base UI](https://base-ui.com/)) is used. For
+routing, we use [React Router](https://reactrouter.com).
 
-On the backend, we have a [Hono](https://hono.dev) API that runs on Bun and
-uses SQLite with Drizzle.
+On the backend, we have a simple [Hono](https://hono.dev) API that runs on Bun
+and uses SQLite through [Drizzle](https://orm.drizzle.team/). Authentication is
+offloaded to [Better Auth](https://better-auth.com)
