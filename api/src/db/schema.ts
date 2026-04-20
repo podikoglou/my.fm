@@ -152,8 +152,6 @@ export const tracks = sqliteTable("tracks", {
   // rather than a concrete value, so we don't bother properly parsing it
   releaseDate: text().notNull(),
 
-  totalTracks: integer().notNull(),
-
   albumType: text().notNull(),
   imageUrl: text().notNull(),
 
