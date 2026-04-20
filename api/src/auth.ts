@@ -47,7 +47,7 @@ export const auth = betterAuth({
           return {
             data: {
               ...user,
-              username: user.id,
+              username: nanoid(),
             },
           };
         },
