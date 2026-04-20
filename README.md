@@ -2,6 +2,8 @@
 
 my.fm is a small [last.fm](https://last.fm) clone.
 
+![demo!](.github/demo.gif)
+
 ## Stack
 
 On the fronend, my.fm uses [React 19](https://react.dev). For the design
