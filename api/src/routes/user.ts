@@ -4,12 +4,12 @@ import { findUserByIdPublic, findUserByUsernamePublic, onboardUser } from "../db
 import { zValidator } from "@hono/zod-validator";
 import z from "zod";
 import { usernameSchema, nameSchema } from "../data/validators";
-import { authMiddleware } from "../auth/middleware";
+import { authMiddleware } from "../auth";
 
 export default new Hono<Env>()
   .use("/*", authMiddleware)
   .get("/me", async (c) => {
-    const { id, username, name, email, onboarded } = await c.get("getUser")();
+    const { id, username, name, email, onboarded } = await c.get("getUserData")();
 
     return c.json({ id, username, name, email, onboarded }, 200);
   })
@@ -29,7 +29,7 @@ export default new Hono<Env>()
     "/onboard",
     zValidator("form", z.object({ username: usernameSchema, name: nameSchema })),
     async (c) => {
-      const { id, onboarded } = await c.get("getUser")();
+      const { id, onboarded } = await c.get("getUserData")();
       const { username, name } = c.req.valid("form");
 
       if (onboarded) {

@@ -12,6 +12,5 @@ export default [
     ]),
 
     route("onboard", "routes/onboard.tsx"),
-    ...prefix("auth", [route("spotify/callback", "routes/auth/spotify/callback.tsx")]),
   ]),
 ] satisfies RouteConfig;

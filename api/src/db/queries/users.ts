@@ -1,34 +1,6 @@
-import { nanoid } from "nanoid";
 import { db } from "..";
-import { users, type User, type UserInsert } from "../schema";
-import { eq, isNotNull, and } from "drizzle-orm";
-
-/**
- * This creates a new user. New users are typically created and are immediately put in the onboarding state
- * (onboarded = 0).
- *
- * Since we only support Spotify authentication right now, we also assume that the user
- * is being created through the Spotify auth flow, and that we have the access token, and that we have the
- * access token from Spotify.
- */
-export async function createNewUser(
-  values: Pick<
-    UserInsert,
-    | "name"
-    | "email"
-    | "spotifyAccessToken"
-    | "spotifyRefreshToken"
-    | "spotifyTokenExpiration"
-    | "avatarUrl"
-  >,
-) {
-  const id = nanoid();
-
-  return await db
-    .insert(users)
-    .values({ ...values, id, username: id, onboarded: false })
-    .returning();
-}
+import { accounts, users, type User } from "../schema";
+import { eq } from "drizzle-orm";
 
 export async function findUserById(id: User["id"]) {
   return await db.query.users.findFirst({
@@ -79,39 +51,22 @@ export async function onboardUser(
     .where(eq(users.id, id));
 }
 
-/**
- * Returns a list of User IDs and their spotify access tokens. This is used for seeding the fetch queue
- */
-export async function findUsersWithSpotify() {
-  return await db.query.users.findMany({
-    where: and(
-      isNotNull(users.spotifyAccessToken),
-      isNotNull(users.spotifyRefreshToken),
-      isNotNull(users.spotifyTokenExpiration),
-    ),
-    columns: {
-      id: true,
-    },
-  });
-}
-
 export async function findUserQueueDataById(id: User["id"]) {
   return await db.query.users.findFirst({
     where: eq(users.id, id),
     columns: {
-      spotifyAccessToken: true,
-      spotifyRefreshToken: true,
-      spotifyTokenExpiration: true,
       lastRecentTracksFetchTime: true,
     },
   });
 }
 
-export async function updateUserAccessToken(
-  id: User["id"],
-  values: Pick<User, "spotifyAccessToken" | "spotifyRefreshToken" | "spotifyTokenExpiration">,
-) {
-  return await db.update(users).set(values).where(eq(users.id, id));
+export async function findUsersWithSpotify() {
+  return await db.query.accounts.findMany({
+    where: eq(accounts.providerId, "spotify"),
+    columns: {
+      userId: true,
+    },
+  });
 }
 
 export async function updateLastRecentTracksFetchTime(userId: User["id"], timestamp: Date) {

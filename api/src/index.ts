@@ -1,17 +1,21 @@
 import { Hono } from "hono";
-import type { JwtVariables } from "hono/jwt";
 import { HTTPException } from "hono/http-exception";
 import { httpLogger } from "./logger";
-import auth from "./routes/auth";
+import { auth } from "./auth";
+import { env } from "./env";
 import user from "./routes/user";
-import type { User } from "./db/schema";
 import { cors } from "hono/cors";
 import { seedFetchQueue } from "./scheduler/queue";
 import { setupScheduler } from "./scheduler/scheduler";
 import scrobble from "./routes/scrobble";
+import type { User } from "./db/schema";
 
 export type Env = {
-  Variables: JwtVariables & { getUser: () => Promise<User> };
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+    getUserData: () => Promise<User>;
+  };
 };
 
 await seedFetchQueue();
@@ -19,8 +23,10 @@ setupScheduler();
 
 const app = new Hono<Env>()
   .use(httpLogger)
-  .use("/*", cors())
-  .route("/auth", auth)
+  .use("/*", cors({ origin: env.FRONTEND_URL, credentials: true }))
+  .on(["POST", "GET"], "/api/auth/*", (c) => {
+    return auth.handler(c.req.raw);
+  })
   .route("/user", user)
   .route("/scrobble", scrobble)
   .onError((err, c) => {
