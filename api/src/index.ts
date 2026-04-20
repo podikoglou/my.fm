@@ -24,7 +24,7 @@ setupScheduler();
 const app = new Hono<Env>()
   .use(httpLogger)
   .use("/*", cors({ origin: env.FRONTEND_URL, credentials: true }))
-  .on(["POST", "GET"], "/auth/*", (c) => {
+  .on(["POST", "GET"], "/api/auth/*", (c) => {
     return auth.handler(c.req.raw);
   })
   .route("/user", user)
