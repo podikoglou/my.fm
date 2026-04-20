@@ -26,6 +26,7 @@ export const auth = betterAuth({
       clientId: env.SPOTIFY_CLIENT_ID,
       clientSecret: env.SPOTIFY_CLIENT_SECRET,
       redirectURI: env.SPOTIFY_REDIRECT_URI,
+      scope: ["user-read-private", "user-read-email", "user-read-recently-played"],
     },
   },
   user: {
