@@ -152,7 +152,6 @@ export const tracks = sqliteTable("tracks", {
   // rather than a concrete value, so we don't bother properly parsing it
   releaseDate: text().notNull(),
 
-  albumType: text().notNull(),
   imageUrl: text().notNull(),
 
   // I can't tell if the API is required to give this or not but it's a shame to make it nullable
