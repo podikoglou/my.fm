@@ -102,8 +102,6 @@ export function setupScheduler() {
         name: play.track.name,
         trackNumber: play.track.track_number,
         releaseDate: album.release_date,
-        totalTracks: album.total_tracks,
-        albumType: album.album_type,
         imageUrl: album.images[0]?.url ?? "",
         explicit: play.track.explicit,
         duration: play.track.duration_ms,
