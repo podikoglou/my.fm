@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { httpLogger } from "./logger";
 import { auth } from "./auth";
+import { env } from "./env";
 import user from "./routes/user";
 import { cors } from "hono/cors";
 import { seedFetchQueue } from "./scheduler/queue";
@@ -22,7 +23,7 @@ setupScheduler();
 
 const app = new Hono<Env>()
   .use(httpLogger)
-  .use("/*", cors())
+  .use("/*", cors({ origin: env.FRONTEND_URL, credentials: true }))
   .on(["POST", "GET"], "/auth/*", (c) => {
     return auth.handler(c.req.raw);
   })
