@@ -80,7 +80,7 @@ export const authMiddleware: MiddlewareHandler<Env> = async (c, next) => {
     // take control and stop the request cycle early. hopefully it's also acceptable for
     // such methods here
     if (!user) {
-      if (!user) throw new HTTPException(401);
+      throw new HTTPException(401);
     }
 
     return user;
