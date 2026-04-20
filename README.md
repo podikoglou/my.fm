@@ -1,6 +1,8 @@
-# my.fm Architecture
+# my.fm
 
-my.fm is a small [last.fm](https://last.fm) clone.
+my.fm is a little [last.fm](https://last.fm) clone. It can be trivially self
+hosted and can support an unknown amount of users (I'm not sure how many, it
+may get rate limited by Spotify after a certain number of users)
 
 ![demo!](.github/demo.gif)
 
