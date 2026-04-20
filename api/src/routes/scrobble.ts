@@ -35,7 +35,8 @@ export default new Hono<Env>().use("/*", authMiddleware).get(
     return c.json(
       scrobbles.map(({ id, track, album, scrobbleDate }) => {
         return { id, track, album, scrobbleDate };
-      }, 200),
+      }),
+      200,
     );
   },
 );
