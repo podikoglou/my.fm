@@ -1,6 +1,7 @@
-import { authClient } from "./auth";
-import { apiClient } from "./api";
 import { parseResponse } from "hono/client";
+
+import { apiClient } from "./api";
+import { authClient } from "./auth";
 import { queryClient } from "./query";
 
 export async function requireAuth(callbackURL: string) {

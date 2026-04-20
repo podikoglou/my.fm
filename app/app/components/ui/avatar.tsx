@@ -1,6 +1,6 @@
-import * as React from "react";
 import { Avatar as AvatarBase } from "@base-ui/react/avatar";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -46,7 +46,7 @@ function AvatarFallback({ className, ...props }: React.ComponentProps<typeof Ava
     <AvatarBase.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "bg-muted flex size-full items-center justify-center rounded-full select-none",
+        "flex size-full items-center justify-center rounded-full bg-muted select-none",
         className,
       )}
       {...props}

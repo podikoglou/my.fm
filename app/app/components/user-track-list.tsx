@@ -1,8 +1,10 @@
-import { formatDistanceToNow } from "date-fns";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
 import { parseResponse } from "hono/client";
 import { useEffect, useRef } from "react";
+
 import { apiClient } from "~/lib/api";
+
 import { ErrorCard } from "./error-card";
 import { Track } from "./track-card";
 
@@ -67,14 +69,14 @@ export function UserTrackList({ username }: { username: string }) {
 
   return (
     <>
-      <div className="h-full overflow-y-auto space-y-1 pr-1">
+      <div className="h-full space-y-1 overflow-y-auto pr-1">
         {allScrobbles.map((scrobble) => (
           <Track
             artist={scrobble.album.name}
             title={scrobble.track.name}
             imageUrl={scrobble.album.imageUrl}
             extra={
-              <span className="text-xs text-muted-foreground shrink-0">
+              <span className="shrink-0 text-xs text-muted-foreground">
                 {scrobble.scrobbleDate ? formatTimeAgo(new Date(scrobble.scrobbleDate)) : null}
               </span>
             }

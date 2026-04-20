@@ -1,5 +1,5 @@
-import * as React from "react";
 import { Input as BaseInput } from "@base-ui/react/input";
+import * as React from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -29,7 +29,7 @@ function Input({
       {leadingIcon && (
         <span
           data-slot="input-leading-icon"
-          className="text-muted-foreground absolute top-1/2 left-3 shrink-0 -translate-y-1/2 [&_svg]:shrink-0 [&_svg:not([class*='pointer-events-'])]:pointer-events-none [&_svg:not([class*='size-'])]:size-4"
+          className="absolute top-1/2 left-3 shrink-0 -translate-y-1/2 text-muted-foreground [&_svg]:shrink-0 [&_svg:not([class*='pointer-events-'])]:pointer-events-none [&_svg:not([class*='size-'])]:size-4"
         >
           {leadingIcon}
         </span>
@@ -38,7 +38,7 @@ function Input({
         type={type}
         data-slot="input"
         className={cn(
-          "placeholder:text-muted-foreground selection:bg-primary group-hover:border-ring/70 selection:text-primary-foreground bg-input file:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/50 aria-invalid:border-destructive flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base shadow-xs transition-[color,box-shadow,border-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-[3px] md:text-sm",
+          "flex h-9 w-full min-w-0 rounded-md border bg-input px-3 py-1 text-base shadow-xs transition-[color,box-shadow,border-color] outline-none group-hover:border-ring/70 selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/50 md:text-sm",
           leadingIcon && "pl-10",
           trailingIcon && "pr-10",
           className,
@@ -49,7 +49,7 @@ function Input({
       {trailingIcon && (
         <span
           data-slot="input-trailing-icon"
-          className="text-muted-foreground absolute top-1/2 right-3 shrink-0 -translate-y-1/2 [&_svg]:shrink-0 [&_svg:not([class*='pointer-events-'])]:pointer-events-none [&_svg:not([class*='size-'])]:size-4"
+          className="absolute top-1/2 right-3 shrink-0 -translate-y-1/2 text-muted-foreground [&_svg]:shrink-0 [&_svg:not([class*='pointer-events-'])]:pointer-events-none [&_svg:not([class*='size-'])]:size-4"
         >
           {trailingIcon}
         </span>

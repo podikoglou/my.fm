@@ -1,7 +1,12 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
+import { parseResponse } from "hono/client";
 import { useForm } from "react-hook-form";
 import { redirect, useNavigate } from "react-router";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+
+import { Button } from "~/components/ui/button";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import {
   Form,
   FormControl,
@@ -11,13 +16,9 @@ import {
   FormMessage,
 } from "~/components/ui/form";
 import { Input } from "~/components/ui/input";
-import { Button } from "~/components/ui/button";
-import { queryClient } from "~/lib/query";
 import { apiClient } from "~/lib/api";
-import { parseResponse } from "hono/client";
-import { useMutation } from "@tanstack/react-query";
-import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { requireAuth } from "~/lib/auth-guard";
+import { queryClient } from "~/lib/query";
 
 export async function clientLoader() {
   const { user } = await requireAuth("/onboard");
@@ -59,7 +60,7 @@ export default function OnboardPage() {
 
   return (
     <div className="flex w-96 flex-col gap-6">
-      <CardHeader className="flex flex-col gap-4 flex-1">
+      <CardHeader className="flex flex-1 flex-col gap-4">
         <div>
           <CardTitle className="text-3xl font-bold">One more thing...</CardTitle>
           <CardDescription className="mt-2">

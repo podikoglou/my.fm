@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "~/lib/api";
 import { parseResponse } from "hono/client";
-import type { Route } from "./+types/user";
-import { CardHeader, CardContent } from "~/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { UserX } from "lucide-react";
+
 import { ErrorCard } from "~/components/error-card";
 import { TrackList } from "~/components/track-list";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { CardHeader, CardContent } from "~/components/ui/card";
 import { UserTrackList } from "~/components/user-track-list";
+import { apiClient } from "~/lib/api";
+
+import type { Route } from "./+types/user";
 
 export async function clientLoader({ params }: Route.LoaderArgs) {
   return params;
@@ -62,13 +64,13 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
       <CardHeader className="flex flex-col items-center gap-4">
         <UserAvatar avatarUrl={data.avatarUrl} name={data.name} />
 
-        <div className="text-center space-y-1">
+        <div className="space-y-1 text-center">
           <h1 className="text-3xl font-bold">{data.name}</h1>
           <p className="text-sm text-muted-foreground">@{data.username}</p>
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 min-h-0 overflow-hidden">
+      <CardContent className="min-h-0 flex-1 overflow-hidden">
         <UserTrackList username={username} />
       </CardContent>
     </>

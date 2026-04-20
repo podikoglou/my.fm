@@ -1,5 +1,7 @@
-import { Music } from "lucide-react";
 import type { ReactNode } from "react";
+
+import { Music } from "lucide-react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 export function Track({
@@ -23,8 +25,8 @@ export function Track({
       </Avatar>
 
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium truncate">{title}</p>
-        <p className="text-xs text-muted-foreground truncate">{artist}</p>
+        <p className="truncate text-sm font-medium">{title}</p>
+        <p className="truncate text-xs text-muted-foreground">{artist}</p>
       </div>
 
       <div>{extra}</div>

@@ -1,3 +1,5 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Frown } from "lucide-react";
 import {
   isRouteErrorResponse,
   Links,
@@ -6,14 +8,15 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
-import { QueryClientProvider } from "@tanstack/react-query";
-import type { Route } from "./+types/root";
+
 import "./app.css";
-import { queryClient } from "./lib/query";
 import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { CardLayout } from "./components/ui/card-layout";
-import { Frown } from "lucide-react";
+
+import type { Route } from "./+types/root";
+
 import { ErrorCard } from "./components/error-card";
+import { CardLayout } from "./components/ui/card-layout";
+import { queryClient } from "./lib/query";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -81,7 +84,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
           <>
             {description}
             {stack && (
-              <pre className="mt-2 text-left w-full rounded-lg bg-muted p-4 overflow-x-auto text-xs text-muted-foreground">
+              <pre className="mt-2 w-full overflow-x-auto rounded-lg bg-muted p-4 text-left text-xs text-muted-foreground">
                 <code>{stack}</code>
               </pre>
             )}
