@@ -2,8 +2,5 @@ pre-commit:
   commands:
     lint-staged:
       run: bun lint-staged
-
-pre-push:
-  commands:
     typecheck:
       run: bun typecheck
