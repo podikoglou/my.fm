@@ -7,3 +7,8 @@ pre-commit:
       run: bun run fmt --no-error-on-unmatched-pattern {staged_files}
     typecheck:
       run: bun typecheck
+
+commit-msg:
+  commands:
+    "lint commit message":
+      run: bun run commitlint --edit {1}

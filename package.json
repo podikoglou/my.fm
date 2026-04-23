@@ -11,6 +11,8 @@
     "typecheck": "bun run --filter '@my.fm/*' typecheck"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "oxfmt": "^0.41.0",
     "oxlint": "^1.56.0"
   }
