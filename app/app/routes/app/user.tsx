@@ -3,7 +3,6 @@ import { parseResponse } from "hono/client";
 import { UserX } from "lucide-react";
 
 import { ErrorCard } from "~/components/error-card";
-import { TrackList } from "~/components/track-list";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { CardHeader, CardContent } from "~/components/ui/card";
 import { UserTrackList } from "~/components/user-track-list";
