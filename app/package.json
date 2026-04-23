@@ -6,7 +6,7 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc",
+    "typecheck": "react-router typegen && tsgo",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
@@ -43,8 +43,8 @@
     "@types/node": "^22",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native-preview": "^7.0.0-dev.20260423.1",
     "tailwindcss": "^4.2.2",
-    "typescript": "^6.0.2",
     "vite": "^7.1.7",
     "vite-tsconfig-paths": "^5.1.4"
   }
