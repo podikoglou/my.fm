@@ -11,12 +11,7 @@
     "typecheck": "bun run --filter '@my.fm/*' typecheck"
   },
   "devDependencies": {
-    "lint-staged": "^16.4.0",
     "oxfmt": "^0.41.0",
     "oxlint": "^1.56.0"
-  },
-  "lint-staged": {
-    "*": "bun fmt --no-error-on-unmatched-pattern",
-    "*.{js,jsx,ts,tsx,mjs,cjs}": "bun run lint"
   }
 }

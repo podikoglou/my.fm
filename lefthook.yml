@@ -1,6 +1,9 @@
 pre-commit:
   commands:
-    lint-staged:
-      run: bun lint-staged
+    lint:
+      glob: ".{js,jsx,ts,tsx,mjs,cjs}"
+      run: bun run lint
+    format:
+      run: bun run fmt --no-error-on-unmatched-pattern
     typecheck:
       run: bun typecheck
