@@ -72,7 +72,7 @@ export function UserTrackList({ username }: { username: string }) {
       <div className="h-full space-y-1 overflow-y-auto pr-1">
         {allScrobbles.map((scrobble) => (
           <Track
-            artist={scrobble.album.name}
+            artist={scrobble.track.artists.map((a) => a.name).join(", ")}
             title={scrobble.track.name}
             imageUrl={scrobble.album.imageUrl}
             extra={

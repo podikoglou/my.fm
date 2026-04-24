@@ -36,7 +36,40 @@ export default new Hono<Env>().use("/*", authMiddleware).get(
 
     return c.json(
       scrobbles.map(({ id, track, album, scrobbleDate }) => {
-        return { id, track, album, scrobbleDate };
+        // oh lord
+
+        // track artists
+        const trackArtists = track.trackArtists
+          .map((artist) => ({
+            ...artist.artist,
+            position: artist.position,
+          }))
+          .sort((a, b) => a.position - b.position)
+          .map(({ position: _, ...rest }) => rest);
+
+        // album artists
+        const albumArtists = album.albumArtists
+          .map((artist) => ({
+            ...artist.artist,
+            position: artist.position,
+          }))
+          .sort((a, b) => a.position - b.position)
+          .map(({ position: _, ...rest }) => rest);
+
+        return {
+          id,
+          track: {
+            ...track,
+            trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
+            artists: trackArtists,
+          },
+          album: {
+            ...album,
+            albumArtists: undefined,
+            artists: albumArtists,
+          },
+          scrobbleDate,
+        };
       }),
       200,
     );

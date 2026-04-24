@@ -2,8 +2,11 @@ import { getLogger } from "@logtape/logtape";
 import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 
 import { auth } from "../auth";
+import { addAlbumArtist } from "../db/queries/albumArtists";
 import { createAlbum } from "../db/queries/albums";
+import { createArtist } from "../db/queries/artists";
 import { createScrobble } from "../db/queries/scrobbles";
+import { addTrackArtist } from "../db/queries/trackArtists";
 import { createTrack } from "../db/queries/tracks";
 import { findUserQueueDataById, updateLastRecentTracksFetchTime } from "../db/queries/users";
 import { env } from "../env";
@@ -87,6 +90,16 @@ export function setupScheduler() {
 
       const album = play.track.album;
 
+      // insert track's and album's artist in database (skipped if already there)
+      // (should generally be the same, but we can never know for sure)
+      for (const { name, uri } of play.track.artists) {
+        await createArtist({ spotifyUri: uri, name });
+      }
+
+      for (const { name, uri } of album.artists) {
+        await createArtist({ spotifyUri: uri, name });
+      }
+
       // insert album in database (skipped if already there)
       await createAlbum({
         spotifyUri: album.uri,
@@ -96,6 +109,14 @@ export function setupScheduler() {
         albumType: album.album_type,
         imageUrl: album.images[0]?.url ?? "",
       });
+
+      // insert album's artist (skipped if already there)
+      for (let i = 0; i < album.artists.length; i++) {
+        const artist = album.artists[i];
+        if (!artist) continue;
+
+        await addAlbumArtist(album.uri, artist.uri, i);
+      }
 
       // insert track in database (skipped if already there)
       await createTrack({
@@ -108,7 +129,15 @@ export function setupScheduler() {
         duration: play.track.duration_ms,
       });
 
-      // insert scrobble in database
+      // insert track's artist (skipped if already there)
+      for (let i = 0; i < play.track.artists.length; i++) {
+        const artist = play.track.artists[i];
+        if (!artist) continue;
+
+        await addTrackArtist(play.track.uri, artist.uri, i);
+      }
+
+      // finally, insert scrobble in database
       await createScrobble({
         userId,
         trackSpotifyUri: play.track.uri,
