@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text().primaryKey(),
@@ -141,6 +141,44 @@ export const albums = sqliteTable("albums", {
 export type AlbumInsert = typeof albums.$inferInsert;
 export type Album = typeof albums.$inferSelect;
 
+export const artists = sqliteTable("artists", {
+  spotifyUri: text().primaryKey(),
+  createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
+  name: text().notNull(),
+  imageUrl: text(),
+});
+
+export type ArtistInsert = typeof artists.$inferInsert;
+export type Artist = typeof artists.$inferSelect;
+
+export const trackArtists = sqliteTable(
+  "track_artists",
+  {
+    trackSpotifyUri: text("track_spotify_uri")
+      .notNull()
+      .references(() => tracks.spotifyUri),
+    artistSpotifyUri: text("artist_spotify_uri")
+      .notNull()
+      .references(() => artists.spotifyUri),
+    position: integer("position").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.trackSpotifyUri, table.artistSpotifyUri] })],
+);
+
+export const albumArtists = sqliteTable(
+  "album_artists",
+  {
+    albumSpotifyUri: text("album_spotify_uri")
+      .notNull()
+      .references(() => albums.spotifyUri),
+    artistSpotifyUri: text("artist_spotify_uri")
+      .notNull()
+      .references(() => artists.spotifyUri),
+    position: integer("position").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.albumSpotifyUri, table.artistSpotifyUri] })],
+);
+
 export const tracks = sqliteTable("tracks", {
   spotifyUri: text().primaryKey(),
   createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
@@ -185,10 +223,39 @@ export const scrobblesRelations = relations(scrobbles, ({ one }) => ({
   }),
 }));
 
+export const artistsRelations = relations(artists, ({ many }) => ({
+  trackArtists: many(trackArtists),
+  albumArtists: many(albumArtists),
+}));
+
+export const trackArtistsRelations = relations(trackArtists, ({ one }) => ({
+  track: one(tracks, {
+    fields: [trackArtists.trackSpotifyUri],
+    references: [tracks.spotifyUri],
+  }),
+  artist: one(artists, {
+    fields: [trackArtists.artistSpotifyUri],
+    references: [artists.spotifyUri],
+  }),
+}));
+
+export const albumArtistsRelations = relations(albumArtists, ({ one }) => ({
+  album: one(albums, {
+    fields: [albumArtists.albumSpotifyUri],
+    references: [albums.spotifyUri],
+  }),
+  artist: one(artists, {
+    fields: [albumArtists.artistSpotifyUri],
+    references: [artists.spotifyUri],
+  }),
+}));
+
 export const albumsRelations = relations(albums, ({ many }) => ({
   scrobbles: many(scrobbles),
+  albumArtists: many(albumArtists),
 }));
 
 export const tracksRelations = relations(tracks, ({ many }) => ({
   scrobbles: many(scrobbles),
+  trackArtists: many(trackArtists),
 }));
