@@ -26,8 +26,24 @@ export async function findRecentScrobblesByUserId(
     offset,
     limit,
     with: {
-      track: true,
-      album: true,
+      track: {
+        with: {
+          trackArtists: {
+            with: {
+              artist: true,
+            },
+          },
+        },
+      },
+      album: {
+        with: {
+          albumArtists: {
+            with: {
+              artist: true,
+            },
+          },
+        },
+      },
     },
   });
 }
