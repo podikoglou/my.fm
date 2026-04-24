@@ -3,6 +3,7 @@ import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 
 import { auth } from "../auth";
 import { createAlbum } from "../db/queries/albums";
+import { createArtist } from "../db/queries/artists";
 import { createScrobble } from "../db/queries/scrobbles";
 import { createTrack } from "../db/queries/tracks";
 import { findUserQueueDataById, updateLastRecentTracksFetchTime } from "../db/queries/users";
@@ -86,6 +87,16 @@ export function setupScheduler() {
       }
 
       const album = play.track.album;
+
+      // insert track's and album's artist in database (skipped if already there)
+      // (should generally be the same, but we can never know for sure)
+      for (const { name, uri } of play.track.artists) {
+        await createArtist({ spotifyUri: uri, name });
+      }
+
+      for (const { name, uri } of album.artists) {
+        await createArtist({ spotifyUri: uri, name });
+      }
 
       // insert album in database (skipped if already there)
       await createAlbum({
