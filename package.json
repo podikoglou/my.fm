@@ -1,19 +1,27 @@
 {
   "name": "my.fm",
-  "version": "1.0.0",
+  "packageManager": "bun@1.3.13",
   "workspaces": [
     "api/",
     "app/"
   ],
   "scripts": {
-    "fmt": "bun run --filter '@my.fm/*' fmt",
-    "lint": "bun run --filter '@my.fm/*' lint",
-    "typecheck": "bun run --filter '@my.fm/*' typecheck"
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "fmt": "turbo fmt",
+    "fmt:check": "turbo fmt:check",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
+    "typecheck": "turbo typecheck",
+    "db:generate": "turbo db:generate",
+    "db:migrate": "turbo db:migrate",
+    "db:studio": "turbo db:studio"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "oxfmt": "^0.41.0",
-    "oxlint": "^1.56.0"
+    "oxlint": "^1.56.0",
+    "turbo": "^2.9.6"
   }
 }
