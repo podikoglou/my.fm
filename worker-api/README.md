@@ -98,8 +98,8 @@ A Cloudflare Cron Trigger runs the ingestion Worker every minute:
 crons: ["* * * * *"];
 ```
 
-Each run reads every account with `providerId = "spotify"`, then processes the
-accounts in order:
+Each run reads every account with `providerId = "spotify"`, then processes
+each account:
 
 1. Get a valid Spotify access token from Better Auth.
 2. Read the user's `lastRecentTracksFetchTime` cursor.
@@ -124,21 +124,31 @@ characters. A re-fetched play gets the same ID, so `onConflictDoNothing` keeps
 the write idempotent. The Bun API used `Bun.hash.wyhash`, which Workers do not
 have.
 
-Plays are written in batches of up to ten. A D1 batch is a transaction and
-counts as one query against the invocation limit, so an initial fetch of fifty
-plays stays under the free plan's fifty-query limit, and a failure rolls back
-only the current chunk. Every insert in a batch uses `onConflictDoNothing`.
+Plays are written in batches of up to ten. D1 counts one `db.batch()` call as
+one query against the invocation limit. A single batch for a whole fetch would
+be one query, but a failure would roll back every play; ten plays per batch
+bounds the rollback, and an initial fetch of fifty plays is still only five
+batches. Every insert in a batch uses `onConflictDoNothing`.
 
 A failure for one account is logged with `console.error` and does not stop the
 other accounts. The failed user's cursor is not advanced, so the next run
 retries it.
 
-### Known limitation
+### Known limitations
 
 The Bun scheduler fetched one user every five seconds with a regular limit of
 six. A one-minute Cron Trigger cannot reproduce that cadence. If a user plays
 more than six tracks in a minute, the cursor can move past plays that were not
 fetched. This is accepted for the port; scheduling changes are separate work.
+
+The scan runs in one invocation. D1 allows 1,000 queries per invocation on
+Workers Paid and 50 on Free, and each account costs about four queries in the
+steady state (account lookup, cursor read, one batch, cursor write) plus one
+Spotify subrequest. Roughly ten accounts fit in a Free invocation; roughly two
+hundred fit in a Paid invocation. An initial fetch costs more because it uses
+five batches. The account query has no ordering or rotation, so accounts beyond
+the budget can be skipped on every run. The scheduling rewrite must add
+rotation or split the scan across invocations.
 
 ## Client types
 
@@ -208,7 +218,8 @@ real sign-in needs Spotify credentials and a registered redirect URI. The
 
 `/cdn-cgi/handler/scheduled` is the local workerd endpoint for the Cron
 Trigger. With no Spotify accounts it runs the scan and stores nothing; it
-confirms that the scheduled handler and the Spotify SDK load in the Worker.
+confirms that the scheduled handler and the Spotify SDK module load in the
+Worker.
 
 The Bun tests run the same migrations against an in-memory SQLite database
 through the D1 driver, so the auth routes, relational read queries, ingestion,
