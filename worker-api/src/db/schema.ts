@@ -21,6 +21,7 @@ export const users = sqliteTable("users", {
 });
 
 export type UserInsert = typeof users.$inferInsert;
+
 export type User = typeof users.$inferSelect;
 
 export const sessions = sqliteTable(
@@ -105,6 +106,7 @@ export const scrobbles = sqliteTable("scrobbles", {
 });
 
 export type ScrobbleInsert = typeof scrobbles.$inferInsert;
+
 export type Scrobble = typeof scrobbles.$inferSelect;
 
 export const albums = sqliteTable("albums", {
@@ -124,6 +126,7 @@ export const albums = sqliteTable("albums", {
 });
 
 export type AlbumInsert = typeof albums.$inferInsert;
+
 export type Album = typeof albums.$inferSelect;
 
 export const artists = sqliteTable("artists", {
@@ -134,6 +137,7 @@ export const artists = sqliteTable("artists", {
 });
 
 export type ArtistInsert = typeof artists.$inferInsert;
+
 export type Artist = typeof artists.$inferSelect;
 
 export const trackArtists = sqliteTable(
@@ -185,6 +189,7 @@ export const tracks = sqliteTable("tracks", {
 });
 
 export type TrackInsert = typeof tracks.$inferInsert;
+
 export type Track = typeof tracks.$inferSelect;
 
 export const relations = defineRelations(
