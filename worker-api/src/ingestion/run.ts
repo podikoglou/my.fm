@@ -101,8 +101,8 @@ async function ingestAccount(
   if (mostRecentScrobbleDate) {
     await updateLastRecentTracksFetchTime(db, account.userId, mostRecentScrobbleDate);
   } else if (lastRecentTracksFetchTime) {
-    // No new plays after the cursor: move it to now so the next fetch uses the
-    // regular limit, as the Bun scheduler does.
+    // MIGRATION NOTE: No new plays after the cursor: move it to now so the
+    // next fetch uses the regular limit, as the Bun scheduler does.
     await updateLastRecentTracksFetchTime(db, account.userId, new Date());
   }
 }
