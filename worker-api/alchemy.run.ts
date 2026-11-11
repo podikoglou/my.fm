@@ -8,6 +8,9 @@ import { Database } from "./src/database.ts";
 export const Worker = Cloudflare.Worker("Worker", {
   main: "./src/worker.ts",
   compatibility: { date: "2026-11-02" },
+  // MIGRATION NOTE: A Cron Trigger replaces the Bun scheduler's five-second
+  // in-process timer.
+  crons: ["* * * * *"],
   env: {
     DB: Database,
     BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
