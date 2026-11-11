@@ -122,7 +122,8 @@ Scrobble IDs are deterministic: the first 16 bytes of SHA-256 over
 `${userId}:${scrobbleDate.toISOString()}`, written as 32 lowercase hex
 characters. A re-fetched play gets the same ID, so `onConflictDoNothing` keeps
 the write idempotent. The Bun API used `Bun.hash.wyhash`, which Workers do not
-have.
+have. The new D1 database starts empty, so these IDs do not need to match the
+Bun API's.
 
 Plays are written in batches of up to ten. D1 counts one `db.batch()` call as
 one query against the invocation limit. A single batch for a whole fetch would
