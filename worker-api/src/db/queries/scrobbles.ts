@@ -1,11 +1,14 @@
 import type { Database } from "../index.ts";
+
 import { scrobbles, type ScrobbleInsert, type User } from "../schema.ts";
 
 /**
  * Derive a deterministic scrobble ID from the user and the play time.
  *
  * A re-fetched play must get the same ID, so `onConflictDoNothing` can stop a
- * duplicate. The Bun API used `Bun.hash.wyhash`; Workers use Web Crypto
+ * duplicate.
+ *
+ * MIGRATION NOTE: The Bun API used `Bun.hash.wyhash`; Workers use Web Crypto
  * SHA-256 instead, and the ID keeps the first 16 bytes as 32 lowercase hex
  * characters.
  */
