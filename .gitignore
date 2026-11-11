@@ -4,6 +4,9 @@ node_modules
 # turborepo
 .turbo
 
+# alchemy state
+.alchemy
+
 # output
 out
 dist
