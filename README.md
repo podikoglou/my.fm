@@ -55,15 +55,12 @@ for local development, and `<deployed app origin>/api/auth/callback/spotify`
 for each deployed origin. The deployed app has no URL settings to fill in
 after its first deploy.
 
-The Bun implementation in `api/` remains in the repository and is independent
-of the deployed app.
+## Repository layout
 
-## Cloudflare migration
-
-`worker-api/` contains the Cloudflare Workers port of the API, and
-`MIGRATION.md` records the migration plan and its decisions. The web app is
-deployed from the same root `alchemy.run.ts` stack; see the
-[worker-api README](./worker-api/README.md) for the API-specific details.
+- `app/` is the React Router web application.
+- `worker-api/` is the Hono API and Spotify ingestion Worker; see the
+  [worker-api README](./worker-api/README.md) for API details.
+- `alchemy.run.ts` deploys both packages as one Alchemy stack.
 
 ## Demo
 

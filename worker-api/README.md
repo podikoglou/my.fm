@@ -1,12 +1,8 @@
 # my.fm Worker API
 
-The Cloudflare Workers port of the my.fm API. The existing Bun API in `api/`
-stays unchanged and independent; see `MIGRATION.md` for the migration plan.
-
-This package contains the `worker-foundation`, `worker-auth`, `worker-read-api`,
-and `worker-ingestion` slices: a D1 database, the complete application schema,
-Better Auth with Spotify OAuth, the user and recent-scrobble read endpoints, a
-one-minute Spotify ingestion job, and a health endpoint.
+The my.fm API. It runs on Cloudflare Workers with a D1 database, Better Auth
+with Spotify OAuth, the user and recent-scrobble read endpoints, a one-minute
+Spotify ingestion job, and a health endpoint.
 
 The resources are declared in `src/alchemy.ts`. The stack that deploys this
 Worker together with the web application lives in the repository root.
@@ -49,14 +45,14 @@ test/                 Bun tests and the shared in-memory D1 harness
 ```
 
 The Worker uses Alchemy's async Worker form: plain `fetch` and `scheduled`
-handlers with a typed `env`. The `main` path and the migration directory are
-anchored to `src/` because the stack runs from the repository root.
+handlers with a typed `env`. The `main` path and the D1 migration directory are
+anchored to `src/` and the package root.
 
 ## Authentication
 
 `/api/auth/*` is served by Better Auth 1.7.20 through the Drizzle relations-v2
-adapter over D1. The configuration mirrors the Bun API: Spotify OAuth, the
-`avatarUrl` image field, generated usernames, and nanoid IDs.
+adapter over D1. The configuration enables Spotify OAuth, the `avatarUrl` image
+field, generated usernames, and nanoid IDs.
 
 A Worker has no `process.env`, so Alchemy binds the values Better Auth needs:
 
@@ -83,15 +79,10 @@ the `workers.dev` origin, so the Spotify callback would point at an origin
 that is not registered. The direct URL is for health checks and the local
 scheduled handler.
 
-The Bun API also pushed new users into an in-memory fetch queue from a
-`user.create.after` hook. That queue is process-local state and has no meaning
-in a Worker; the account scan in the ingestion section replaces it.
-
 ## Read API
 
 Every `/user/*` and `/scrobble/*` route runs the session middleware first and
-returns `401` without a Better Auth session. The routes and responses mirror
-the Bun API:
+returns `401` without a Better Auth session:
 
 - `GET /user/me` returns the current user's application fields.
 - `GET /user/byUsername?username=...` and `GET /user/byId?id=...` return the
@@ -102,12 +93,11 @@ the Bun API:
   scrobbles with their track, album, and ordered artists.
 
 The read routes do not fetch, create, or update Spotify data. Ingestion is a
-separate Cron Trigger; `PUT /user/onboard` remains because it is part of the
-current `/user/*` interface.
+separate Cron Trigger.
 
 Drizzle 1.0 uses the relations-v2 filter form (`where: { userId }`,
 `orderBy: { scrobbleDate: "desc" }`) instead of `eq`/`desc` inside relational
-queries. The generated SQL and the response data are the same.
+queries.
 
 ## Ingestion
 
@@ -129,23 +119,16 @@ each account:
    the cursor to the current time.
 
 If a user has more than one Spotify account row, the scan uses the first row
-and skips the rest, matching the Bun API's account selection.
+and skips the rest. `lastRecentTracksFetchTime` is both the fetch cursor and
+the only scheduling state.
 
-The in-memory Bun queue and the `user.create.after` hook are not ported. The
-account scan finds new users, and `lastRecentTracksFetchTime` is both the fetch
-cursor and the only scheduling state.
-
-Better Auth 1.7.20 selects provider tokens by the local account row ID, so the
-scan also reads `accounts.id` and calls `getAccessToken` with
-`{ accountId, userId }`. The Bun API passed `providerId` to Better Auth 1.6.5.
-The account and its refresh behaviour are the same.
+Better Auth selects provider tokens by the local account row ID, so the scan
+reads `accounts.id` and calls `getAccessToken` with `{ accountId, userId }`.
 
 Scrobble IDs are deterministic: the first 16 bytes of SHA-256 over
 `${userId}:${scrobbleDate.toISOString()}`, written as 32 lowercase hex
 characters. A re-fetched play gets the same ID, so `onConflictDoNothing` keeps
-the write idempotent. The Bun API used `Bun.hash.wyhash`, which Workers do not
-have. The new D1 database starts empty, so these IDs do not need to match the
-Bun API's.
+the write idempotent.
 
 Plays are written in batches of up to ten. D1 counts one `db.batch()` call as
 one query against the invocation limit. A single batch for a whole fetch would
@@ -159,10 +142,10 @@ retries it.
 
 ### Known limitations
 
-The Bun scheduler fetched one user every five seconds with a regular limit of
-six. A one-minute Cron Trigger cannot reproduce that cadence. If a user plays
-more than six tracks in a minute, the cursor can move past plays that were not
-fetched. This is accepted for the port; scheduling changes are separate work.
+The regular limit is six tracks. A one-minute Cron Trigger cannot fetch more
+than that cadence allows. If a user plays more than six tracks in a minute, the
+cursor can move past plays that were not fetched. Scheduling improvements are
+separate work.
 
 The scan runs in one invocation. D1 allows 1,000 queries per invocation on
 Workers Paid and 50 on Free, and each account costs about four queries in the
@@ -170,7 +153,7 @@ steady state (account lookup, cursor read, one batch, cursor write) plus one
 Spotify subrequest. Roughly ten accounts fit in a Free invocation; roughly two
 hundred fit in a Paid invocation. An initial fetch costs more because it uses
 five batches. The account query has no ordering or rotation, so accounts beyond
-the budget can be skipped on every run. The scheduling rewrite must add
+the budget can be skipped on every run. A later scheduling change must add
 rotation or split the scan across invocations.
 
 ## Client types
@@ -200,8 +183,7 @@ Drizzle 1.0 writes each migration to
 Alchemy applies the directories in order and records them in its own
 `__alchemy_migrations` table.
 
-The first deploy creates an empty database. There is no data migration from
-`api/data.db`.
+The first deploy creates an empty database.
 
 ## Secrets
 
