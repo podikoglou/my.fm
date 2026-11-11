@@ -109,6 +109,9 @@ each account:
 5. Move the cursor to the newest play. If a later fetch returns no plays, move
    the cursor to the current time.
 
+If a user has more than one Spotify account row, the scan uses the first row
+and skips the rest, matching the Bun API's account selection.
+
 The in-memory Bun queue and the `user.create.after` hook are not ported. The
 account scan finds new users, and `lastRecentTracksFetchTime` is both the fetch
 cursor and the only scheduling state.
