@@ -91,13 +91,22 @@ No CI is added as part of this migration at this time.
 ### `worker-ingestion`
 
 - Port the existing Spotify fetch and persistence logic.
-- Replace the Bun process scheduler with the required Cron Trigger entrypoint.
-- Preserve the existing queue, fetch limits, cursor updates, and write flow.
+- Replace the Bun process scheduler with a Cron Trigger that runs every minute.
+  Each run scans the accounts with `providerId = "spotify"`; the in-memory
+  queue and the `user.create.after` hook are not ported.
+- Preserve the existing fetch limits, cursor updates, and write flow.
+- Select the Spotify account by `accountId` for Better Auth `1.7.20`, which no
+  longer accepts `providerId`.
+- Generate scrobble IDs with Web Crypto SHA-256, keeping the first 16 bytes as
+  32 lowercase hex characters.
+- Store plays in D1 batches of up to ten plays.
 - Do not redesign scheduling or add unrelated reliability behaviour.
 
 Cloudflare Cron Triggers cannot reproduce a five-second production timer. The
-port should preserve the scheduler's behaviour and ordering as closely as the
-runtime allows. Scheduling improvements are separate work.
+port preserves the per-user fetch logic, limits, and cursor updates. A known
+limitation remains: with a one-minute trigger and a regular limit of six, a
+user who plays more than six tracks in a minute can lose plays. Scheduling
+improvements are separate work.
 
 ## Schema and migrations
 
@@ -142,16 +151,23 @@ differs. No query depends on it.
 - Use Alchemy's supported Drizzle combination in `worker-api/`: Drizzle ORM and
   Drizzle Kit `1.0.0-rc.5`, with Better Auth `1.7.20`. `api/` stays on its
   current versions.
-- Keep the existing Spotify SDK and version during the port.
 - Use Bun's test runner.
 - Test our integration with Better Auth, not Better Auth internals.
 - Add slice-level smoke and HTTP tests as each slice is introduced.
+
+`@spotify/web-api-ts-sdk` is pinned to `1.2.0`, the version the Bun API
+resolves.
 
 The direct `zod` range is `^4.3.6` in both packages. A fresh install in
 `worker-api/` resolves `zod` 4.6.7, while the existing `api/` install resolves
 4.3.6. The request validation rules are the same. Zod error payloads can
 differ in detail. Pin `worker-api/` to 4.3.6 if exact error payload parity is
 required.
+
+A D1 `db.batch()` call counts as one query against the per-invocation limit.
+Ingestion batches writes for up to ten plays, which keeps the initial fetch of
+fifty plays under the free plan's fifty-query limit and keeps the rollback
+scope small.
 
 Alchemy's documented local and deployment workflows are the source for Worker,
 D1, secret, and migration configuration:
