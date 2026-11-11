@@ -206,3 +206,8 @@ workerd. Vite proxies the API paths to the API Worker. Alchemy starts local
 commands with `NODE_ENV=production`, so the app dev command overrides it to
 `development`.
 
+The app's Better Auth client matches the Worker API at `1.7.20`. The `api/`
+package pins Better Auth and its Drizzle adapter to `1.6.5`, because the shared
+workspace lock would otherwise upgrade the Bun API to `1.7.20`.
+
+
