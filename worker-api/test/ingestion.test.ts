@@ -428,4 +428,29 @@ describe("runIngestion", () => {
     expect(seen).toContain("token-1");
     expect(seen).toContain("token-2");
   });
+
+  test("fetches a user once when a second Spotify account is linked", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const calls: FetchCall[] = [];
+
+    await seedUser(db);
+    await db.insert(accounts).values({
+      id: "account-user-1-second",
+      accountId: "spotify-user-1-second",
+      providerId: "spotify",
+      userId: "user-1",
+      accessToken: "token-2",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(["token-1", "token-2"].includes(calls[0]?.accessToken ?? "")).toBe(true);
+  });
 });

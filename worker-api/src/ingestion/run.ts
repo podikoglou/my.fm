@@ -36,8 +36,17 @@ export async function runIngestion(
   const db = createDatabase(env.DB);
   const auth = createAuth(env);
   const accounts = await findSpotifyAccounts(db);
+  const seenUsers = new Set<string>();
 
   for (const account of accounts) {
+    // MIGRATION NOTE: The Bun API selected one account per user. If a second
+    // Spotify account was linked, keep the first row and skip the duplicate.
+    if (seenUsers.has(account.userId)) {
+      continue;
+    }
+
+    seenUsers.add(account.userId);
+
     try {
       await ingestAccount(db, auth, account, createClient);
     } catch (error) {
