@@ -35,8 +35,11 @@ export const Website = Cloudflare.Website.StaticSite("Website", {
   dev: {
     command: "bun run dev",
     env: {
-      // Alchemy's CLI sets NODE_ENV=production. React Router's dev server
-      // needs the development JSX runtime.
+      // Workaround, not a React Router requirement: Alchemy's CLI sets
+      // NODE_ENV=production for its own process, and React Router's dev
+      // server needs the development JSX runtime. `dev.env` replaces the
+      // top-level `env` for the dev process, so a plain string added there
+      // later will not reach the dev server.
       NODE_ENV: "development",
     },
   },
