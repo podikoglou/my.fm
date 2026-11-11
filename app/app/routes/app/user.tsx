@@ -49,7 +49,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
   if (error) {
     return (
       <ErrorCard
-        icon={<UserX />}
+        Icon={UserX}
         title={<>User Not Found</>}
         description={<>The user you're looking for does not exist</>}
       />

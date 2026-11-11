@@ -37,6 +37,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function OnboardPage() {
   const navigate = useNavigate();
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -73,50 +74,40 @@ export default function OnboardPage() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
             <FormField
-              name="..."
-              render={() => (
-                <FormField
-                  name="name"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          className="w-full"
-                          placeholder="kyle"
-                          aria-invalid={!!form.formState.errors.name}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              name="name"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      className="w-full"
+                      placeholder="kyle"
+                      aria-invalid={!!form.formState.errors.name}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
             />
 
             <FormField
-              name="..."
-              render={() => (
-                <FormField
-                  name="username"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input
-                          className="w-full"
-                          placeholder="kyles"
-                          aria-invalid={!!form.formState.errors.name}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              name="username"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Username</FormLabel>
+                  <FormControl>
+                    <Input
+                      className="w-full"
+                      placeholder="kyles"
+                      aria-invalid={!!form.formState.errors.username}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
             />
 

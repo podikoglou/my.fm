@@ -1,14 +1,12 @@
-import type { Route } from "./+types/home";
+import { Navigate } from "react-router";
 
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [
     { title: "my.fm" },
     { name: "description", content: "Track and analyze your music taste" },
   ];
 }
 
-export function clientLoader({ params }: Route.ClientLoaderArgs) {}
-
-export default function IndexPage() {
-  return <></>;
+export default function HomePage() {
+  return <Navigate to="/app" replace />;
 }

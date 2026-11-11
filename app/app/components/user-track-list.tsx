@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { parseResponse } from "hono/client";
+import { ListMusic } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { apiClient } from "~/lib/api";
@@ -27,6 +28,7 @@ export function UserTrackList({ username }: { username: string }) {
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       if (lastPage.length < 8) return undefined;
+
       return allPages.length * 8;
     },
     retry: false,
@@ -56,7 +58,7 @@ export function UserTrackList({ username }: { username: string }) {
   if (error) {
     return (
       <ErrorCard
-        icon={<></>}
+        Icon={ListMusic}
         title={<>Couldn't Find Scrobbles</>}
         description={<>We're not sure why</>}
       />
