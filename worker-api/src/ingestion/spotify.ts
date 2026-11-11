@@ -46,7 +46,9 @@ export type RecentlyPlayedPage = {
   items: SpotifyPlay[];
 };
 
-/** The two limits the Bun scheduler uses. */
+/**
+ * MIGRATION NOTE: The two limits the Bun scheduler uses.
+ */
 export type RecentTracksLimit = 6 | 50;
 
 export type SpotifyClient = {
@@ -59,8 +61,9 @@ export type SpotifyClient = {
 export type CreateSpotifyClient = (accessToken: string) => SpotifyClient;
 
 /**
- * Create a Spotify client for one user's access token, as the Bun API does.
- * The token is refreshed by Better Auth before it reaches this function.
+ * MIGRATION NOTE: Create a Spotify client for one user's access token, as the
+ * Bun API does. The token is refreshed by Better Auth before it reaches this
+ * function.
  */
 export function createSpotifyClient(env: WorkerEnv, accessToken: string): SpotifyClient {
   const api = SpotifyApi.withAccessToken(env.SPOTIFY_CLIENT_ID, {
@@ -71,7 +74,6 @@ export function createSpotifyClient(env: WorkerEnv, accessToken: string): Spotif
   });
 
   return {
-    getRecentlyPlayedTracks: (limit, options) =>
-      api.player.getRecentlyPlayedTracks(limit, options),
+    getRecentlyPlayedTracks: (limit, options) => api.player.getRecentlyPlayedTracks(limit, options),
   };
 }
