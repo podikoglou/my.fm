@@ -5,24 +5,37 @@ import worker from "../worker.ts";
 
 type WebsiteEnv = Parameters<typeof worker.fetch>[1];
 
+function createService(handleRequest: (request: Request) => Promise<Response>): Fetcher {
+  return {
+    fetch(input) {
+      return handleRequest(input instanceof Request ? input : new Request(input));
+    },
+    connect() {
+      throw new Error("Test service bindings do not open socket connections.");
+    },
+  };
+}
+
+function requestPath(request: Request) {
+  return new URL(request.url).pathname;
+}
+
 function createEnv() {
   const apiPaths: string[] = [];
   const assetPaths: string[] = [];
 
-  const env = {
-    API: {
-      fetch: async (request: Request) => {
-        apiPaths.push(new URL(request.url).pathname);
-        return new Response("api");
-      },
-    },
-    ASSETS: {
-      fetch: async (request: Request) => {
-        assetPaths.push(new URL(request.url).pathname);
-        return new Response("asset");
-      },
-    },
-  } as unknown as WebsiteEnv;
+  const env: WebsiteEnv = {
+    API: createService(async (request) => {
+      apiPaths.push(requestPath(request));
+
+      return new Response("api");
+    }),
+    ASSETS: createService(async (request) => {
+      assetPaths.push(requestPath(request));
+
+      return new Response("asset");
+    }),
+  };
 
   return { env, apiPaths, assetPaths };
 }
@@ -65,17 +78,17 @@ test("returns the API response and request unchanged", async () => {
       "set-cookie": "better-auth.state=abc; Path=/; HttpOnly",
     },
   });
+
   const received: Request[] = [];
 
-  const env = {
-    API: {
-      fetch: async (request: Request) => {
-        received.push(request);
-        return redirect;
-      },
-    },
-    ASSETS: { fetch: async () => new Response("asset") },
-  } as unknown as WebsiteEnv;
+  const env: WebsiteEnv = {
+    API: createService(async (request) => {
+      received.push(request);
+
+      return redirect;
+    }),
+    ASSETS: createService(async () => new Response("asset")),
+  };
 
   const request = new Request("https://app.test/api/auth/callback/spotify?code=1", {
     method: "POST",
