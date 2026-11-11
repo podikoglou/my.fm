@@ -117,6 +117,24 @@ The new schema is generated from the checked-in TypeScript schema and the
 pinned dependency versions, not from the local SQLite database or old
 migration history.
 
+### D1 DDL differences
+
+Drizzle Kit `1.0.0-rc.5` writes a text primary key as `text PRIMARY KEY`
+without the `NOT NULL` clause. The Bun schema uses `text PRIMARY KEY NOT
+NULL`. SQLite permits NULL in a text primary key, so the D1 schema is
+slightly weaker.
+
+This port accepts the difference. Every insert path supplies an ID: Better
+Auth generates user, account, session, and verification IDs; the application
+generates scrobble IDs; and Spotify URIs are the primary keys for artists,
+albums, and tracks. Adding `.notNull()` to the Drizzle column does not change
+the generated SQL in this Drizzle Kit version.
+
+The same migration writes unique constraints inline instead of as named
+indexes, and it uses different foreign key constraint names. Uniqueness and
+referential integrity are still enforced. The `users` column order also
+differs. No query depends on it.
+
 ## Dependencies and tests
 
 - Keep Hono at the current resolved version.
