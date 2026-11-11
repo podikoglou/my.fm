@@ -19,13 +19,6 @@
     "fmt:check": {},
     "db:generate": {
       "cache": false
-    },
-    "db:migrate": {
-      "cache": false
-    },
-    "db:studio": {
-      "cache": false,
-      "persistent": true
     }
   }
 }
