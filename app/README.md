@@ -11,10 +11,10 @@ Run the whole stack from the repository root:
 bun run dev
 ```
 
-The app is on `http://localhost:3000` and the API Worker is on
-`http://localhost:1337`. Vite proxies `/api`, `/user`, `/scrobble`, and
-`/health` to the API Worker, so the browser uses one origin and the Better
-Auth session cookie stays first-party.
+Alchemy prints the app and API URLs. Vite proxies the shared API path list
+(`/api/*`, `/user/*`, `/scrobble/*`, and `/health`) to the API Worker on the
+shared dev port, so the browser uses one origin and the Better Auth session
+cookie stays first-party.
 
 To run only the app:
 
@@ -22,8 +22,8 @@ To run only the app:
 bun run dev
 ```
 
-Set `API_DEV_URL` to override the proxy target (default
-`http://localhost:1337`).
+The dev server then has no API behind its proxy. Set `API_DEV_URL` to point it
+at another API origin.
 
 ## API access
 
