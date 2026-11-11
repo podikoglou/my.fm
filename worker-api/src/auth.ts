@@ -48,6 +48,10 @@ export function createAuth(env: WorkerEnv) {
         username: {
           type: "string",
           required: true,
+          // Better Auth 1.7 validates required fields from the provider profile
+          // before the create hook runs. The Spotify profile has no username,
+          // so a default value keeps the first sign-in working.
+          defaultValue: () => nanoid(),
         },
       },
     },
