@@ -6,7 +6,7 @@ import { Database } from "./src/database.ts";
 
 export const Worker = Cloudflare.Worker("Worker", {
   main: "./src/worker.ts",
-  compatibility: { flags: ["nodejs_compat"], date: "2026-11-11" },
+  compatibility: { flags: ["nodejs_compat"], date: "2026-11-02" },
   env: { DB: Database },
 });
 
