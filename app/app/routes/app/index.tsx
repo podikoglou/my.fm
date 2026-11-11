@@ -9,7 +9,5 @@ export default function AppIndexPage() {
     queryFn: () => parseResponse(apiClient.user.me.$get()),
   });
 
-  console.log({ data, error });
-
   return <>{JSON.stringify({ data, error })}</>;
 }

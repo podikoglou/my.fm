@@ -19,6 +19,7 @@ cookie stays first-party.
 To run only the app:
 
 ```sh
+cd app
 bun run dev
 ```
 
