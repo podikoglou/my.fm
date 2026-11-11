@@ -15,6 +15,12 @@ On the backend, we have a simple [Hono](https://hono.dev) API that runs on Bun
 and uses SQLite through [Drizzle](https://orm.drizzle.team/). Authentication is
 offloaded to [Better Auth](https://better-auth.com)
 
+## Cloudflare migration
+
+`worker-api/` contains the in-progress Cloudflare Workers port of the API. The
+Bun implementation in `api/` remains the current API during the port. See
+[MIGRATION.md](./MIGRATION.md).
+
 ## Demo
 
 (I'll set up a hosted instance of it soon)
