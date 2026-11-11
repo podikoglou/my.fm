@@ -14,10 +14,18 @@ const appDir = fileURLToPath(new URL("./app/", import.meta.url));
  * paths to the Worker API over a service binding, so the browser sees one
  * origin.
  *
- * React Router's build drives its own Vite pipeline, so `StaticSite` runs the
- * project's build command instead of `Website.Vite`. During `alchemy dev`,
- * `dev.command` runs the React Router dev server and the Vite proxy uses the
- * shared API dev URL. The route list is shared with the deployed Worker.
+ * React Router's build drives its own Vite pipeline. The app uses
+ * `StaticSite` and not `Website.Vite`: React Router 7 declares the `rsc` and
+ * `ssr` Vite environments even when `ssr: false`. `Website.Vite` deploys the
+ * `ssr` environment by default and treats a non-empty server input as a
+ * Worker bundle. React Router's SPA build then deletes `build/server`, so that
+ * bundle is missing. `entry: "client"` is rejected, and `ViteProps` does not
+ * expose `skipEnvironments`. `StaticSite` is the documented fallback for a
+ * build that does not fit the `Vite` resource.
+ *
+ * During `alchemy dev`, `dev.command` runs the React Router dev server and the
+ * Vite proxy uses the shared API dev URL. The route list is shared with the
+ * deployed Worker.
  */
 export const Website = Cloudflare.Website.StaticSite("Website", {
   cwd: appDir,

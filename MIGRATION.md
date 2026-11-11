@@ -198,11 +198,15 @@ and `/health` to the API Worker over a service binding. This keeps the browser
 on one origin, so the Better Auth session cookie is first-party and the Spotify
 callback returns to the app origin. The API route contract is unchanged.
 
-`StaticSite` runs the project's build command because React Router drives its
-own Vite pipeline. `Website.Vite` expects the whole build to be `vite build`,
-and a custom `main` conflicts with React Router's client and server build
-inputs. The app Worker, the asset routing, and the Vite dev proxy all read the
-same path list from `app/api-paths.ts`.
+`StaticSite` runs the project's build command. React Router 7 declares the
+`rsc` and `ssr` Vite environments even when `ssr: false`. `Website.Vite`
+deploys the `ssr` environment by default and treats a non-empty server input
+as a Worker bundle. React Router's SPA build then deletes `build/server`, so
+that bundle is missing. `entry: "client"` is rejected, and `ViteProps` does
+not expose `skipEnvironments`. `StaticSite` is the documented fallback for a
+build that does not fit the `Vite` resource. The app Worker, the asset
+routing, and the Vite dev proxy all read the same path list from
+`app/api-paths.ts`.
 
 Better Auth derives its base URL, trusted origin, and Spotify callback from the
 incoming request. There are no deploy-time origin or redirect values, and no
