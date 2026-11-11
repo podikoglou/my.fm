@@ -15,8 +15,11 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.20",
+    "better-auth": "1.7.20",
     "drizzle-orm": "1.0.0-rc.5",
-    "hono": "^4.12.12"
+    "hono": "^4.12.12",
+    "nanoid": "^5.1.7"
   },
   "devDependencies": {
     "@alchemy.run/cloudflare": "2.0.0-beta.85",
