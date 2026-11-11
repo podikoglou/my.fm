@@ -102,9 +102,7 @@
       "indexes": {
         "account_userId_idx": {
           "name": "account_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -113,12 +111,8 @@
           "name": "accounts_user_id_users_id_fk",
           "tableFrom": "accounts",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -158,12 +152,8 @@
           "name": "album_artists_album_spotify_uri_albums_spotifyUri_fk",
           "tableFrom": "album_artists",
           "tableTo": "albums",
-          "columnsFrom": [
-            "album_spotify_uri"
-          ],
-          "columnsTo": [
-            "spotifyUri"
-          ],
+          "columnsFrom": ["album_spotify_uri"],
+          "columnsTo": ["spotifyUri"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -171,22 +161,15 @@
           "name": "album_artists_artist_spotify_uri_artists_spotifyUri_fk",
           "tableFrom": "album_artists",
           "tableTo": "artists",
-          "columnsFrom": [
-            "artist_spotify_uri"
-          ],
-          "columnsTo": [
-            "spotifyUri"
-          ],
+          "columnsFrom": ["artist_spotify_uri"],
+          "columnsTo": ["spotifyUri"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "album_artists_album_spotify_uri_artist_spotify_uri_pk": {
-          "columns": [
-            "album_spotify_uri",
-            "artist_spotify_uri"
-          ],
+          "columns": ["album_spotify_uri", "artist_spotify_uri"],
           "name": "album_artists_album_spotify_uri_artist_spotify_uri_pk"
         }
       },
@@ -345,12 +328,8 @@
           "name": "scrobbles_userId_users_id_fk",
           "tableFrom": "scrobbles",
           "tableTo": "users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -358,12 +337,8 @@
           "name": "scrobbles_trackSpotifyUri_tracks_spotifyUri_fk",
           "tableFrom": "scrobbles",
           "tableTo": "tracks",
-          "columnsFrom": [
-            "trackSpotifyUri"
-          ],
-          "columnsTo": [
-            "spotifyUri"
-          ],
+          "columnsFrom": ["trackSpotifyUri"],
+          "columnsTo": ["spotifyUri"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -371,12 +346,8 @@
           "name": "scrobbles_albumSpotifyUri_albums_spotifyUri_fk",
           "tableFrom": "scrobbles",
           "tableTo": "albums",
-          "columnsFrom": [
-            "albumSpotifyUri"
-          ],
-          "columnsTo": [
-            "spotifyUri"
-          ],
+          "columnsFrom": ["albumSpotifyUri"],
+          "columnsTo": ["spotifyUri"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -448,16 +419,12 @@
       "indexes": {
         "sessions_token_unique": {
           "name": "sessions_token_unique",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         },
         "session_userId_idx": {
           "name": "session_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -466,12 +433,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -511,12 +474,8 @@
           "name": "track_artists_track_spotify_uri_tracks_spotifyUri_fk",
           "tableFrom": "track_artists",
           "tableTo": "tracks",
-          "columnsFrom": [
-            "track_spotify_uri"
-          ],
-          "columnsTo": [
-            "spotifyUri"
-          ],
+          "columnsFrom": ["track_spotify_uri"],
+          "columnsTo": ["spotifyUri"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -524,22 +483,15 @@
           "name": "track_artists_artist_spotify_uri_artists_spotifyUri_fk",
           "tableFrom": "track_artists",
           "tableTo": "artists",
-          "columnsFrom": [
-            "artist_spotify_uri"
-          ],
-          "columnsTo": [
-            "spotifyUri"
-          ],
+          "columnsFrom": ["artist_spotify_uri"],
+          "columnsTo": ["spotifyUri"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "track_artists_track_spotify_uri_artist_spotify_uri_pk": {
-          "columns": [
-            "track_spotify_uri",
-            "artist_spotify_uri"
-          ],
+          "columns": ["track_spotify_uri", "artist_spotify_uri"],
           "name": "track_artists_track_spotify_uri_artist_spotify_uri_pk"
         }
       },
@@ -694,16 +646,12 @@
       "indexes": {
         "users_username_unique": {
           "name": "users_username_unique",
-          "columns": [
-            "username"
-          ],
+          "columns": ["username"],
           "isUnique": true
         },
         "users_email_unique": {
           "name": "users_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -761,9 +709,7 @@
       "indexes": {
         "verification_identifier_idx": {
           "name": "verification_identifier_idx",
-          "columns": [
-            "identifier"
-          ],
+          "columns": ["identifier"],
           "isUnique": false
         }
       },
