@@ -26,6 +26,10 @@ bun install
 bun run dev            # app on http://localhost:3000, API on :1337
 ```
 
+If your values are still in `worker-api/.env`, move them to the root `.env`,
+or pass `--env-file worker-api/.env` to `bun alchemy dev` or
+`bun alchemy deploy` directly.
+
 `bun run dev` runs `alchemy dev` from the repository root. The app Worker
 forwards the API paths to the API Worker. In development, Vite proxies the same
 paths to the local API Worker.
