@@ -22,6 +22,9 @@ const apiPaths = [...API_PATH_PREFIXES.map((prefix) => `^${prefix}`), `^${API_HE
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
   server: {
+    // `changeOrigin: false` keeps the original Host header. With it set to
+    // `true`, the API Worker would see the wrong origin and the Spotify
+    // callback would change. This setting is load-bearing.
     proxy: Object.fromEntries(
       apiPaths.map((path) => [path, { target: apiDevUrl, changeOrigin: false }]),
     ),
