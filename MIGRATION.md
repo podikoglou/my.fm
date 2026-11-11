@@ -95,6 +95,7 @@ No CI is added as part of this migration at this time.
   Each run scans the accounts with `providerId = "spotify"`; the in-memory
   queue and the `user.create.after` hook are not ported.
 - Preserve the existing fetch limits, cursor updates, and write flow.
+- Use one Spotify account row per user when more than one is linked.
 - Select the Spotify account by `accountId` for Better Auth `1.7.20`, which no
   longer accepts `providerId`.
 - Generate scrobble IDs with Web Crypto SHA-256, keeping the first 16 bytes as
