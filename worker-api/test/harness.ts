@@ -12,6 +12,8 @@ export const baseUrl = "http://localhost:1337";
  */
 export function createTestDatabase(): D1Database {
   const sqlite = new SQLite(":memory:");
+  // MIGRATION NOTE: D1 enforces foreign keys; enable the same checks in tests.
+  sqlite.exec("PRAGMA foreign_keys = ON");
   const directory = new URL("../drizzle/", import.meta.url);
 
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
