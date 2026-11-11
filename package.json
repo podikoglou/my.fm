@@ -3,7 +3,8 @@
   "packageManager": "bun@1.3.13",
   "workspaces": [
     "api/",
-    "app/"
+    "app/",
+    "worker-api/"
   ],
   "scripts": {
     "build": "turbo build",
