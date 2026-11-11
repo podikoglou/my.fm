@@ -1,7 +1,6 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Config from "effect/Config";
-import * as Effect from "effect/Effect";
 
 import { API_DEV_PORT } from "../../dev.ts";
 import { Database } from "./database.ts";
@@ -13,9 +12,7 @@ export { Database } from "./database.ts";
  * deploy and keeps it in stack state, so no low-entropy value lives in `.env`
  * and later deploys do not invalidate existing sessions.
  */
-const BetterAuthSecret = Alchemy.Random("BetterAuthSecret").pipe(
-  Effect.map((secret) => secret.text),
-);
+const BetterAuthSecret = Alchemy.makeRandom("BetterAuthSecret");
 
 /**
  * The Worker API resource.
