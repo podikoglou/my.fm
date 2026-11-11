@@ -77,6 +77,12 @@ response `Set-Cookie` headers pass through the app Worker, so the session
 cookie is first-party on the app origin. This is required on `workers.dev`,
 where the app and API hostnames are cross-site.
 
+Alchemy also exposes this Worker on its own `workers.dev` URL. Do not use that
+URL as the app entry point: a direct sign-in request makes Better Auth derive
+the `workers.dev` origin, so the Spotify callback would point at an origin
+that is not registered. The direct URL is for health checks and the local
+scheduled handler.
+
 The Bun API also pushed new users into an in-memory fetch queue from a
 `user.create.after` hook. That queue is process-local state and has no meaning
 in a Worker; the account scan in the ingestion section replaces it.
