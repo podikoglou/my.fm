@@ -37,6 +37,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function OnboardPage() {
   const navigate = useNavigate();
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
