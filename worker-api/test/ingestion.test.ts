@@ -51,7 +51,20 @@ function makePlay(playedAt: string, trackSuffix = "1"): SpotifyPlay {
   };
 }
 
-async function seedUser(db: Database, { userId = "user-1", accessToken = "token-1" } = {}) {
+async function seedUser(
+  db: Database,
+  {
+    userId = "user-1",
+    accessToken = "token-1",
+    accessTokenExpiresAt = null,
+    refreshToken = null,
+  }: {
+    userId?: string;
+    accessToken?: string;
+    accessTokenExpiresAt?: Date | null;
+    refreshToken?: string | null;
+  } = {},
+) {
   await db.insert(users).values({
     id: userId,
     username: `username-${userId}`,
@@ -66,6 +79,8 @@ async function seedUser(db: Database, { userId = "user-1", accessToken = "token-
     providerId: "spotify",
     userId,
     accessToken,
+    accessTokenExpiresAt,
+    refreshToken,
     createdAt: now,
     updatedAt: now,
   });
@@ -238,6 +253,119 @@ describe("runIngestion", () => {
 
     const user = await db.query.users.findFirst({ where: { id: "user-1" } });
     expect(user?.lastRecentTracksFetchTime?.getTime()).toBeGreaterThanOrEqual(now.getTime());
+  });
+
+  test("refreshes an expired token and stores the new one", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const calls: FetchCall[] = [];
+    const originalFetch = globalThis.fetch;
+    let refreshBody = "";
+
+    await seedUser(db, {
+      accessToken: "expired-token",
+      accessTokenExpiresAt: new Date(Date.now() - 60_000),
+      refreshToken: "refresh-token",
+    });
+
+    globalThis.fetch = (async (
+      _input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      refreshBody = String(init?.body ?? "");
+
+      return Response.json({
+        access_token: "fresh-token",
+        token_type: "Bearer",
+        expires_in: 3600,
+        refresh_token: "new-refresh-token",
+      });
+    }) as unknown as typeof fetch;
+
+    try {
+      await runIngestion(
+        env,
+        clientFor(calls, () => []),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(calls).toEqual([{ accessToken: "fresh-token", limit: 50, options: undefined }]);
+    expect(refreshBody).toContain("grant_type=refresh_token");
+    expect(refreshBody).toContain("refresh_token=refresh-token");
+
+    const account = await db.query.accounts.findFirst({ where: { id: "account-user-1" } });
+    expect(account?.accessToken).toBe("fresh-token");
+    expect(account?.refreshToken).toBe("new-refresh-token");
+  });
+
+  test("leaves the cursor unchanged when the token refresh fails", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const calls: FetchCall[] = [];
+    const cursor = new Date("2026-11-01T00:00:00.000Z");
+    const originalFetch = globalThis.fetch;
+    const error = spyOn(console, "error").mockImplementation(() => {});
+
+    await seedUser(db, {
+      accessToken: "expired-token",
+      accessTokenExpiresAt: new Date(Date.now() - 60_000),
+      refreshToken: "refresh-token",
+    });
+    await db.update(users).set({ lastRecentTracksFetchTime: cursor }).where(eq(users.id, "user-1"));
+
+    globalThis.fetch = (async () =>
+      new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
+
+    try {
+      await runIngestion(
+        env,
+        clientFor(calls, () => []),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      error.mockRestore();
+    }
+
+    expect(calls).toHaveLength(0);
+
+    const user = await db.query.users.findFirst({ where: { id: "user-1" } });
+    expect(user?.lastRecentTracksFetchTime?.toISOString()).toBe(cursor.toISOString());
+  });
+
+  test("rolls back a failed chunk and leaves the cursor unchanged", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const cursor = new Date("2026-11-01T00:00:00.000Z");
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const plays = Array.from({ length: 12 }, (_, index) =>
+      makePlay(new Date(now.getTime() + index * 60_000).toISOString(), String(index)),
+    );
+    const lastPlay = plays.at(-1);
+
+    if (!lastPlay) {
+      throw new Error("missing test play");
+    }
+
+    lastPlay.track.name = null as unknown as string;
+
+    await seedUser(db);
+    await db.update(users).set({ lastRecentTracksFetchTime: cursor }).where(eq(users.id, "user-1"));
+
+    try {
+      await runIngestion(
+        env,
+        clientFor([], () => plays),
+      );
+    } finally {
+      error.mockRestore();
+    }
+
+    expect(await db.select().from(scrobbles)).toHaveLength(10);
+
+    const user = await db.query.users.findFirst({ where: { id: "user-1" } });
+    expect(user?.lastRecentTracksFetchTime?.toISOString()).toBe(cursor.toISOString());
   });
 
   test("does not duplicate a play that is fetched again", async () => {
