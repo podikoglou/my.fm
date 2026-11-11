@@ -47,3 +47,36 @@ export async function onboardUser(
     .set({ ...values, onboarded: true })
     .where(eq(users.id, id));
 }
+
+/**
+ * Find every Spotify account with the local account ID and its owner.
+ *
+ * Better Auth 1.7.20 selects tokens by `accountId`, so ingestion needs the
+ * account row ID that the Bun API's `providerId` lookup did not.
+ */
+export async function findSpotifyAccounts(db: Database) {
+  return await db.query.accounts.findMany({
+    where: { providerId: "spotify" },
+    columns: {
+      id: true,
+      userId: true,
+    },
+  });
+}
+
+export async function findUserQueueDataById(db: Database, id: User["id"]) {
+  return await db.query.users.findFirst({
+    where: { id },
+    columns: {
+      lastRecentTracksFetchTime: true,
+    },
+  });
+}
+
+export async function updateLastRecentTracksFetchTime(
+  db: Database,
+  userId: User["id"],
+  timestamp: Date,
+) {
+  await db.update(users).set({ lastRecentTracksFetchTime: timestamp }).where(eq(users.id, userId));
+}
