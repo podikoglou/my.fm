@@ -17,7 +17,6 @@
     "@hookform/resolvers": "^5.2.2",
     "@my.fm/worker-api": "workspace:*",
     "@react-router/node": "7.13.1",
-    "@react-router/serve": "7.13.1",
     "@tanstack/react-query": "^5.95.2",
     "better-auth": "1.7.20",
     "class-variance-authority": "^0.7.1",
