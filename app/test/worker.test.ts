@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 
+import { API_RUN_WORKER_FIRST } from "../api-paths.ts";
 import worker from "../worker.ts";
 
 type WebsiteEnv = Parameters<typeof worker.fetch>[1];
@@ -25,6 +26,10 @@ function createEnv() {
 
   return { env, apiPaths, assetPaths };
 }
+
+test("asset routing covers every API path", () => {
+  expect(API_RUN_WORKER_FIRST).toEqual(["/api/*", "/user/*", "/scrobble/*", "/health"]);
+});
 
 test("forwards API paths over the service binding", async () => {
   const { env, apiPaths, assetPaths } = createEnv();
