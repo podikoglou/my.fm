@@ -29,8 +29,9 @@ bun run dev            # prints the app and API URLs
 The root `.env` only holds the Spotify client ID and secret. Better Auth
 derives its URLs and the Spotify callback from each request, so there are no
 origin or redirect values to configure. Alchemy generates the Better Auth
-signing secret on the first deploy and keeps it in stack state; keep the
-`.alchemy` state directory.
+signing secret on the first deploy and stores it in the Cloudflare state store
+configured by `Cloudflare.state()`. `.alchemy` is only a local working
+directory, not the authoritative store.
 
 `bun run dev` runs `alchemy dev` from the repository root and prints both
 local URLs. Open the app URL it prints. The app Worker forwards the API paths

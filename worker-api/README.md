@@ -201,8 +201,10 @@ The first deploy creates an empty database. There is no data migration from
 
 Do not commit secret values. The stack reads `.env` from the repository root;
 `.env.example` there lists the required Spotify values. Alchemy generates the
-Better Auth signing secret on the first deploy and keeps it in `.alchemy`
-state, so do not set it by hand. Use an Alchemy profile for deploy credentials.
+Better Auth signing secret on the first deploy and stores it in the Cloudflare
+state store configured by `Cloudflare.state()`. `.alchemy` is only a local
+working directory, not the authoritative store. Do not set the secret by hand.
+Use an Alchemy profile for deploy credentials.
 `bun alchemy dev --env-file <file>` selects another env file.
 
 ## Verification

@@ -52,3 +52,7 @@ bun run deploy
 
 `Cloudflare.Website.StaticSite` runs `bun run build`, uploads `build/client`,
 and serves it through `worker.ts`.
+
+The Better Auth signing secret is generated on the first deploy and stored in
+the Cloudflare state store configured by `Cloudflare.state()`. `.alchemy` is
+only a local working directory and is not the authoritative store.
