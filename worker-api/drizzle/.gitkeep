@@ -1,2 +1,0 @@
-# The foundation slice has no tables yet. drizzle-kit writes generated SQL
-# files here; Alchemy applies them to D1.
