@@ -40,6 +40,7 @@ export default new Hono<AppEnv>()
       }
 
       await onboardUser(createDatabase(c.env.DB), id, { username, name });
+
       return c.json({ ok: true }, 200);
     },
   );

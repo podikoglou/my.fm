@@ -66,6 +66,7 @@ async function ingestAccount(
 
   if (!token?.accessToken) {
     console.error(`No Spotify access token for user ${account.userId}`);
+
     return;
   }
 
@@ -73,6 +74,7 @@ async function ingestAccount(
 
   if (!queueData) {
     console.warn(`Spotify account owner ${account.userId} disappeared`);
+
     return;
   }
 

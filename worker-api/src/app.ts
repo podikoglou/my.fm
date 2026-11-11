@@ -26,6 +26,7 @@ export function createApp() {
       })
       .onError((err, c) => {
         const status = err instanceof HTTPException ? err.status : 500;
+
         return c.json({ error: err.message ?? "Internal server error" }, status);
       })
   );
