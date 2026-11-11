@@ -25,6 +25,11 @@ bun run dev
 The dev server then has no API behind its proxy. Set `API_DEV_URL` to point it
 at another API origin.
 
+To use the HTTPS origin, start Caddy from the repository root with
+`bun run dev:proxy`. Caddy terminates TLS for `my.fm` and forwards every path
+to the Vite dev server, so the browser uses `https://my.fm` and the Spotify
+callback keeps the production shape. `my.fm` must resolve to `127.0.0.1`.
+
 ## API access
 
 The browser calls the app origin. The app Worker in `worker.ts` serves the

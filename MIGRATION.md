@@ -216,8 +216,11 @@ own origin with relative URLs; it does not need a build-time API URL.
 
 `alchemy dev` runs the Vite dev server for the app and the API Worker in local
 workerd. The API port lives in `dev.ts`, and Vite proxies the shared API paths
-to it. Alchemy starts local commands with `NODE_ENV=production`, so the app dev
-command overrides it to `development`.
+to it. `bun run dev:proxy` optionally runs Caddy, which serves the app at
+`https://my.fm` with a local CA and forwards every path to Vite. Caddy sends
+`X-Forwarded-Proto: https`, so the derived Spotify callback and the session
+cookie use HTTPS, like production. Alchemy starts local commands with
+`NODE_ENV=production`, so the app dev command overrides it to `development`.
 
 The app's Better Auth client matches the Worker API at `1.7.20`. The `api/`
 package pins Better Auth and its Drizzle adapter to `1.6.5`, because the shared

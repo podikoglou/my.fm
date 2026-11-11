@@ -24,6 +24,7 @@ API, the database, and the cron trigger in one stack.
 cp .env.example .env   # then fill in the Spotify credentials
 bun install
 bun run dev            # prints the app and API URLs
+bun run dev:proxy      # optional: serve the app at https://my.fm
 ```
 
 The root `.env` only holds the Spotify client ID and secret. Better Auth
@@ -38,13 +39,21 @@ local URLs. Open the app URL it prints. The app Worker forwards the API paths
 to the API Worker; in development, Vite proxies the same shared path list to
 the local API Worker.
 
+For a Spotify sign-in, use the HTTPS origin. `bun run dev:proxy` starts Caddy,
+which terminates TLS for `my.fm` with its local CA and forwards every path to
+the Vite dev server. The browser then uses `https://my.fm`, so Better Auth
+derives `https://my.fm/api/auth/callback/spotify` and the session cookie is
+secure. `my.fm` must resolve to `127.0.0.1` in `/etc/hosts`. Run `caddy trust`
+once if the browser does not trust the local CA.
+
 - `bun run deploy` creates or updates the Cloudflare resources.
 - `bun run destroy` removes this stage's resources.
 - `bun run typecheck:infra` typechecks the root stack.
 
-Register `<app origin>/api/auth/callback/spotify` in the Spotify application
-for each origin you use. The deployed app has no URL settings to fill in after
-its first deploy.
+Register `https://my.fm/api/auth/callback/spotify` in the Spotify application
+for local development, and `<deployed app origin>/api/auth/callback/spotify`
+for each deployed origin. The deployed app has no URL settings to fill in
+after its first deploy.
 
 The Bun implementation in `api/` remains in the repository and is independent
 of the deployed app.
