@@ -8,3 +8,12 @@ export const API_DEV_PORT = 1337;
 
 /** The local API origin that the app dev server proxies to. */
 export const API_DEV_URL = `http://localhost:${API_DEV_PORT}`;
+
+/**
+ * The app dev server port. Caddy in front of it proxies to this port, so a
+ * conflict must fail loudly.
+ */
+export const APP_DEV_PORT = 5173;
+
+/** The local HTTPS app host that Caddy serves during development. */
+export const DEV_APP_HOST = "my.fm";

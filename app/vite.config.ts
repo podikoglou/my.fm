@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-import { API_DEV_URL } from "../dev";
+import { API_DEV_URL, APP_DEV_PORT, DEV_APP_HOST } from "../dev";
 import { API_HEALTH_PATH, API_PATH_PREFIXES } from "./api-paths";
 
 /**
@@ -22,6 +22,11 @@ const apiPaths = [...API_PATH_PREFIXES.map((prefix) => `^${prefix}`), `^${API_HE
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
   server: {
+    // Caddy proxies `https://my.fm` to this port, so the port must be fixed.
+    port: APP_DEV_PORT,
+    strictPort: true,
+    // Caddy forwards the browser's Host header.
+    allowedHosts: [DEV_APP_HOST],
     // `changeOrigin: false` keeps the original Host header. With it set to
     // `true`, the API Worker would see the wrong origin and the Spotify
     // callback would change. This setting is load-bearing.

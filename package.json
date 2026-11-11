@@ -9,6 +9,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "alchemy dev",
+    "dev:proxy": "caddy run --config Caddyfile",
     "dev:packages": "turbo dev",
     "deploy": "alchemy deploy",
     "destroy": "alchemy destroy",
