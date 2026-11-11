@@ -69,7 +69,10 @@ No CI is added as part of this migration at this time.
 
 ### `worker-auth`
 
-- Use the repository's current Better Auth version: `1.6.5`.
+- Use Better Auth `1.7.20` in `worker-api/`. Alchemy's D1 integration pins
+  Drizzle ORM and Drizzle Kit to `1.0.0-rc.5`, which Better Auth `1.6.5` does
+  not support. The application schema and auth behaviour stay unchanged, and
+  `api/` remains on `1.6.5`.
 - Preserve the current Better Auth configuration and Spotify OAuth setup.
 - Add the complete application schema, including all current music and
   scrobble tables.
@@ -116,8 +119,10 @@ migration history.
 
 ## Dependencies and tests
 
-- Keep the current resolved Hono, Drizzle ORM, and Drizzle Kit versions.
-- Keep Better Auth at `1.6.5`.
+- Keep Hono at the current resolved version.
+- Use Alchemy's supported Drizzle combination in `worker-api/`: Drizzle ORM and
+  Drizzle Kit `1.0.0-rc.5`, with Better Auth `1.7.20`. `api/` stays on its
+  current versions.
 - Keep the existing Spotify SDK and version during the port.
 - Use Bun's test runner.
 - Test our integration with Better Auth, not Better Auth internals.
