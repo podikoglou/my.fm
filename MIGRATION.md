@@ -146,6 +146,12 @@ differs. No query depends on it.
 - Test our integration with Better Auth, not Better Auth internals.
 - Add slice-level smoke and HTTP tests as each slice is introduced.
 
+The direct `zod` range is `^4.3.6` in both packages. A fresh install in
+`worker-api/` resolves `zod` 4.6.7, while the existing `api/` install resolves
+4.3.6. The request validation rules are the same. Zod error payloads can
+differ in detail. Pin `worker-api/` to 4.3.6 if exact error payload parity is
+required.
+
 Alchemy's documented local and deployment workflows are the source for Worker,
 D1, secret, and migration configuration:
 
