@@ -1,17 +1,16 @@
 import type { WorkerEnv } from "../../alchemy.run.ts";
-
 import type { Auth } from "../auth.ts";
-import { createAuth } from "../auth.ts";
 import type { Database } from "../db/index.ts";
+import type { CreateSpotifyClient } from "./spotify.ts";
+
+import { createAuth } from "../auth.ts";
 import { createDatabase } from "../db/index.ts";
 import {
   findSpotifyAccounts,
   findUserQueueDataById,
   updateLastRecentTracksFetchTime,
 } from "../db/queries/users.ts";
-
 import { storePlay } from "./plays.ts";
-import type { CreateSpotifyClient } from "./spotify.ts";
 import { createSpotifyClient } from "./spotify.ts";
 
 const FETCH_LIMIT_INITIAL = 50;
@@ -22,10 +21,10 @@ type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
 /**
  * Fetch recently played tracks for every Spotify account and store them.
  *
- * The Bun scheduler rotated one user through an in-memory queue every five
- * seconds. A Worker has no long-lived queue, so each Cron Trigger run scans the
- * Spotify accounts and processes them in order. The per-user fetch logic,
- * limits, and cursor updates are unchanged.
+ * MIGRATION NOTE: The Bun scheduler rotated one user through an in-memory
+ * queue every five seconds. A Worker has no long-lived queue, so each Cron
+ * Trigger run scans the Spotify accounts and processes them in order. The
+ * per-user fetch logic, limits, and cursor updates are unchanged.
  *
  * A failure for one account is logged and does not stop the other accounts.
  * The cursor is not advanced for the failed user, so the next run retries it.
@@ -53,8 +52,9 @@ async function ingestAccount(
   account: SpotifyAccount,
   createClient: CreateSpotifyClient,
 ) {
-  // Better Auth 1.7.20 selects the account by its local ID. The Bun API used
-  // `providerId`; the account row and its refresh behaviour are the same.
+  // MIGRATION NOTE: Better Auth 1.7.20 selects the account by its local ID.
+  // The Bun API used `providerId`; the account row and its refresh behaviour
+  // are the same.
   const token = await auth.api.getAccessToken({
     body: { accountId: account.id, userId: account.userId },
   });
