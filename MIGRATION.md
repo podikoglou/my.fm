@@ -183,3 +183,26 @@ D1, secret, and migration configuration:
 - https://alchemy.run/cloudflare/data/d1
 - https://alchemy.run/better-auth/databases/cloudflare-d1
 - https://alchemy.run/environments/secret-providers
+
+## Post-migration: web app integration
+
+After the four migration slices, the repository uses one Alchemy stack in the
+root `alchemy.run.ts`. The stack deploys the API Worker, its D1 database, and
+the web app. The API resources moved to `worker-api/src/alchemy.ts`, and the
+migration directory is anchored to that package.
+
+The web app is a Vite single-page build deployed with
+`Cloudflare.Website.StaticSite`. It has a custom Worker entry, `app/worker.ts`,
+that serves the built assets and forwards `/api/*`, `/user/*`, `/scrobble/*`,
+and `/health` to the API Worker over a service binding. This keeps the browser
+on one origin, so the Better Auth session cookie is first-party and the Spotify
+callback returns to the app origin. The API route contract is unchanged.
+
+`BETTER_AUTH_URL`, `FRONTEND_URL`, and `SPOTIFY_REDIRECT_URI` now use the app
+origin. The app calls its own origin; it does not need a build-time API URL.
+
+`alchemy dev` runs the Vite dev server for the app and the API Worker in local
+workerd. Vite proxies the API paths to the API Worker. Alchemy starts local
+commands with `NODE_ENV=production`, so the app dev command overrides it to
+`development`.
+

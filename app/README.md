@@ -1,87 +1,54 @@
-# Welcome to React Router!
+# my.fm web app
 
-A modern, production-ready template for building full-stack React applications using React Router.
+The my.fm web application. It is a React Router 7 single-page app
+(`ssr: false`), built with Vite and served from a Cloudflare Worker.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## Development
 
-## Features
+Run the whole stack from the repository root:
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
-
-```bash
-npm install
+```sh
+bun run dev
 ```
 
-### Development
+The app is on `http://localhost:3000` and the API Worker is on
+`http://localhost:1337`. Vite proxies `/api`, `/user`, `/scrobble`, and
+`/health` to the API Worker, so the browser uses one origin and the Better
+Auth session cookie stays first-party.
 
-Start the development server with HMR:
+To run only the app:
 
-```bash
-npm run dev
+```sh
+bun run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Set `API_DEV_URL` to override the proxy target (default
+`http://localhost:1337`).
 
-## Building for Production
+## API access
 
-Create a production build:
+The browser calls the app origin. The app Worker in `worker.ts` serves the
+built assets and forwards the API paths to the API Worker through the `API`
+service binding from `../alchemy.run.ts`. The Hono client type comes from the
+`@my.fm/worker-api` workspace package as a type-only import.
 
-```bash
-npm run build
+## Commands
+
+```sh
+bun run build      # react-router build; output in build/client
+bun run typecheck  # react-router typegen && tsgo
+bun run test       # bun test
+bun run lint       # oxlint
+bun run fmt        # oxfmt
 ```
 
 ## Deployment
 
-### Docker Deployment
+The root Alchemy stack deploys this app with the API:
 
-To build and run using Docker:
-
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+```sh
+bun run deploy
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+`Cloudflare.Website.StaticSite` runs `bun run build`, uploads `build/client`,
+and serves it through `worker.ts`.

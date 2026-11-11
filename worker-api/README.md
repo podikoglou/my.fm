@@ -4,16 +4,22 @@ The Cloudflare Workers port of the my.fm API. The existing Bun API in `api/`
 stays unchanged and independent; see `MIGRATION.md` for the migration plan.
 
 This package contains the `worker-foundation`, `worker-auth`, `worker-read-api`,
-and `worker-ingestion` slices: an Alchemy stack, a D1 database, the complete
-application schema, Better Auth with Spotify OAuth, the user and recent-scrobble
-read endpoints, a one-minute Spotify ingestion job, and a health endpoint.
+and `worker-ingestion` slices: a D1 database, the complete application schema,
+Better Auth with Spotify OAuth, the user and recent-scrobble read endpoints, a
+one-minute Spotify ingestion job, and a health endpoint.
+
+The resources are declared in `src/alchemy.ts`. The stack that deploys this
+Worker together with the web application lives in the repository root.
 
 ## Commands
 
 ```sh
-bun run dev        # alchemy dev: Worker in workerd with a local D1 simulator
+# from the repository root
+bun run dev        # alchemy dev: app and API Workers with a local D1
 bun run deploy     # alchemy deploy: create/update Cloudflare resources
 bun run destroy    # alchemy destroy: remove this stage's resources
+
+# in this package
 bun run typecheck  # tsgo
 bun run lint       # oxlint
 bun run fmt        # oxfmt
@@ -25,7 +31,7 @@ bun run db:generate # drizzle-kit generate: write SQL into ./drizzle
 ## Layout
 
 ```text
-alchemy.run.ts        Alchemy stack, Worker resource, bindings, cron, and WorkerEnv type
+src/alchemy.ts        Worker resource, bindings, cron, and WorkerEnv type
 src/worker.ts         Worker entrypoint; forwards requests to Hono and runs the cron
 src/app.ts            Hono application, CORS, route mounts, and health endpoint
 src/auth.ts           Better Auth configuration and Spotify provider
@@ -43,8 +49,8 @@ test/                 Bun tests and the shared in-memory D1 harness
 ```
 
 The Worker uses Alchemy's async Worker form: plain `fetch` and `scheduled`
-handlers with a typed `env`. Effect is installed because Alchemy requires it as
-a peer; Effect services are introduced at service boundaries in later slices.
+handlers with a typed `env`. The `main` path and the migration directory are
+anchored to `src/` because the stack runs from the repository root.
 
 ## Authentication
 
@@ -63,6 +69,20 @@ reads from the environment:
 - `SPOTIFY_REDIRECT_URI`
 
 CORS allows `FRONTEND_URL` with credentials, matching the Bun API.
+
+The browser talks to the app Worker, not to this Worker directly. The app
+Worker forwards `/api/*`, `/user/*`, `/scrobble/*`, and `/health` over the
+Alchemy service binding. Therefore `BETTER_AUTH_URL`, `FRONTEND_URL`, and the
+Spotify callback all use the app origin:
+
+- `BETTER_AUTH_URL` builds Better Auth URLs on the app origin.
+- `FRONTEND_URL` is the trusted origin and the CORS allow-list.
+- `SPOTIFY_REDIRECT_URI` is `<app origin>/api/auth/callback/spotify`, and it
+  must match the redirect URI registered in the Spotify application.
+
+The response `Set-Cookie` headers pass through the app Worker, so the session
+cookie is first-party on the app origin. This is required on `workers.dev`,
+where the app and API hostnames are cross-site.
 
 The Bun API also pushed new users into an in-memory fetch queue from a
 `user.create.after` hook. That queue is process-local state and has no meaning
@@ -156,15 +176,13 @@ rotation or split the scan across invocations.
 
 ## Client types
 
-`src/app.ts` exports `AppType`, the Hono RPC type for the API. A client can use
-it with `hc<AppType>` from `hono/client`, as the web application does with the
-Bun API's `AppType` today.
+`src/app.ts` exports `AppType`, the Hono RPC type for the API. The web
+application imports it through the `@my.fm/worker-api` workspace package with
+`import type`, so the application bundle contains no Worker code.
 
-The package exposes the type as `@my.fm/worker-api`. The app depends on the
-workspace package and enables `allowImportingTsExtensions`, because the Worker
-sources use `.ts` import specifiers. Switching the app's import from
-`@my.fm/api` to `@my.fm/worker-api` is a type-only change; the route types are
-compatible.
+The app calls its own origin and the app Worker forwards the API paths to this
+Worker. The Hono client and the Better Auth client therefore share one origin
+with the page.
 
 ## Database and migrations
 
@@ -175,7 +193,7 @@ Drizzle is the only schema author. Alchemy applies pending migrations from
 edit src/db/schema.ts
   -> bun run db:generate
   -> review and commit drizzle/
-  -> bun run deploy applies the new migrations
+  -> bun run deploy (from the repository root) applies the new migrations
 ```
 
 Drizzle 1.0 writes each migration to
@@ -188,42 +206,49 @@ The first deploy creates an empty database. There is no data migration from
 
 ## Secrets
 
-Do not commit secret values. `.env` is ignored; `.env.example` lists the
-required names and local placeholders. Use an Alchemy profile for deploy
-credentials, and the bindings above for application secrets.
+Do not commit secret values. The stack reads `.env` from the repository root;
+`.env.example` there lists the required names and local placeholders. Use an
+Alchemy profile for deploy credentials, and the bindings above for application
+secrets. `bun alchemy dev --env-file <file>` selects another env file.
 
 ## Verification
 
 ```sh
-bun run dev
+bun run dev   # from the repository root; app on :3000, API on :1337
 
-curl http://localhost:1337/health
+curl http://localhost:3000/health
 # {"status":"ok","database":"ok"}
 
-curl http://localhost:1337/api/auth/get-session
+curl http://localhost:3000/api/auth/get-session
 # null
 
-curl -X POST http://localhost:1337/api/auth/sign-in/social \
+curl -X POST http://localhost:3000/api/auth/sign-in/social \
   -H 'content-type: application/json' \
+  -H 'origin: http://localhost:3000' \
   -d '{"provider":"spotify"}'
 # {"url":"https://accounts.spotify.com/authorize?...","redirect":true}
 
-curl -i http://localhost:1337/user/me
+curl -i http://localhost:3000/user/me
 # 401 {"error":""}
 
 curl http://localhost:1337/cdn-cgi/handler/scheduled
 # ok
 ```
 
-`GET /health` runs `SELECT 1` against the bound D1 database. The Spotify URL
-confirms the provider, client ID, scopes, and callback wiring; completing a
-real sign-in needs Spotify credentials and a registered redirect URI. The
-`/user/*` and `/scrobble/*` routes require a session cookie from that sign-in.
+`GET /health` runs `SELECT 1` against the bound D1 database through the app
+Worker and the service binding. The Spotify URL confirms the provider, client
+ID, scopes, and callback wiring; completing a real sign-in needs Spotify
+credentials and a registered redirect URI. The `/user/*` and `/scrobble/*`
+routes require a session cookie from that sign-in.
+
+The API responses include `access-control-allow-origin` from the configured
+`FRONTEND_URL`. A same-origin app request does not need it, but the header
+shows that the trusted origin is the app origin.
 
 `/cdn-cgi/handler/scheduled` is the local workerd endpoint for the Cron
-Trigger. With no Spotify accounts it runs the scan and stores nothing; it
-confirms that the scheduled handler and the Spotify SDK module load in the
-Worker.
+Trigger on the API Worker. With no Spotify accounts it runs the scan and stores
+nothing; it confirms that the scheduled handler and the Spotify SDK module load
+in the Worker.
 
 The Bun tests run the same migrations against an in-memory SQLite database
 through the D1 driver, so the auth routes, relational read queries, ingestion,
