@@ -28,9 +28,7 @@ describe("auth routes", () => {
 
     expect(response.status).toBe(200);
 
-    const body = z
-      .object({ url: z.string(), redirect: z.boolean() })
-      .parse(await response.json());
+    const body = z.object({ url: z.string(), redirect: z.boolean() }).parse(await response.json());
 
     const url = new URL(body.url);
 

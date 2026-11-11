@@ -99,4 +99,3 @@ export function replaceFetch(handler: FetchHandler): () => void {
     globalThis.fetch = original;
   };
 }
-

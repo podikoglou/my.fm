@@ -308,9 +308,7 @@ describe("runIngestion", () => {
     });
     await db.update(users).set({ lastRecentTracksFetchTime: cursor }).where(eq(users.id, "user-1"));
 
-    const restoreFetch = replaceFetch(
-      async () => new Response("unauthorized", { status: 401 }),
-    );
+    const restoreFetch = replaceFetch(async () => new Response("unauthorized", { status: 401 }));
 
     try {
       await runIngestion(
