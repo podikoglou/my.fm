@@ -18,7 +18,7 @@ import {
 } from "../src/db/schema.ts";
 import { storePlays } from "../src/ingestion/plays.ts";
 import { runIngestion } from "../src/ingestion/run.ts";
-import { createTestDatabase, createTestEnv } from "./harness.ts";
+import { createTestDatabase, createTestEnv, replaceFetch } from "./harness.ts";
 
 const now = new Date("2026-11-11T12:00:00.000Z");
 
@@ -193,16 +193,14 @@ describe("storePlays", () => {
   });
 
   test("splits a large fetch into bounded batches", async () => {
-    const sqlite = createTestDatabase();
     let batches = 0;
-    const database = {
-      prepare: sqlite.prepare.bind(sqlite),
-      batch: (statements: D1PreparedStatement[]) => {
-        batches += 1;
-        return sqlite.batch(statements);
-      },
-    } as unknown as D1Database;
-    const db = createDatabase(database);
+
+    const sqlite = createTestDatabase(() => {
+      batches += 1;
+    });
+
+    const db = createDatabase(sqlite);
+
     const plays = Array.from({ length: 12 }, (_, index) =>
       makePlay(new Date(now.getTime() + index * 60_000).toISOString(), String(index)),
     );
@@ -259,7 +257,6 @@ describe("runIngestion", () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
-    const originalFetch = globalThis.fetch;
     let refreshBody = "";
 
     await seedUser(db, {
@@ -268,10 +265,7 @@ describe("runIngestion", () => {
       refreshToken: "refresh-token",
     });
 
-    globalThis.fetch = (async (
-      _input: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1],
-    ) => {
+    const restoreFetch = replaceFetch(async (_input, init) => {
       refreshBody = String(init?.body ?? "");
 
       return Response.json({
@@ -280,7 +274,7 @@ describe("runIngestion", () => {
         expires_in: 3600,
         refresh_token: "new-refresh-token",
       });
-    }) as unknown as typeof fetch;
+    });
 
     try {
       await runIngestion(
@@ -288,7 +282,7 @@ describe("runIngestion", () => {
         clientFor(calls, () => []),
       );
     } finally {
-      globalThis.fetch = originalFetch;
+      restoreFetch();
     }
 
     expect(calls).toEqual([{ accessToken: "fresh-token", limit: 50, options: undefined }]);
@@ -305,7 +299,6 @@ describe("runIngestion", () => {
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
     const cursor = new Date("2026-11-01T00:00:00.000Z");
-    const originalFetch = globalThis.fetch;
     const error = spyOn(console, "error").mockImplementation(() => {});
 
     await seedUser(db, {
@@ -315,8 +308,9 @@ describe("runIngestion", () => {
     });
     await db.update(users).set({ lastRecentTracksFetchTime: cursor }).where(eq(users.id, "user-1"));
 
-    globalThis.fetch = (async () =>
-      new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
+    const restoreFetch = replaceFetch(
+      async () => new Response("unauthorized", { status: 401 }),
+    );
 
     try {
       await runIngestion(
@@ -324,7 +318,7 @@ describe("runIngestion", () => {
         clientFor(calls, () => []),
       );
     } finally {
-      globalThis.fetch = originalFetch;
+      restoreFetch();
       error.mockRestore();
     }
 
@@ -339,16 +333,20 @@ describe("runIngestion", () => {
     const db = createDatabase(env.DB);
     const cursor = new Date("2026-11-01T00:00:00.000Z");
     const error = spyOn(console, "error").mockImplementation(() => {});
+
     const plays = Array.from({ length: 12 }, (_, index) =>
       makePlay(new Date(now.getTime() + index * 60_000).toISOString(), String(index)),
     );
+
     const lastPlay = plays.at(-1);
 
     if (!lastPlay) {
       throw new Error("missing test play");
     }
 
-    lastPlay.track.name = null as unknown as string;
+    // SAFETY: The database must reject a null track name. Spotify's types
+    // require a string, so this test injects the invalid value deliberately.
+    lastPlay.track.name = null as never;
 
     await seedUser(db);
     await db.update(users).set({ lastRecentTracksFetchTime: cursor }).where(eq(users.id, "user-1"));

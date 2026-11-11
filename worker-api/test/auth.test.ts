@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import z from "zod";
 
 import { createApp } from "../src/app.ts";
-import { baseUrl, createTestEnv } from "./harness.ts";
+
+import { baseUrl, createTestEnv, replaceFetch } from "./harness.ts";
 
 const env = createTestEnv();
 
@@ -26,7 +28,10 @@ describe("auth routes", () => {
 
     expect(response.status).toBe(200);
 
-    const body = (await response.json()) as { url: string; redirect: boolean };
+    const body = z
+      .object({ url: z.string(), redirect: z.boolean() })
+      .parse(await response.json());
+
     const url = new URL(body.url);
 
     expect(body.redirect).toBe(true);
@@ -38,10 +43,9 @@ describe("auth routes", () => {
 
   test("creates a user with a generated username on the first Spotify callback", async () => {
     const testEnv = createTestEnv();
-    const originalFetch = globalThis.fetch;
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const restoreFetch = replaceFetch(async (input) => {
+      const url = input instanceof Request ? input.url : input.toString();
 
       if (url.startsWith("https://accounts.spotify.com/api/token")) {
         return Response.json({
@@ -63,10 +67,11 @@ describe("auth routes", () => {
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
-    }) as typeof fetch;
+    });
 
     try {
       const app = createApp();
+
       const signIn = await app.request(
         `${baseUrl}/api/auth/sign-in/social`,
         {
@@ -76,7 +81,8 @@ describe("auth routes", () => {
         },
         testEnv,
       );
-      const { url } = (await signIn.json()) as { url: string };
+
+      const { url } = z.object({ url: z.string() }).parse(await signIn.json());
       const state = new URL(url).searchParams.get("state");
       const cookies = signIn.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
 
@@ -89,14 +95,14 @@ describe("auth routes", () => {
       expect(callback.status).toBe(302);
       expect(callback.headers.get("location")).toBe(`${baseUrl}/onboard`);
 
-      const row = (await testEnv.DB.prepare("SELECT username FROM users").bind().first()) as {
-        username: string;
-      } | null;
+      const row = await testEnv.DB.prepare("SELECT username FROM users")
+        .bind()
+        .first<{ username: string }>();
 
       expect(row?.username).toBeString();
       expect(row?.username.length).toBeGreaterThan(0);
     } finally {
-      globalThis.fetch = originalFetch;
+      restoreFetch();
     }
   });
 });
