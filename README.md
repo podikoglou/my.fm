@@ -28,7 +28,9 @@ bun run dev            # app on http://localhost:3000, API on :1337
 
 If your values are still in `worker-api/.env`, move them to the root `.env`,
 or pass `--env-file worker-api/.env` to `bun alchemy dev` or
-`bun alchemy deploy` directly.
+`bun alchemy deploy` directly. Change `BETTER_AUTH_URL`, `FRONTEND_URL`, and
+`SPOTIFY_REDIRECT_URI` to the app origin (`http://localhost:3000` locally)
+first; the old values pointed at the API port.
 
 `bun run dev` runs `alchemy dev` from the repository root. The app Worker
 forwards the API paths to the API Worker. In development, Vite proxies the same
