@@ -31,3 +31,9 @@ export function createApp() {
       return c.json({ error: err.message ?? "Internal server error" }, status);
     });
 }
+
+/**
+ * The Hono RPC type for the API. Clients import this type to type their
+ * requests, as the web application does with the Bun API's `AppType`.
+ */
+export type AppType = ReturnType<typeof createApp>;
