@@ -38,6 +38,11 @@ paths to the local API Worker.
 - `bun run destroy` removes this stage's resources.
 - `bun run typecheck:infra` typechecks the root stack.
 
+The workers.dev URL is assigned on the first deploy. Deploy once, then set
+`BETTER_AUTH_URL` and `FRONTEND_URL` to the printed app `url`, set
+`SPOTIFY_REDIRECT_URI` to `<url>/api/auth/callback/spotify`, and deploy again.
+The redirect URI must also be registered in the Spotify application.
+
 The Bun implementation in `api/` remains in the repository and is independent
 of the deployed app.
 
