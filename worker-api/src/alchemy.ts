@@ -3,6 +3,7 @@ import * as Alchemy from "alchemy";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 
+import { API_DEV_PORT } from "../../dev.ts";
 import { Database } from "./database.ts";
 
 export { Database } from "./database.ts";
@@ -26,8 +27,8 @@ const BetterAuthSecret = Alchemy.Random("BetterAuthSecret").pipe(
 export const Worker = Cloudflare.Worker("Worker", {
   main: new URL("./worker.ts", import.meta.url).href,
   compatibility: { date: "2026-11-02" },
-  // The app dev proxy targets this port, so a conflict must fail loudly.
-  dev: { port: 1337, strictPort: true },
+  // The app dev proxy reads the same constant. A conflict must fail loudly.
+  dev: { port: API_DEV_PORT, strictPort: true },
   // MIGRATION NOTE: A Cron Trigger replaces the Bun scheduler's five-second
   // in-process timer.
   crons: ["* * * * *"],

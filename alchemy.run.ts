@@ -3,17 +3,21 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import { fileURLToPath } from "node:url";
 
+import { API_RUN_WORKER_FIRST } from "./app/api-paths.ts";
 import { Database, Worker } from "./worker-api/src/alchemy.ts";
 
 const appDir = fileURLToPath(new URL("./app/", import.meta.url));
 
 /**
- * The web application is built by Vite and served from a Worker with the
- * static assets. A custom entry serves the assets and forwards the API paths
- * to the Worker API over a service binding, so the browser sees one origin.
+ * The web application is a Vite single-page build served from a Worker with
+ * the static assets. A custom entry serves the assets and forwards the API
+ * paths to the Worker API over a service binding, so the browser sees one
+ * origin.
  *
- * `dev.command` runs the Vite dev server, while the API Worker still starts in
- * local workerd. The Vite server proxies the API paths to it.
+ * React Router's build drives its own Vite pipeline, so `StaticSite` runs the
+ * project's build command instead of `Website.Vite`. During `alchemy dev`,
+ * `dev.command` runs the React Router dev server and the Vite proxy uses the
+ * shared API dev URL. The route list is shared with the deployed Worker.
  */
 export const Website = Cloudflare.Website.StaticSite("Website", {
   cwd: appDir,
@@ -22,26 +26,32 @@ export const Website = Cloudflare.Website.StaticSite("Website", {
   main: new URL("./app/worker.ts", import.meta.url).href,
   dev: {
     command: "bun run dev",
-    // Alchemy runs local commands with NODE_ENV=production; React Router
-    // renders with the production JSX runtime and fails in dev.
-    env: { NODE_ENV: "development" },
+    env: {
+      // Alchemy's CLI sets NODE_ENV=production. React Router's dev server
+      // needs the development JSX runtime.
+      NODE_ENV: "development",
+    },
   },
   assets: {
     // The SPA fallback must not answer API requests.
     notFoundHandling: "single-page-application",
-    runWorkerFirst: ["/api/*", "/user/*", "/scrobble/*", "/health"],
+    runWorkerFirst: API_RUN_WORKER_FIRST,
   },
   env: {
     API: Worker,
   },
 });
 
+/**
+ * `InferEnv` covers declared bindings. The asset layer adds `ASSETS`
+ * automatically, so the handler type adds the binding Cloudflare supplies.
+ */
 export type WebsiteEnv = Cloudflare.InferEnv<typeof Website> & {
   ASSETS: Fetcher;
 };
 
 export default Alchemy.Stack(
-  "MyFM",
+  "my-fm",
   {
     providers: Cloudflare.providers(),
     state: Cloudflare.state(),

@@ -3,24 +3,25 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+import { API_DEV_URL } from "../dev";
+import { API_HEALTH_PATH, API_PATH_PREFIXES } from "./api-paths";
+
 /**
- * `localhost:1337` is the Worker API during `alchemy dev`. The deployed app
- * Worker forwards the same paths to the API over a service binding.
+ * `alchemy dev` starts the API Worker on the shared dev port. A standalone
+ * `bun run dev` in this package has no API behind the proxy; run
+ * `bun run dev` from the repository root instead.
  */
-const apiDevUrl = process.env.API_DEV_URL ?? "http://localhost:1337";
+const apiDevUrl = process.env.API_DEV_URL ?? API_DEV_URL;
 
 /**
  * Path-segment patterns, so `/apiary` is not proxied. A key that starts with
  * `^` is a regular expression in Vite's proxy config.
  */
-const apiPaths = ["^/api/", "^/user/", "^/scrobble/", "^/health$"];
+const apiPaths = [...API_PATH_PREFIXES.map((prefix) => `^${prefix}`), `^${API_HEALTH_PATH}$`];
 
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
   server: {
-    // The Better Auth URLs in the root `.env` use this port.
-    strictPort: true,
-    allowedHosts: ["my.fm"],
     proxy: Object.fromEntries(
       apiPaths.map((path) => [path, { target: apiDevUrl, changeOrigin: false }]),
     ),
