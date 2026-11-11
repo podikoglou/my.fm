@@ -10,7 +10,7 @@ import {
   findUserQueueDataById,
   updateLastRecentTracksFetchTime,
 } from "../db/queries/users.ts";
-import { storePlay } from "./plays.ts";
+import { storePlays } from "./plays.ts";
 import { createSpotifyClient } from "./spotify.ts";
 
 const FETCH_LIMIT_INITIAL = 50;
@@ -83,9 +83,7 @@ async function ingestAccount(
 
   let mostRecentScrobbleDate: Date | null = null;
 
-  for (const play of plays.items) {
-    const scrobbleDate = await storePlay(db, account.userId, play);
-
+  for (const scrobbleDate of await storePlays(db, account.userId, plays.items)) {
     if (!mostRecentScrobbleDate || scrobbleDate > mostRecentScrobbleDate) {
       mostRecentScrobbleDate = scrobbleDate;
     }

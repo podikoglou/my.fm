@@ -1,3 +1,5 @@
+import type { BatchItem } from "drizzle-orm/batch";
+
 import type { Database } from "../db/index.ts";
 import type { User } from "../db/schema.ts";
 import type { SpotifyPlay } from "./spotify.ts";
@@ -9,23 +11,58 @@ import { createScrobbleId, insertScrobble } from "../db/queries/scrobbles.ts";
 import { insertTrackArtist } from "../db/queries/trackArtists.ts";
 import { insertTrack } from "../db/queries/tracks.ts";
 
+const PLAYS_PER_BATCH = 10;
+
 /**
- * Store one play and everything it references.
+ * Store fetched plays and everything they reference.
  *
  * MIGRATION NOTE: The Bun API issued these inserts one by one. D1 counts each
  * round trip against the per-invocation query limit, so this sends the same
- * statements as one batch, in the same order. A batch is a transaction: either
- * the whole play is stored or none of it is. All inserts use
+ * statements in batches, in the same order. Ten plays per batch keeps an
+ * initial fetch of fifty plays well under the free plan's fifty-query limit
+ * and still keeps the rollback scope small. A batch is a transaction: either
+ * the whole chunk is stored or none of it is. All inserts use
  * `onConflictDoNothing`, so a re-fetched play stays idempotent.
  *
- * Returns the play time so the caller can advance the user's fetch cursor.
+ * Returns the play times so the caller can advance the user's fetch cursor.
  */
-export async function storePlay(db: Database, userId: User["id"], play: SpotifyPlay) {
-  const scrobbleDate = new Date(play.played_at);
+export async function storePlays(db: Database, userId: User["id"], plays: SpotifyPlay[]) {
+  const scrobbleDates: Date[] = [];
+
+  for (let start = 0; start < plays.length; start += PLAYS_PER_BATCH) {
+    const chunk = plays.slice(start, start + PLAYS_PER_BATCH);
+    const statements: BatchItem<"sqlite">[] = [];
+
+    for (const play of chunk) {
+      const scrobbleDate = new Date(play.played_at);
+      scrobbleDates.push(scrobbleDate);
+      statements.push(...(await buildPlayStatements(db, userId, play, scrobbleDate)));
+    }
+
+    const [first, ...rest] = statements;
+
+    if (first) {
+      await db.batch([first, ...rest]);
+    }
+  }
+
+  return scrobbleDates;
+}
+
+/**
+ * MIGRATION NOTE: Build the statements for one play in the order the Bun API
+ * issued them.
+ */
+async function buildPlayStatements(
+  db: Database,
+  userId: User["id"],
+  play: SpotifyPlay,
+  scrobbleDate: Date,
+): Promise<BatchItem<"sqlite">[]> {
   const { track } = play;
   const album = track.album;
 
-  const statements = [
+  return [
     // Insert the track's and album's artists first; both insert styles are
     // used because the two lists are not guaranteed to match.
     ...track.artists.map(({ name, uri }) => insertArtist(db, { spotifyUri: uri, name })),
@@ -62,14 +99,4 @@ export async function storePlay(db: Database, userId: User["id"], play: SpotifyP
       scrobbleDate,
     }),
   ];
-
-  const [first, ...rest] = statements;
-
-  if (!first) {
-    throw new Error("A play must produce at least one statement");
-  }
-
-  await db.batch([first, ...rest]);
-
-  return scrobbleDate;
 }
