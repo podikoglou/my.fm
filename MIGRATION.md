@@ -108,6 +108,11 @@ limitation remains: with a one-minute trigger and a regular limit of six, a
 user who plays more than six tracks in a minute can lose plays. Scheduling
 improvements are separate work.
 
+The scan also runs in one invocation. Per-account work consumes D1 queries and
+Spotify subrequests, so the Free and Paid per-invocation limits cap the number
+of accounts one run can cover. The scan has no rotation; scheduling changes are
+separate work.
+
 ## Schema and migrations
 
 Drizzle is the schema and migration author for every table, including Better
@@ -165,9 +170,10 @@ differ in detail. Pin `worker-api/` to 4.3.6 if exact error payload parity is
 required.
 
 A D1 `db.batch()` call counts as one query against the per-invocation limit.
-Ingestion batches writes for up to ten plays, which keeps the initial fetch of
-fifty plays under the free plan's fifty-query limit and keeps the rollback
-scope small.
+Ingestion batches writes for up to ten plays. A single batch for a whole fetch
+would be one query, but a failure would roll back every play; ten plays per
+batch bounds the rollback while keeping an initial fetch of fifty plays at five
+batches.
 
 Alchemy's documented local and deployment workflows are the source for Worker,
 D1, secret, and migration configuration:
