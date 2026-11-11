@@ -207,15 +207,23 @@ export const relations = defineRelations(
       accounts: r.many.accounts({ from: r.users.id, to: r.accounts.userId }),
     },
     sessions: {
-      user: r.one.users({ from: r.sessions.userId, to: r.users.id }),
+      user: r.one.users({ from: r.sessions.userId, to: r.users.id, optional: false }),
     },
     accounts: {
-      user: r.one.users({ from: r.accounts.userId, to: r.users.id }),
+      user: r.one.users({ from: r.accounts.userId, to: r.users.id, optional: false }),
     },
     scrobbles: {
-      user: r.one.users({ from: r.scrobbles.userId, to: r.users.id }),
-      track: r.one.tracks({ from: r.scrobbles.trackSpotifyUri, to: r.tracks.spotifyUri }),
-      album: r.one.albums({ from: r.scrobbles.albumSpotifyUri, to: r.albums.spotifyUri }),
+      user: r.one.users({ from: r.scrobbles.userId, to: r.users.id, optional: false }),
+      track: r.one.tracks({
+        from: r.scrobbles.trackSpotifyUri,
+        to: r.tracks.spotifyUri,
+        optional: false,
+      }),
+      album: r.one.albums({
+        from: r.scrobbles.albumSpotifyUri,
+        to: r.albums.spotifyUri,
+        optional: false,
+      }),
     },
     albums: {
       scrobbles: r.many.scrobbles({ from: r.albums.spotifyUri, to: r.scrobbles.albumSpotifyUri }),
@@ -235,12 +243,28 @@ export const relations = defineRelations(
       }),
     },
     trackArtists: {
-      track: r.one.tracks({ from: r.trackArtists.trackSpotifyUri, to: r.tracks.spotifyUri }),
-      artist: r.one.artists({ from: r.trackArtists.artistSpotifyUri, to: r.artists.spotifyUri }),
+      track: r.one.tracks({
+        from: r.trackArtists.trackSpotifyUri,
+        to: r.tracks.spotifyUri,
+        optional: false,
+      }),
+      artist: r.one.artists({
+        from: r.trackArtists.artistSpotifyUri,
+        to: r.artists.spotifyUri,
+        optional: false,
+      }),
     },
     albumArtists: {
-      album: r.one.albums({ from: r.albumArtists.albumSpotifyUri, to: r.albums.spotifyUri }),
-      artist: r.one.artists({ from: r.albumArtists.artistSpotifyUri, to: r.artists.spotifyUri }),
+      album: r.one.albums({
+        from: r.albumArtists.albumSpotifyUri,
+        to: r.albums.spotifyUri,
+        optional: false,
+      }),
+      artist: r.one.artists({
+        from: r.albumArtists.artistSpotifyUri,
+        to: r.artists.spotifyUri,
+        optional: false,
+      }),
     },
     tracks: {
       scrobbles: r.many.scrobbles({ from: r.tracks.spotifyUri, to: r.scrobbles.trackSpotifyUri }),
