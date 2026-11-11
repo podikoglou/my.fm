@@ -16,9 +16,9 @@ import {
   tracks,
   users,
 } from "../src/db/schema.ts";
-import { storePlay } from "../src/ingestion/plays.ts";
+import { storePlays } from "../src/ingestion/plays.ts";
 import { runIngestion } from "../src/ingestion/run.ts";
-import { createTestEnv } from "./harness.ts";
+import { createTestDatabase, createTestEnv } from "./harness.ts";
 
 const now = new Date("2026-11-11T12:00:00.000Z");
 
@@ -102,14 +102,14 @@ describe("scrobble IDs", () => {
   });
 });
 
-describe("storePlay", () => {
+describe("storePlays", () => {
   test("stores the whole play in one batch", async () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const play = makePlay("2026-11-11T12:00:00.000Z");
 
     await seedUser(db);
-    await storePlay(db, "user-1", play);
+    await storePlays(db, "user-1", [play]);
 
     const storedArtists = await db.select().from(artists).orderBy(artists.spotifyUri);
     expect(storedArtists.map((artist) => artist.name)).toEqual([
@@ -168,13 +168,35 @@ describe("storePlay", () => {
     const play = makePlay("2026-11-11T12:00:00.000Z");
 
     await seedUser(db);
-    await storePlay(db, "user-1", play);
-    await storePlay(db, "user-1", play);
+    await storePlays(db, "user-1", [play]);
+    await storePlays(db, "user-1", [play]);
 
     expect(await db.select().from(scrobbles)).toHaveLength(1);
     expect(await db.select().from(artists)).toHaveLength(3);
     expect(await db.select().from(trackArtists)).toHaveLength(2);
     expect(await db.select().from(albumArtists)).toHaveLength(2);
+  });
+
+  test("splits a large fetch into bounded batches", async () => {
+    const sqlite = createTestDatabase();
+    let batches = 0;
+    const database = {
+      prepare: sqlite.prepare.bind(sqlite),
+      batch: (statements: D1PreparedStatement[]) => {
+        batches += 1;
+        return sqlite.batch(statements);
+      },
+    } as unknown as D1Database;
+    const db = createDatabase(database);
+    const plays = Array.from({ length: 12 }, (_, index) =>
+      makePlay(new Date(now.getTime() + index * 60_000).toISOString(), String(index)),
+    );
+
+    await seedUser(db);
+    await storePlays(db, "user-1", plays);
+
+    expect(batches).toBe(2);
+    expect(await db.select().from(scrobbles)).toHaveLength(12);
   });
 });
 
