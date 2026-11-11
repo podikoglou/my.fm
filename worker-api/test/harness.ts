@@ -26,14 +26,30 @@ export function createTestDatabase(): D1Database {
 
       return {
         bind(...params: unknown[]) {
+          const boundParams = params as never[];
+
           return {
-            all: async () => ({ results: statement.all(...(params as never[])) }),
-            first: async () => statement.get(...(params as never[])),
-            raw: async () => statement.values(...(params as never[])),
-            run: async () => statement.run(...(params as never[])),
+            all: async () => ({ results: statement.all(...boundParams) }),
+            first: async () => statement.get(...boundParams),
+            raw: async () => statement.values(...boundParams),
+            run: async () => statement.run(...boundParams),
+            execute: () => statement.all(...boundParams),
           };
         },
       };
+    },
+    // MIGRATION NOTE: Drizzle sends ingestion writes through `batch`. The shim
+    // runs the statements in one SQLite transaction so tests see the same
+    // all-or-nothing behaviour as D1.
+    batch(statements: Array<{ execute: () => unknown[] }>) {
+      const execute = sqlite.transaction(() =>
+        statements.map((statement) => ({
+          success: true,
+          results: statement.execute(),
+        })),
+      );
+
+      return Promise.resolve(execute());
     },
   } as unknown as D1Database;
 }
