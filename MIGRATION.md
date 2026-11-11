@@ -198,13 +198,22 @@ and `/health` to the API Worker over a service binding. This keeps the browser
 on one origin, so the Better Auth session cookie is first-party and the Spotify
 callback returns to the app origin. The API route contract is unchanged.
 
-`BETTER_AUTH_URL`, `FRONTEND_URL`, and `SPOTIFY_REDIRECT_URI` now use the app
-origin. The app calls its own origin; it does not need a build-time API URL.
+`StaticSite` runs the project's build command because React Router drives its
+own Vite pipeline. `Website.Vite` expects the whole build to be `vite build`,
+and a custom `main` conflicts with React Router's client and server build
+inputs. The app Worker, the asset routing, and the Vite dev proxy all read the
+same path list from `app/api-paths.ts`.
+
+Better Auth derives its base URL, trusted origin, and Spotify callback from the
+incoming request. There are no deploy-time origin or redirect values, and no
+second deploy after the first one assigns the app URL. The signing secret is
+generated once with `Alchemy.Random` and kept in stack state. The app calls its
+own origin with relative URLs; it does not need a build-time API URL.
 
 `alchemy dev` runs the Vite dev server for the app and the API Worker in local
-workerd. Vite proxies the API paths to the API Worker. Alchemy starts local
-commands with `NODE_ENV=production`, so the app dev command overrides it to
-`development`.
+workerd. The API port lives in `dev.ts`, and Vite proxies the shared API paths
+to it. Alchemy starts local commands with `NODE_ENV=production`, so the app dev
+command overrides it to `development`.
 
 The app's Better Auth client matches the Worker API at `1.7.20`. The `api/`
 package pins Better Auth and its Drizzle adapter to `1.6.5`, because the shared
