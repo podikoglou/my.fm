@@ -60,7 +60,6 @@ export function createTestDatabase(): D1Database {
 export function createTestEnv(database: D1Database = createTestDatabase()): WorkerEnv {
   return {
     DB: database,
-    WORKER_URL: baseUrl,
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
     SPOTIFY_CLIENT_ID: "test-client-id",
     SPOTIFY_CLIENT_SECRET: "test-client-secret",

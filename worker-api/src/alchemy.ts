@@ -34,10 +34,6 @@ export const Worker = Cloudflare.Worker("Worker", {
   crons: ["* * * * *"],
   env: {
     DB: Database,
-    // The ingestion path constructs Better Auth without a request, so it uses
-    // the Worker's own URL as its base URL. Normal auth requests pass the
-    // incoming app origin instead.
-    WORKER_URL: Cloudflare.Worker.URL,
     BETTER_AUTH_SECRET: BetterAuthSecret,
     // The app and API share one origin at runtime. Better Auth derives its
     // base URL, trusted origin, and Spotify callback from each request, so

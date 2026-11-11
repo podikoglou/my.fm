@@ -14,18 +14,15 @@ import * as schema from "./db/schema.ts";
  * read from the environment are passed explicitly from bindings. The
  * configuration itself mirrors the Bun API.
  *
- * `origin` is the origin of the incoming request. The app is served from the
- * same origin as the auth routes, so Better Auth builds its URLs and the
- * Spotify callback from that origin instead of deploy-time configuration.
- * Ingestion calls this function without a request; it only uses the provider
- * token API, which does not need an origin.
+ * The app is served from the same origin as the auth routes, so Better Auth
+ * derives its base URL and trusted origin from the incoming request. This
+ * means that no deploy-time origin or redirect values are needed.
  */
-export function createAuth(env: WorkerEnv, origin?: string) {
+export function createAuth(env: WorkerEnv) {
   const db = createDatabase(env.DB);
 
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
-    baseURL: origin,
     database: drizzleAdapter(db, {
       provider: "sqlite",
       schema: {
@@ -35,7 +32,6 @@ export function createAuth(env: WorkerEnv, origin?: string) {
         verification: schema.verification,
       },
     }),
-    trustedOrigins: origin ? [origin] : undefined,
     socialProviders: {
       spotify: {
         clientId: env.SPOTIFY_CLIENT_ID,

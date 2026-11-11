@@ -13,7 +13,7 @@ import { findUserById } from "./db/queries/users.ts";
  * request context. Mirrors the Bun API middleware.
  */
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const session = await createAuth(c.env, new URL(c.req.url).origin).api.getSession({
+  const session = await createAuth(c.env).api.getSession({
     headers: c.req.raw.headers,
   });
 
