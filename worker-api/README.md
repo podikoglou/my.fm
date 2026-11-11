@@ -90,6 +90,18 @@ Drizzle 1.0 uses the relations-v2 filter form (`where: { userId }`,
 `orderBy: { scrobbleDate: "desc" }`) instead of `eq`/`desc` inside relational
 queries. The generated SQL and the response data are the same.
 
+## Client types
+
+`src/app.ts` exports `AppType`, the Hono RPC type for the API. A client can use
+it with `hc<AppType>` from `hono/client`, as the web application does with the
+Bun API's `AppType` today.
+
+The package exposes the type as `@my.fm/worker-api`. The app depends on the
+workspace package and enables `allowImportingTsExtensions`, because the Worker
+sources use `.ts` import specifiers. Switching the app's import from
+`@my.fm/api` to `@my.fm/worker-api` is a type-only change; the route types are
+compatible.
+
 ## Database and migrations
 
 Drizzle is the only schema author. Alchemy applies pending migrations from
