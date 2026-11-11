@@ -85,6 +85,7 @@ No CI is added as part of this migration at this time.
 - Add the read-side database query modules.
 - Add the current user and recent-scrobble endpoints.
 - Preserve the current `/user/*` and `/scrobble/*` interfaces.
+- Export the Hono RPC app type for the web application.
 - Keep this slice read-only. It must not ingest Spotify data.
 
 ### `worker-ingestion`
