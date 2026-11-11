@@ -1,9 +1,11 @@
 import { createAuthClient } from "better-auth/react";
 
-import { apiUrl } from "./api-url";
-
+/**
+ * Better Auth defaults to the current origin and `/api/auth` when no base URL
+ * is given. The app Worker proxies that path to the API Worker, so the session
+ * cookie stays first-party.
+ */
 export const authClient = createAuthClient({
-  baseURL: apiUrl,
   fetchOptions: {
     credentials: "include",
   },
