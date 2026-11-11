@@ -1,0 +1,13 @@
+# dependencies
+node_modules/
+
+# Alchemy state, dev state, and local simulators
+.alchemy/
+
+# Placeholder database URL used by drizzle-kit config
+.drizzle-kit/
+
+# secrets
+.env
+.env.*
+!.env.example
