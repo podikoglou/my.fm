@@ -9,6 +9,12 @@ import tsconfigPaths from "vite-tsconfig-paths";
  */
 const apiDevUrl = process.env.API_DEV_URL ?? "http://localhost:1337";
 
+/**
+ * Path-segment patterns, so `/apiary` is not proxied. A key that starts with
+ * `^` is a regular expression in Vite's proxy config.
+ */
+const apiPaths = ["^/api/", "^/user/", "^/scrobble/", "^/health$"];
+
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
   server: {
@@ -16,10 +22,7 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: ["my.fm"],
     proxy: Object.fromEntries(
-      ["/api", "/user", "/scrobble", "/health"].map((path) => [
-        path,
-        { target: apiDevUrl, changeOrigin: false },
-      ]),
+      apiPaths.map((path) => [path, { target: apiDevUrl, changeOrigin: false }]),
     ),
   },
 });

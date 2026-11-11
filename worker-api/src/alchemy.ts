@@ -15,6 +15,8 @@ export { Database } from "./database.ts";
 export const Worker = Cloudflare.Worker("Worker", {
   main: new URL("./worker.ts", import.meta.url).href,
   compatibility: { date: "2026-11-02" },
+  // The app dev proxy targets this port, so a conflict must fail loudly.
+  dev: { port: 1337, strictPort: true },
   // MIGRATION NOTE: A Cron Trigger replaces the Bun scheduler's five-second
   // in-process timer.
   crons: ["* * * * *"],
