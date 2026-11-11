@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import { createApp } from "../src/app.ts";
-
 import { createTestEnv } from "./harness.ts";
 
 describe("GET /health", () => {
