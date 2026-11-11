@@ -1,12 +1,19 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
-import * as Alchemy from "alchemy";
 import * as Config from "effect/Config";
-import * as Effect from "effect/Effect";
 
-import { Database } from "./src/database.ts";
+import { Database } from "./database.ts";
 
+export { Database } from "./database.ts";
+
+/**
+ * The Worker API resource.
+ *
+ * The stack that deploys this Worker lives in the repository root so the web
+ * application can be deployed next to it. `main` is anchored to this file so
+ * the resource resolves from the root stack.
+ */
 export const Worker = Cloudflare.Worker("Worker", {
-  main: "./src/worker.ts",
+  main: new URL("./worker.ts", import.meta.url).href,
   compatibility: { date: "2026-11-02" },
   // MIGRATION NOTE: A Cron Trigger replaces the Bun scheduler's five-second
   // in-process timer.
@@ -23,20 +30,3 @@ export const Worker = Cloudflare.Worker("Worker", {
 });
 
 export type WorkerEnv = Cloudflare.InferEnv<typeof Worker>;
-
-export default Alchemy.Stack(
-  "MyFM",
-  {
-    providers: Cloudflare.providers(),
-    state: Cloudflare.state(),
-  },
-  Effect.gen(function* () {
-    const database = yield* Database;
-    const worker = yield* Worker;
-
-    return {
-      url: worker.url,
-      databaseName: database.databaseName,
-    };
-  }),
-);

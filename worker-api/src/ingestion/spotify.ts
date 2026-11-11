@@ -1,6 +1,6 @@
 import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 
-import type { WorkerEnv } from "../../alchemy.run.ts";
+import type { WorkerEnv } from "../alchemy.ts";
 
 /**
  * The parts of a Spotify play that ingestion stores.

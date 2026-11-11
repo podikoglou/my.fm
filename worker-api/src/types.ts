@@ -1,4 +1,4 @@
-import type { WorkerEnv } from "../alchemy.run.ts";
+import type { WorkerEnv } from "./alchemy.ts";
 import type { Auth } from "./auth.ts";
 import type { User } from "./db/schema.ts";
 

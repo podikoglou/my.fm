@@ -1,4 +1,4 @@
-import type { WorkerEnv } from "../alchemy.run.ts";
+import type { WorkerEnv } from "./alchemy.ts";
 
 import { createApp } from "./app.ts";
 import { runIngestion } from "./ingestion/run.ts";

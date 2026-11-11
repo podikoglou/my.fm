@@ -8,9 +8,6 @@
     }
   },
   "scripts": {
-    "dev": "alchemy dev",
-    "deploy": "alchemy deploy",
-    "destroy": "alchemy destroy",
     "typecheck": "tsgo",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",

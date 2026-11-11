@@ -2,7 +2,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { betterAuth } from "better-auth";
 import { nanoid } from "nanoid";
 
-import type { WorkerEnv } from "../alchemy.run.ts";
+import type { WorkerEnv } from "./alchemy.ts";
 
 import { createDatabase } from "./db/index.ts";
 import * as schema from "./db/schema.ts";

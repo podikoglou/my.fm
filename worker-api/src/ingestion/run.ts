@@ -1,4 +1,4 @@
-import type { WorkerEnv } from "../../alchemy.run.ts";
+import type { WorkerEnv } from "../alchemy.ts";
 import type { Auth } from "../auth.ts";
 import type { Database } from "../db/index.ts";
 import type { CreateSpotifyClient } from "./spotify.ts";

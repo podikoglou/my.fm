@@ -1,7 +1,7 @@
 import { Database as SQLite } from "bun:sqlite";
 import { readdirSync, readFileSync } from "node:fs";
 
-import type { WorkerEnv } from "../alchemy.run.ts";
+import type { WorkerEnv } from "../src/alchemy.ts";
 
 export const baseUrl = "http://localhost:1337";
 
