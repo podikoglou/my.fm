@@ -10,7 +10,6 @@ import {
 } from "react-router";
 
 import "./app.css";
-
 import type { Route } from "./+types/root";
 
 import { ErrorCard } from "./components/error-card";
