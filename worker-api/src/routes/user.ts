@@ -1,0 +1,45 @@
+import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
+import z from "zod";
+
+import type { AppEnv } from "../types.ts";
+
+import { authMiddleware } from "../auth-middleware.ts";
+import { nameSchema, usernameSchema } from "../data/validators.ts";
+import { createDatabase } from "../db/index.ts";
+import { findUserByIdPublic, findUserByUsernamePublic, onboardUser } from "../db/queries/users.ts";
+
+export default new Hono<AppEnv>()
+  .use("/*", authMiddleware)
+  .get("/me", async (c) => {
+    const { id, username, name, email, onboarded } = await c.get("getUserData")();
+
+    return c.json({ id, username, name, email, onboarded }, 200);
+  })
+  .get("/byUsername", zValidator("query", z.object({ username: z.string() })), async (c) => {
+    const { username } = c.req.valid("query");
+    const user = await findUserByUsernamePublic(createDatabase(c.env.DB), username);
+
+    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
+  })
+  .get("/byId", zValidator("query", z.object({ id: z.nanoid() })), async (c) => {
+    const { id } = c.req.valid("query");
+    const user = await findUserByIdPublic(createDatabase(c.env.DB), id);
+
+    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
+  })
+  .put(
+    "/onboard",
+    zValidator("form", z.object({ username: usernameSchema, name: nameSchema })),
+    async (c) => {
+      const { id, onboarded } = await c.get("getUserData")();
+      const { username, name } = c.req.valid("form");
+
+      if (onboarded) {
+        return c.json({ error: "Already onboarded" }, 400);
+      }
+
+      await onboardUser(createDatabase(c.env.DB), id, { username, name });
+      return c.json({ ok: true }, 200);
+    },
+  );
