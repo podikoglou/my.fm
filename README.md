@@ -21,29 +21,29 @@ API, the database, and the cron trigger in one stack.
 ## Development
 
 ```sh
-cp .env.example .env   # then fill in the values
+cp .env.example .env   # then fill in the Spotify credentials
 bun install
-bun run dev            # app on http://localhost:3000, API on :1337
+bun run dev            # prints the app and API URLs
 ```
 
-If your values are still in `worker-api/.env`, move them to the root `.env`,
-or pass `--env-file worker-api/.env` to `bun alchemy dev` or
-`bun alchemy deploy` directly. Change `BETTER_AUTH_URL`, `FRONTEND_URL`, and
-`SPOTIFY_REDIRECT_URI` to the app origin (`http://localhost:3000` locally)
-first; the old values pointed at the API port.
+The root `.env` only holds the Spotify client ID and secret. Better Auth
+derives its URLs and the Spotify callback from each request, so there are no
+origin or redirect values to configure. Alchemy generates the Better Auth
+signing secret on the first deploy and keeps it in stack state; keep the
+`.alchemy` state directory.
 
-`bun run dev` runs `alchemy dev` from the repository root. The app Worker
-forwards the API paths to the API Worker. In development, Vite proxies the same
-paths to the local API Worker.
+`bun run dev` runs `alchemy dev` from the repository root and prints both
+local URLs. Open the app URL it prints. The app Worker forwards the API paths
+to the API Worker; in development, Vite proxies the same shared path list to
+the local API Worker.
 
 - `bun run deploy` creates or updates the Cloudflare resources.
 - `bun run destroy` removes this stage's resources.
 - `bun run typecheck:infra` typechecks the root stack.
 
-The workers.dev URL is assigned on the first deploy. Deploy once, then set
-`BETTER_AUTH_URL` and `FRONTEND_URL` to the printed app `url`, set
-`SPOTIFY_REDIRECT_URI` to `<url>/api/auth/callback/spotify`, and deploy again.
-The redirect URI must also be registered in the Spotify application.
+Register `<app origin>/api/auth/callback/spotify` in the Spotify application
+for each origin you use. The deployed app has no URL settings to fill in after
+its first deploy.
 
 The Bun implementation in `api/` remains in the repository and is independent
 of the deployed app.
