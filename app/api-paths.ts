@@ -21,7 +21,6 @@ export const API_RUN_WORKER_FIRST = [
 /** True when the request path must be served by the Worker API. */
 export function isApiPath(pathname: string) {
   return (
-    pathname === API_HEALTH_PATH ||
-    API_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+    pathname === API_HEALTH_PATH || API_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }
