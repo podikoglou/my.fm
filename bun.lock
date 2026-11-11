@@ -82,6 +82,7 @@
       "dependencies": {
         "@better-auth/drizzle-adapter": "1.7.20",
         "@hono/zod-validator": "^0.7.6",
+        "@spotify/web-api-ts-sdk": "1.2.0",
         "better-auth": "1.7.20",
         "drizzle-orm": "1.0.0-rc.5",
         "hono": "^4.12.12",
