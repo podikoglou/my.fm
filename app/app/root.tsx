@@ -10,7 +10,6 @@ import {
 } from "react-router";
 
 import "./app.css";
-import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 
 import type { Route } from "./+types/root";
 
@@ -78,7 +77,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   return (
     <CardLayout>
       <ErrorCard
-        icon={<Frown />}
+        Icon={Frown}
         title={<>{title}</>}
         description={
           <>
