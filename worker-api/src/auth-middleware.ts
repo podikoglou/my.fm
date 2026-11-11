@@ -10,7 +10,7 @@ import { findUserById } from "./db/queries/users.ts";
 
 /**
  * Require a Better Auth session and expose the application user on the
- * request context. Mirrors the Bun API middleware.
+ * request context.
  */
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const session = await createAuth(c.env).api.getSession({

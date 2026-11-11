@@ -21,10 +21,8 @@ type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
 /**
  * Fetch recently played tracks for every Spotify account and store them.
  *
- * MIGRATION NOTE: The Bun scheduler rotated one user through an in-memory
- * queue every five seconds. A Worker has no long-lived queue, so each Cron
- * Trigger run scans the Spotify accounts and processes them in order. The
- * per-user fetch logic, limits, and cursor updates are unchanged.
+ * Each Cron Trigger run scans the Spotify accounts and processes them in
+ * order.
  *
  * A failure for one account is logged and does not stop the other accounts.
  * The cursor is not advanced for the failed user, so the next run retries it.
@@ -39,8 +37,8 @@ export async function runIngestion(
   const seenUsers = new Set<string>();
 
   for (const account of accounts) {
-    // MIGRATION NOTE: The Bun API selected one account per user. If a second
-    // Spotify account was linked, keep the first row and skip the duplicate.
+    // A user must have exactly one Spotify account. Keep the first row and
+    // skip any duplicate.
     if (seenUsers.has(account.userId)) {
       continue;
     }
@@ -61,9 +59,7 @@ async function ingestAccount(
   account: SpotifyAccount,
   createClient: CreateSpotifyClient,
 ) {
-  // MIGRATION NOTE: Better Auth 1.7.20 selects the account by its local ID.
-  // The Bun API used `providerId`; the account row and its refresh behaviour
-  // are the same.
+  // Better Auth selects the account row by its local ID.
   const token = await auth.api.getAccessToken({
     body: { accountId: account.id, userId: account.userId },
   });
@@ -101,8 +97,8 @@ async function ingestAccount(
   if (mostRecentScrobbleDate) {
     await updateLastRecentTracksFetchTime(db, account.userId, mostRecentScrobbleDate);
   } else if (lastRecentTracksFetchTime) {
-    // MIGRATION NOTE: No new plays after the cursor: move it to now so the
-    // next fetch uses the regular limit, as the Bun scheduler does.
+    // No new plays after the cursor: move it to now so the next fetch uses
+    // the regular limit.
     await updateLastRecentTracksFetchTime(db, account.userId, new Date());
   }
 }

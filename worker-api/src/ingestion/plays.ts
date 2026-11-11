@@ -16,14 +16,13 @@ const PLAYS_PER_BATCH = 10;
 /**
  * Store fetched plays and everything they reference.
  *
- * MIGRATION NOTE: The Bun API issued these inserts one by one. D1 counts one
- * `db.batch()` call as one query against the per-invocation limit, so this
- * sends the statements in batches. A single batch for a whole fetch would be
- * one query, but a failure would roll back every play. Ten plays per batch
- * bounds the rollback while keeping an initial fetch of fifty plays at five
- * batches. A batch is a transaction: either the whole chunk is stored or none
- * of it is. All inserts use `onConflictDoNothing`, so a re-fetched play stays
- * idempotent.
+ * D1 counts one `db.batch()` call as one query against the per-invocation
+ * limit, so this sends the statements in batches. A single batch for a whole
+ * fetch would be one query, but a failure would roll back every play. Ten
+ * plays per batch bounds the rollback while keeping an initial fetch of fifty
+ * plays at five batches. A batch is a transaction: either the whole chunk is
+ * stored or none of it is. All inserts use `onConflictDoNothing`, so a
+ * re-fetched play stays idempotent.
  *
  * Returns the play times so the caller can advance the user's fetch cursor.
  */
@@ -51,8 +50,7 @@ export async function storePlays(db: Database, userId: User["id"], plays: Spotif
 }
 
 /**
- * MIGRATION NOTE: Build the statements for one play in the order the Bun API
- * issued them.
+ * Build the statements for one play in dependency order.
  */
 async function buildPlayStatements(
   db: Database,

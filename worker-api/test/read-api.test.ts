@@ -172,7 +172,7 @@ describe("authenticated routes", () => {
 
     for (const response of await Promise.all(requests)) {
       expect(response.status).toBe(401);
-      // The Bun API's error handler forwards HTTPException's empty message.
+      // The error handler forwards HTTPException's empty message.
       expect(await response.json()).toEqual({ error: "" });
     }
   });

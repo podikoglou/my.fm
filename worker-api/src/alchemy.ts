@@ -26,8 +26,7 @@ export const Worker = Cloudflare.Worker("Worker", {
   compatibility: { date: "2026-11-02" },
   // The app dev proxy reads the same constant. A conflict must fail loudly.
   dev: { port: API_DEV_PORT, strictPort: true },
-  // MIGRATION NOTE: A Cron Trigger replaces the Bun scheduler's five-second
-  // in-process timer.
+  // Run Spotify ingestion every minute.
   crons: ["* * * * *"],
   env: {
     DB: Database,

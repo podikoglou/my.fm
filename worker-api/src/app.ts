@@ -33,6 +33,6 @@ export function createApp() {
 
 /**
  * The Hono RPC type for the API. Clients import this type to type their
- * requests, as the web application does with the Bun API's `AppType`.
+ * requests, as the web application does.
  */
 export type AppType = ReturnType<typeof createApp>;

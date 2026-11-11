@@ -12,7 +12,7 @@ export const baseUrl = "http://app.test";
  */
 export function createTestDatabase(): D1Database {
   const sqlite = new SQLite(":memory:");
-  // MIGRATION NOTE: D1 enforces foreign keys; enable the same checks in tests.
+  // D1 enforces foreign keys; enable the same checks in tests.
   sqlite.exec("PRAGMA foreign_keys = ON");
   const directory = new URL("../drizzle/", import.meta.url);
 
@@ -40,9 +40,9 @@ export function createTestDatabase(): D1Database {
         },
       };
     },
-    // MIGRATION NOTE: Drizzle sends ingestion writes through `batch`. The shim
-    // runs the statements in one SQLite transaction so tests see the same
-    // all-or-nothing behaviour as D1.
+    // Drizzle sends ingestion writes through `batch`. The shim runs the
+    // statements in one SQLite transaction so tests see the same all-or-nothing
+    // behaviour as D1.
     batch(statements: Array<{ execute: () => unknown[] }>) {
       const execute = sqlite.transaction(() =>
         statements.map((statement) => ({
