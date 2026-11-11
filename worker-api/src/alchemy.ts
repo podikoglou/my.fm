@@ -1,9 +1,20 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Alchemy from "alchemy";
 import * as Config from "effect/Config";
+import * as Effect from "effect/Effect";
 
 import { Database } from "./database.ts";
 
 export { Database } from "./database.ts";
+
+/**
+ * Better Auth needs a stable signing secret. Alchemy mints one on the first
+ * deploy and keeps it in stack state, so no low-entropy value lives in `.env`
+ * and later deploys do not invalidate existing sessions.
+ */
+const BetterAuthSecret = Alchemy.Random("BetterAuthSecret").pipe(
+  Effect.map((secret) => secret.text),
+);
 
 /**
  * The Worker API resource.
@@ -22,12 +33,16 @@ export const Worker = Cloudflare.Worker("Worker", {
   crons: ["* * * * *"],
   env: {
     DB: Database,
-    BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
-    BETTER_AUTH_URL: Config.String("BETTER_AUTH_URL"),
-    FRONTEND_URL: Config.String("FRONTEND_URL"),
+    // The ingestion path constructs Better Auth without a request, so it uses
+    // the Worker's own URL as its base URL. Normal auth requests pass the
+    // incoming app origin instead.
+    WORKER_URL: Cloudflare.Worker.URL,
+    BETTER_AUTH_SECRET: BetterAuthSecret,
+    // The app and API share one origin at runtime. Better Auth derives its
+    // base URL, trusted origin, and Spotify callback from each request, so
+    // none of them need deploy-time values.
     SPOTIFY_CLIENT_ID: Config.String("SPOTIFY_CLIENT_ID"),
     SPOTIFY_CLIENT_SECRET: Config.Redacted("SPOTIFY_CLIENT_SECRET"),
-    SPOTIFY_REDIRECT_URI: Config.String("SPOTIFY_REDIRECT_URI"),
   },
 });
 

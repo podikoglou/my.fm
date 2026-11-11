@@ -34,7 +34,7 @@ export async function runIngestion(
   createClient: CreateSpotifyClient = (accessToken) => createSpotifyClient(env, accessToken),
 ) {
   const db = createDatabase(env.DB);
-  const auth = createAuth(env);
+  const auth = createAuth(env, env.WORKER_URL);
   const accounts = await findSpotifyAccounts(db);
   const seenUsers = new Set<string>();
 

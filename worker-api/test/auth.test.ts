@@ -7,7 +7,7 @@ const env = createTestEnv();
 
 describe("auth routes", () => {
   test("returns no session without a session cookie", async () => {
-    const response = await createApp().request("/api/auth/get-session", undefined, env);
+    const response = await createApp().request(`${baseUrl}/api/auth/get-session`, undefined, env);
 
     expect(response.status).toBe(200);
     expect(await response.json()).toBe(null);
@@ -15,7 +15,7 @@ describe("auth routes", () => {
 
   test("starts Spotify authorization with the configured scopes", async () => {
     const response = await createApp().request(
-      "/api/auth/sign-in/social",
+      `${baseUrl}/api/auth/sign-in/social`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },

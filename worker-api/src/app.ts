@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 
 import type { AppEnv } from "./types.ts";
@@ -10,14 +9,11 @@ import user from "./routes/user.ts";
 
 export function createApp() {
   return new Hono<AppEnv>()
-    .use(
-      "/*",
-      cors({
-        origin: (_origin, c) => c.env.FRONTEND_URL,
-        credentials: true,
-      }),
+    // The browser reaches this API through the app Worker, so every request is
+    // same-origin and CORS is not part of the contract.
+    .on(["POST", "GET"], "/api/auth/*", (c) =>
+      createAuth(c.env, new URL(c.req.url).origin).handler(c.req.raw),
     )
-    .on(["POST", "GET"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw))
     .route("/user", user)
     .route("/scrobble", scrobble)
     .get("/health", async (c) => {
