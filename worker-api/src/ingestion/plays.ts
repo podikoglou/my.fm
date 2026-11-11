@@ -16,13 +16,14 @@ const PLAYS_PER_BATCH = 10;
 /**
  * Store fetched plays and everything they reference.
  *
- * MIGRATION NOTE: The Bun API issued these inserts one by one. D1 counts each
- * round trip against the per-invocation query limit, so this sends the same
- * statements in batches, in the same order. Ten plays per batch keeps an
- * initial fetch of fifty plays well under the free plan's fifty-query limit
- * and still keeps the rollback scope small. A batch is a transaction: either
- * the whole chunk is stored or none of it is. All inserts use
- * `onConflictDoNothing`, so a re-fetched play stays idempotent.
+ * MIGRATION NOTE: The Bun API issued these inserts one by one. D1 counts one
+ * `db.batch()` call as one query against the per-invocation limit, so this
+ * sends the statements in batches. A single batch for a whole fetch would be
+ * one query, but a failure would roll back every play. Ten plays per batch
+ * bounds the rollback while keeping an initial fetch of fifty plays at five
+ * batches. A batch is a transaction: either the whole chunk is stored or none
+ * of it is. All inserts use `onConflictDoNothing`, so a re-fetched play stays
+ * idempotent.
  *
  * Returns the play times so the caller can advance the user's fetch cursor.
  */
