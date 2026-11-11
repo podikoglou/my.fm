@@ -1,87 +1,64 @@
-# Welcome to React Router!
+# my.fm web app
 
-A modern, production-ready template for building full-stack React applications using React Router.
+The my.fm web application. It is a React Router 7 single-page app
+(`ssr: false`), built with Vite and served from a Cloudflare Worker.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## Development
 
-## Features
+Run the whole stack from the repository root:
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
-
-```bash
-npm install
+```sh
+bun run dev
 ```
 
-### Development
+Alchemy prints the app and API URLs. Vite proxies the shared API path list
+(`/api/*`, `/user/*`, `/scrobble/*`, and `/health`) to the API Worker on the
+shared dev port, so the browser uses one origin and the Better Auth session
+cookie stays first-party.
 
-Start the development server with HMR:
+To run only the app:
 
-```bash
-npm run dev
+```sh
+cd app
+bun run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+The dev server then has no API behind its proxy. Set `API_DEV_URL` to point it
+at another API origin.
 
-## Building for Production
+To use the HTTPS origin, start Caddy from the repository root with
+`bun run dev:proxy`. Caddy terminates TLS for `my.fm` and forwards every path
+to the Vite dev server, so the browser uses `https://my.fm` and the Spotify
+callback keeps the production shape. `my.fm` must resolve to `127.0.0.1`.
 
-Create a production build:
+## API access
 
-```bash
-npm run build
+The browser calls the app origin. The app Worker in `worker.ts` serves the
+built assets and forwards the API paths to the API Worker through the `API`
+service binding from `../alchemy.run.ts`. The Hono client type comes from the
+`@my.fm/worker-api` workspace package as a type-only import.
+
+## Commands
+
+```sh
+bun run build      # react-router build; output in build/client
+bun run typecheck  # react-router typegen && tsgo
+bun run test       # bun test
+bun run lint       # oxlint
+bun run fmt        # oxfmt
 ```
 
 ## Deployment
 
-### Docker Deployment
+The root Alchemy stack deploys this app with the API:
 
-To build and run using Docker:
-
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+```sh
+bun run deploy
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+`Cloudflare.Website.StaticSite` runs `bun run build`, uploads `build/client`,
+and serves it through `worker.ts`.
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+The Better Auth signing secret is generated on the first deploy and stored in
+the Cloudflare state store configured by `Cloudflare.state()`. `.alchemy` is
+only a local working directory and is not the authoritative store.

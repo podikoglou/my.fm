@@ -1,11 +1,17 @@
 {
-    local_certs
+	local_certs
 }
 
+# Development only. Caddy gives the app an HTTPS origin with the same shape as
+# production, so Spotify accepts the callback and the session cookie is secure.
+#
+# Caddy terminates TLS and forwards every path to the Vite dev server. Vite
+# serves the SPA and proxies the shared API paths to the local API Worker.
+# Caddy sends `X-Forwarded-Proto: https`, so Better Auth derives
+# `https://my.fm` from the request.
+#
+# `my.fm` must resolve to 127.0.0.1 in /etc/hosts. Run `caddy trust` once so
+# the browser trusts Caddy's local CA.
 my.fm {
-  reverse_proxy http://localhost:5173
-}
-
-api.my.fm {
-  reverse_proxy http://localhost:8080
+	reverse_proxy http://localhost:5173
 }
