@@ -61,20 +61,21 @@ The Cron Trigger runs the `scheduled` handler every five minutes
 Spotify account. Spotify caps the page at 50 items, so the five minute gap must
 fit inside one page for an active user.
 
-Spotify applies rate limits to the application, not to the user. When a fetch
-returns HTTP 429, the run stops at the first blocked account and does not try
-the other accounts. They would fail the same way. The run logs the retry delay
-from the `Retry-After` header when Spotify sends one.
+Spotify limits the application, not the user. When a fetch returns HTTP 429,
+the run stops at the first blocked account and does not try the other accounts.
+They would fail the same way.
 
-The Worker keeps no record of a block, so the next Cron Trigger run tries again
-five minutes later and receives the same 429 until Spotify resets the quota.
-One blocked call per five minutes uses little quota, and a stored block time
-would need a new table.
+The block lasts until one fixed instant, which Spotify sends in the
+`Retry-After` header. The run stores that instant in the heartbeat row, and
+every run before it returns before the first request. A run inside a block
+cannot get the plays back, so it would only spend the quota that it waits for.
+A missing header waits thirty minutes. A value above one day is clamped, so a
+bad header cannot stop ingestion for long.
 
-A block can lose plays. One page holds 50 plays, and the cursor moves to the
-newest play in the page. When a block covers more than 50 plays for one user,
-the plays between the old cursor and that page are never fetched. The observed
-Spotify block lasted about eighteen hours.
+A block can lose plays. The endpoint returns at most the last 50 plays of a
+user, and it cannot page further back, so a block that covers more than 50 plays
+loses the older ones. A 15 hour block loses plays for a user who listens more
+than about three times an hour. No request can recover them.
 
 Other errors stay isolated per account: the run logs the error and continues
 with the next account.
@@ -96,6 +97,13 @@ Every run logs `ingestion run complete` and writes one heartbeat row. A run that
 catches an error still ends with an invocation outcome of `ok`, so these are the
 record of what the run did.
 
+A run inside a Spotify block logs `ingestion run skipped` as an information
+event and writes the heartbeat again. Only the first blocked run logs
+`ingestion quota exhausted` as an error: the block is one condition, and an
+error per five minutes would hide it under its own occurrences. The heartbeat
+stays fresh during a block, so the health route below reports a live schedule
+and not a stall.
+
 The root stack creates a Discord webhook and two Workers Issues automations.
 One notifies on the first occurrence of an issue. The other notifies when a
 resolved issue comes back after a quiet day, which is the shape of a quota
@@ -107,8 +115,9 @@ Free plan, so the alerts use Workers Issues.
 
 Issues cannot observe an absence of logs, so a Cron Trigger that stops is caught
 by `GET /health/ingestion`. It answers `503` when the heartbeat is older than
-twenty minutes and `200` otherwise. Point an uptime monitor at that path: with
-no monitor, a schedule that stops produces no notification.
+twenty minutes and `200` otherwise, and it reports `blockedUntil` while Spotify
+blocks the application. Point an uptime monitor at that path: with no monitor, a
+schedule that stops produces no notification.
 
 To read the events by hand:
 
