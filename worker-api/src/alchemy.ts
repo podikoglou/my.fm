@@ -17,8 +17,9 @@ export const Worker = Cloudflare.Worker("Worker", {
   main: new URL("./worker.ts", import.meta.url).href,
   compatibility: { date: "2026-11-02" },
   dev: { port: API_DEV_PORT, strictPort: true },
-  // Every minute: the `scheduled` handler runs Spotify ingestion.
-  crons: ["* * * * *"],
+  // Every five minutes: the `scheduled` handler runs Spotify ingestion. A
+  // longer gap keeps the app under its Spotify quota.
+  crons: ["*/5 * * * *"],
   env: {
     DB: Database,
     BETTER_AUTH_SECRET: BetterAuthSecret,

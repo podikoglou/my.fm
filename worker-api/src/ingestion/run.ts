@@ -11,13 +11,14 @@ import {
   updateLastRecentTracksFetchTime,
 } from "../db/queries/users.ts";
 import { storePlays } from "./plays.ts";
-import { createSpotifyClient } from "./spotify.ts";
+import { createSpotifyClient, getSpotifyQuotaError } from "./spotify.ts";
 
-/** Spotify caps the page at 50, so the first fetch asks for the maximum. */
-const FETCH_LIMIT_INITIAL = 50;
-
-/** The Cron Trigger runs every minute, so a small page covers the gap. */
-const FETCH_LIMIT_REGULAR = 6;
+/**
+ * Spotify caps the page at 50, and one page must cover a full gap between Cron
+ * Trigger runs. A smaller page loses plays: the cursor moves to the newest play
+ * in the page, so older plays before it are never fetched.
+ */
+const FETCH_LIMIT = 50;
 
 type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
 
@@ -27,6 +28,12 @@ type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
  * Accounts are processed in order and each one is isolated: a failure is logged
  * and the loop continues. The cursor is not advanced for a failed account, so
  * the next run retries it.
+ *
+ * A quota error (HTTP 429) stops the whole run. All accounts use the same
+ * application quota, so the next account would fail the same way. The next
+ * Cron Trigger run tries again five minutes later, and the block lasts until
+ * Spotify resets the quota. A block that covers more plays than one page loses
+ * the plays between the old cursor and the newest play of the page.
  */
 export async function runIngestion(
   env: WorkerEnv,
@@ -49,6 +56,19 @@ export async function runIngestion(
     try {
       await ingestAccount(db, auth, account, createClient);
     } catch (error) {
+      const quota = error instanceof Error ? getSpotifyQuotaError(error) : null;
+
+      if (quota) {
+        const retryDelay =
+          quota.retryAfterSeconds === null
+            ? "an unknown delay"
+            : `${quota.retryAfterSeconds} seconds`;
+
+        console.error(`Spotify quota exhausted. Stopping ingestion. Retry after ${retryDelay}.`);
+
+        return;
+      }
+
       console.error(`Spotify ingestion failed for user ${account.userId}`, error);
     }
   }
@@ -56,8 +76,8 @@ export async function runIngestion(
 
 /**
  * Ingest one account: fetch the plays after the stored cursor, store them, then
- * move the cursor to the newest play. The first run has no cursor and fetches a
- * full page instead.
+ * move the cursor to the newest play. A run without a cursor fetches the newest
+ * page instead.
  */
 async function ingestAccount(
   db: Database,
@@ -88,11 +108,11 @@ async function ingestAccount(
   const client = createClient(token.accessToken);
 
   const plays = lastRecentTracksFetchTime
-    ? await client.getRecentlyPlayedTracks(FETCH_LIMIT_REGULAR, {
+    ? await client.getRecentlyPlayedTracks(FETCH_LIMIT, {
         type: "after",
         timestamp: lastRecentTracksFetchTime.getTime(),
       })
-    : await client.getRecentlyPlayedTracks(FETCH_LIMIT_INITIAL);
+    : await client.getRecentlyPlayedTracks(FETCH_LIMIT);
 
   let mostRecentScrobbleDate: Date | null = null;
 
@@ -105,8 +125,8 @@ async function ingestAccount(
   if (mostRecentScrobbleDate) {
     await updateLastRecentTracksFetchTime(db, account.userId, mostRecentScrobbleDate);
   } else if (lastRecentTracksFetchTime) {
-    // No new plays after the cursor: move it to now so the next fetch uses
-    // the regular limit.
+    // No new plays after the cursor: move it to now so the next fetch asks
+    // only for plays after this point.
     await updateLastRecentTracksFetchTime(db, account.userId, new Date());
   }
 }

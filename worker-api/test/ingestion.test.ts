@@ -18,6 +18,7 @@ import {
 } from "../src/db/schema.ts";
 import { storePlays } from "../src/ingestion/plays.ts";
 import { runIngestion } from "../src/ingestion/run.ts";
+import { SpotifyQuotaExceededError } from "../src/ingestion/spotify.ts";
 import { createTestDatabase, createTestEnv, replaceFetch } from "./harness.ts";
 
 const now = new Date("2026-11-11T12:00:00.000Z");
@@ -233,7 +234,7 @@ describe("runIngestion", () => {
     expect(user?.lastRecentTracksFetchTime?.toISOString()).toBe("2026-11-11T12:01:00.000Z");
   });
 
-  test("uses the regular limit and the cursor after the first fetch", async () => {
+  test("requests a full page and the cursor after the first fetch", async () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
@@ -246,7 +247,7 @@ describe("runIngestion", () => {
     );
 
     expect(calls).toEqual([
-      { accessToken: "token-1", limit: 6, options: { type: "after", timestamp: now.getTime() } },
+      { accessToken: "token-1", limit: 50, options: { type: "after", timestamp: now.getTime() } },
     ]);
 
     const user = await db.query.users.findFirst({ where: { id: "user-1" } });
@@ -423,6 +424,123 @@ describe("runIngestion", () => {
     expect(seen).toHaveLength(2);
     expect(seen).toContain("token-1");
     expect(seen).toContain("token-2");
+  });
+
+  test("stops the run when Spotify reports a quota error", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const seen: string[] = [];
+    const logged: string[] = [];
+
+    const error = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      logged.push(args.map(String).join(" "));
+    });
+
+    try {
+      await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+      await seedUser(db, { userId: "user-2", accessToken: "token-2" });
+
+      await runIngestion(env, (accessToken) => ({
+        getRecentlyPlayedTracks: async () => {
+          seen.push(accessToken);
+
+          // The exact error that the SDK throws for an HTTP 429.
+          throw new Error("The app has exceeded its rate limits.");
+        },
+      }));
+    } finally {
+      error.mockRestore();
+    }
+
+    // Both accounts share the application quota, so the second account must
+    // not reach Spotify.
+    expect(seen).toHaveLength(1);
+    expect(logged.join("\n")).toContain("Spotify quota exhausted");
+  });
+
+  test("retries the quota-blocked account on the next run", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const cursor = new Date("2026-11-01T00:00:00.000Z");
+    const error = spyOn(console, "error").mockImplementation(() => {});
+
+    const blocked: CreateSpotifyClient = () => ({
+      getRecentlyPlayedTracks: async () => {
+        throw new Error("The app has exceeded its rate limits.");
+      },
+    });
+
+    try {
+      await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+      await db
+        .update(users)
+        .set({ lastRecentTracksFetchTime: cursor })
+        .where(eq(users.id, "user-1"));
+
+      await runIngestion(env, blocked);
+    } finally {
+      error.mockRestore();
+    }
+
+    const blockedUser = await db.query.users.findFirst({ where: { id: "user-1" } });
+    expect(blockedUser?.lastRecentTracksFetchTime?.toISOString()).toBe(cursor.toISOString());
+    expect(await db.select().from(scrobbles)).toHaveLength(0);
+
+    await runIngestion(
+      env,
+      clientFor([], () => [makePlay("2026-11-11T12:00:00.000Z")]),
+    );
+
+    expect(await db.select().from(scrobbles)).toHaveLength(1);
+  });
+
+  test("continues with the next account when one fetch fails for another reason", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const seen: string[] = [];
+    const error = spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+      await seedUser(db, { userId: "user-2", accessToken: "token-2" });
+
+      await runIngestion(env, (accessToken) => ({
+        getRecentlyPlayedTracks: async () => {
+          seen.push(accessToken);
+
+          // The error that the SDK throws for a server error.
+          throw new Error("Unrecognised response code: 500 - Internal Server Error. Body: {}");
+        },
+      }));
+    } finally {
+      error.mockRestore();
+    }
+
+    expect(seen).toHaveLength(2);
+  });
+
+  test("logs the retry delay from a quota error", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const logged: string[] = [];
+
+    const error = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      logged.push(args.map(String).join(" "));
+    });
+
+    try {
+      await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+
+      await runIngestion(env, () => ({
+        getRecentlyPlayedTracks: async () => {
+          throw new SpotifyQuotaExceededError(66_362);
+        },
+      }));
+    } finally {
+      error.mockRestore();
+    }
+
+    expect(logged.join("\n")).toContain("Retry after 66362 seconds");
   });
 
   test("fetches a user once when a second Spotify account is linked", async () => {
