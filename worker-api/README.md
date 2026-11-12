@@ -82,31 +82,38 @@ with the next account.
 ## Observability
 
 Workers Logs and Workers Issues are on (see `observability` in
-`src/alchemy.ts`). Every ingestion event is one structured log line: a single
-object whose keys Workers Logs indexes. The event names live in
-`src/ingestion/events.ts`, and the alerts query them as `attributes['event']`.
+`src/alchemy.ts`).
 
-`ingestion_run_complete` is logged once per run, whatever the outcome. A run
-that catches an error still ends with an invocation outcome of `ok`, so the log
-lines are the record of what the run did.
+A normal event is one object, so Workers Logs indexes its keys and a query
+matches `attributes['event']`. A failure logs its event name as the message,
+because Workers Issues groups occurrences by that text. Keep a failure message
+stable: a value that changes between occurrences splits the group and produces
+a new notification each time. The event names live in
+`src/ingestion/events.ts`.
 
-The root Alchemy stack creates these resources for each stage:
+Every run logs `ingestion_run_complete` and writes one heartbeat row. A run that
+catches an error still ends with an invocation outcome of `ok`, so these are the
+record of what the run did.
 
-| Resource                        | Fires on                                                               |
-| ------------------------------- | ---------------------------------------------------------------------- |
-| `QuotaAlert`                    | Any `ingestion_quota_exhausted` event in ten minutes                   |
-| `StalledAlert`                  | No `ingestion_run_complete` event in thirty minutes                    |
-| `IssuePolicy` and `IssueAlerts` | A Workers Issue, which groups the errors that the run catches and logs |
+The root stack creates a Discord webhook and two Workers Issues automations.
+One notifies on the first occurrence of an issue. The other notifies when a
+resolved issue comes back after a quiet day, which is the shape of a quota
+block. The webhook URL comes from `DISCORD_ALERT_WEBHOOK` and is read at deploy
+time, so it is not bound to the Worker.
 
-Notifications go to the Discord webhook in `DISCORD_ALERT_WEBHOOK`. The stack
-reads it at deploy time, and it is not bound to the Worker, so a Worker with no
-ingestion alerts can deploy without it.
+Cloudflare's custom alert policies require a paid plan. This account is on the
+Free plan, so the alerts use Workers Issues.
+
+Issues cannot observe an absence of logs, so a Cron Trigger that stops is caught
+by `GET /health/ingestion`. It answers `503` when the heartbeat is older than
+twenty minutes and `200` otherwise. Point an uptime monitor at that path: with
+no monitor, a schedule that stops produces no notification.
 
 To read the events by hand:
 
 ```sh
 cf sql query "SELECT timestamp, message FROM logs.workersLogs
-  WHERE scriptName = '<script>' AND attributes['event'] = 'ingestion_quota_exhausted'
+  WHERE scriptName = '<script>' AND attributes['event'] = 'ingestion_run_complete'
   FORMAT JSON" --scope-account <account-id> --time-since <iso> --time-until <iso>
 ```
 
