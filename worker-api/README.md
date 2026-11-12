@@ -92,10 +92,10 @@ lines are the record of what the run did.
 
 The root Alchemy stack creates these resources for each stage:
 
-| Resource | Fires on |
-| --- | --- |
-| `QuotaAlert` | Any `ingestion_quota_exhausted` event in ten minutes |
-| `StalledAlert` | No `ingestion_run_complete` event in thirty minutes |
+| Resource                        | Fires on                                                               |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `QuotaAlert`                    | Any `ingestion_quota_exhausted` event in ten minutes                   |
+| `StalledAlert`                  | No `ingestion_run_complete` event in thirty minutes                    |
 | `IssuePolicy` and `IssueAlerts` | A Workers Issue, which groups the errors that the run catches and logs |
 
 Notifications go to the Discord webhook in `DISCORD_ALERT_WEBHOOK`. The stack
