@@ -54,6 +54,31 @@ README shows the local callback URL.
 - Cron Trigger for Spotify ingestion
 - Alchemy stack in the repository root
 
+## Ingestion
+
+The Cron Trigger runs the `scheduled` handler every five minutes
+(`*/5 * * * *` in `src/alchemy.ts`). Each run fetches one page of 50 plays per
+Spotify account. Spotify caps the page at 50 items, so the five minute gap must
+fit inside one page for an active user.
+
+Spotify applies rate limits to the application, not to the user. When a fetch
+returns HTTP 429, the run stops at the first blocked account and does not try
+the other accounts. They would fail the same way. The run logs the retry delay
+from the `Retry-After` header when Spotify sends one.
+
+The Worker keeps no record of a block, so the next Cron Trigger run tries again
+five minutes later and receives the same 429 until Spotify resets the quota.
+One blocked call per five minutes uses little quota, and a stored block time
+would need a new table.
+
+A block can lose plays. One page holds 50 plays, and the cursor moves to the
+newest play in the page. When a block covers more than 50 plays for one user,
+the plays between the old cursor and that page are never fetched. The observed
+Spotify block lasted about eighteen hours.
+
+Other errors stay isolated per account: the run logs the error and continues
+with the next account.
+
 ## Database changes
 
 Edit `src/db/schema.ts`, then generate the migration:

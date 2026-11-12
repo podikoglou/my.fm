@@ -6,8 +6,8 @@ your Spotify account and keeps a history of the tracks you play.
 ## Architecture
 - The app (`app/`) is a simple React served over a Cloudflare Worker
 - The API (`worker-api/`) is a Hono application also on Cloudflare Workers. It
-  fetches users' recently played tracks every minute through a cron trigger and
-  stores them in D1.
+  fetches users' recently played tracks every five minutes through a cron
+  trigger and stores them in D1.
 
 Both components are deployed with [Alchemy](https://alchemy.run).
 
