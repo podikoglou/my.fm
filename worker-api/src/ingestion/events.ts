@@ -19,6 +19,8 @@ export const INGESTION_EVENTS = {
   userMissing: "ingestion user missing",
   /** The run reached the end of the account list. Logged once per run. */
   runComplete: "ingestion run complete",
+  /** The run did no work because a Spotify block is still active. */
+  runSkipped: "ingestion run skipped",
 } as const;
 
 export type IngestionEventName = (typeof INGESTION_EVENTS)[keyof typeof INGESTION_EVENTS];
