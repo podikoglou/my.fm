@@ -1,4 +1,9 @@
-/** Paths that the app Worker sends to the API Worker. */
+/**
+ * Paths that the app Worker sends to the API Worker.
+ *
+ * One list drives both the deployed asset routing and the Worker's request
+ * check, so the two cannot drift.
+ */
 export const API_PATH_PREFIXES = ["/api/", "/user/", "/scrobble/"] as const;
 
 /** The exact `GET /health` path belongs to the API as well. */

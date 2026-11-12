@@ -13,12 +13,21 @@ import {
 import { storePlays } from "./plays.ts";
 import { createSpotifyClient } from "./spotify.ts";
 
+/** Spotify caps the page at 50, so the first fetch asks for the maximum. */
 const FETCH_LIMIT_INITIAL = 50;
+
+/** The Cron Trigger runs every minute, so a small page covers the gap. */
 const FETCH_LIMIT_REGULAR = 6;
 
 type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
 
-/** Fetch and store recent plays for every Spotify account. */
+/**
+ * Fetch and store recent plays for every Spotify account.
+ *
+ * Accounts are processed in order and each one is isolated: a failure is logged
+ * and the loop continues. The cursor is not advanced for a failed account, so
+ * the next run retries it.
+ */
 export async function runIngestion(
   env: WorkerEnv,
   createClient: CreateSpotifyClient = (accessToken) => createSpotifyClient(env, accessToken),
@@ -45,6 +54,11 @@ export async function runIngestion(
   }
 }
 
+/**
+ * Ingest one account: fetch the plays after the stored cursor, store them, then
+ * move the cursor to the newest play. The first run has no cursor and fetches a
+ * full page instead.
+ */
 async function ingestAccount(
   db: Database,
   auth: Auth,

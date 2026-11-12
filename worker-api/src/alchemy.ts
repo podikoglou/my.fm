@@ -7,12 +7,17 @@ import { Database } from "./database.ts";
 
 export { Database } from "./database.ts";
 
+/**
+ * Minted once and kept in stack state. A new value would invalidate every
+ * session that Better Auth has issued.
+ */
 const BetterAuthSecret = Alchemy.makeRandom("BetterAuthSecret");
 
 export const Worker = Cloudflare.Worker("Worker", {
   main: new URL("./worker.ts", import.meta.url).href,
   compatibility: { date: "2026-11-02" },
   dev: { port: API_DEV_PORT, strictPort: true },
+  // Every minute: the `scheduled` handler runs Spotify ingestion.
   crons: ["* * * * *"],
   env: {
     DB: Database,

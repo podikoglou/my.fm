@@ -27,6 +27,7 @@ export function insertScrobble(db: Database, values: ScrobbleValues) {
   return db.insert(scrobbles).values(values).onConflictDoNothing().returning();
 }
 
+/** `offset` pages backwards from the newest scrobble. */
 export async function findRecentScrobblesByUserId(
   db: Database,
   userId: User["id"],

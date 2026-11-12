@@ -9,7 +9,10 @@ export const baseUrl = "http://app.test";
 
 /**
  * Create an in-memory D1 database with the checked-in migrations.
- * `onBatch` observes each batch call.
+ *
+ * The shim applies the same migrations as the Worker and uses the same Drizzle
+ * adapter, so a passing test exercises the production query path. `onBatch`
+ * observes each batch call, so a test can assert how Drizzle groups writes.
  */
 export function createTestDatabase(onBatch?: () => void): D1Database {
   const sqlite = new SQLite(":memory:");
