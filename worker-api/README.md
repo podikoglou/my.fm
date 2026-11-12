@@ -79,6 +79,37 @@ Spotify block lasted about eighteen hours.
 Other errors stay isolated per account: the run logs the error and continues
 with the next account.
 
+## Observability
+
+Workers Logs and Workers Issues are on (see `observability` in
+`src/alchemy.ts`). Every ingestion event is one structured log line: a single
+object whose keys Workers Logs indexes. The event names live in
+`src/ingestion/events.ts`, and the alerts query them as `attributes['event']`.
+
+`ingestion_run_complete` is logged once per run, whatever the outcome. A run
+that catches an error still ends with an invocation outcome of `ok`, so the log
+lines are the record of what the run did.
+
+The root Alchemy stack creates these resources for each stage:
+
+| Resource | Fires on |
+| --- | --- |
+| `QuotaAlert` | Any `ingestion_quota_exhausted` event in ten minutes |
+| `StalledAlert` | No `ingestion_run_complete` event in thirty minutes |
+| `IssuePolicy` and `IssueAlerts` | A Workers Issue, which groups the errors that the run catches and logs |
+
+Notifications go to the Discord webhook in `DISCORD_ALERT_WEBHOOK`. The stack
+reads it at deploy time, and it is not bound to the Worker, so a Worker with no
+ingestion alerts can deploy without it.
+
+To read the events by hand:
+
+```sh
+cf sql query "SELECT timestamp, message FROM logs.workersLogs
+  WHERE scriptName = '<script>' AND attributes['event'] = 'ingestion_quota_exhausted'
+  FORMAT JSON" --scope-account <account-id> --time-since <iso> --time-until <iso>
+```
+
 ## Database changes
 
 Edit `src/db/schema.ts`, then generate the migration:
