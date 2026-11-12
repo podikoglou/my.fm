@@ -2,6 +2,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import type { Database } from "../src/db/index.ts";
+import type { IngestionEventFields } from "../src/ingestion/events.ts";
 import type { CreateSpotifyClient, SpotifyPlay } from "../src/ingestion/spotify.ts";
 
 import { createDatabase } from "../src/db/index.ts";
@@ -16,6 +17,7 @@ import {
   tracks,
   users,
 } from "../src/db/schema.ts";
+import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { storePlays } from "../src/ingestion/plays.ts";
 import { runIngestion } from "../src/ingestion/run.ts";
 import { SpotifyQuotaExceededError } from "../src/ingestion/spotify.ts";
@@ -105,6 +107,34 @@ function clientFor(
       return { items: getPlays(call) };
     },
   });
+}
+
+/**
+ * Capture the structured ingestion events and keep them out of the test
+ * output. Each event is one object argument.
+ */
+function captureLogs() {
+  const events: IngestionEventFields[] = [];
+
+  const record = (fields: IngestionEventFields) => {
+    events.push(fields);
+  };
+
+  const spies = [
+    spyOn(console, "log").mockImplementation(record),
+    spyOn(console, "warn").mockImplementation(record),
+    spyOn(console, "error").mockImplementation(record),
+  ];
+
+  return {
+    events,
+    named: (event: string) => events.filter((entry) => entry.event === event),
+    restore: () => {
+      for (const spy of spies) {
+        spy.mockRestore();
+      }
+    },
+  };
 }
 
 describe("scrobble IDs", () => {
@@ -300,7 +330,7 @@ describe("runIngestion", () => {
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
     const cursor = new Date("2026-11-01T00:00:00.000Z");
-    const error = spyOn(console, "error").mockImplementation(() => {});
+    const logs = captureLogs();
 
     await seedUser(db, {
       accessToken: "expired-token",
@@ -318,7 +348,7 @@ describe("runIngestion", () => {
       );
     } finally {
       restoreFetch();
-      error.mockRestore();
+      logs.restore();
     }
 
     expect(calls).toHaveLength(0);
@@ -331,7 +361,7 @@ describe("runIngestion", () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const cursor = new Date("2026-11-01T00:00:00.000Z");
-    const error = spyOn(console, "error").mockImplementation(() => {});
+    const logs = captureLogs();
 
     const plays = Array.from({ length: 12 }, (_, index) =>
       makePlay(new Date(now.getTime() + index * 60_000).toISOString(), String(index)),
@@ -356,7 +386,7 @@ describe("runIngestion", () => {
         clientFor([], () => plays),
       );
     } finally {
-      error.mockRestore();
+      logs.restore();
     }
 
     expect(await db.select().from(scrobbles)).toHaveLength(10);
@@ -400,7 +430,7 @@ describe("runIngestion", () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const seen: string[] = [];
-    const error = spyOn(console, "error").mockImplementation(() => {});
+    const logs = captureLogs();
 
     await seedUser(db, { userId: "user-1", accessToken: "token-1" });
     await seedUser(db, { userId: "user-2", accessToken: "token-2" });
@@ -418,7 +448,7 @@ describe("runIngestion", () => {
         },
       }));
     } finally {
-      error.mockRestore();
+      logs.restore();
     }
 
     expect(seen).toHaveLength(2);
@@ -430,11 +460,7 @@ describe("runIngestion", () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const seen: string[] = [];
-    const logged: string[] = [];
-
-    const error = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logged.push(args.map(String).join(" "));
-    });
+    const logs = captureLogs();
 
     try {
       await seedUser(db, { userId: "user-1", accessToken: "token-1" });
@@ -449,20 +475,30 @@ describe("runIngestion", () => {
         },
       }));
     } finally {
-      error.mockRestore();
+      logs.restore();
     }
 
     // Both accounts share the application quota, so the second account must
     // not reach Spotify.
     expect(seen).toHaveLength(1);
-    expect(logged.join("\n")).toContain("Spotify quota exhausted");
+    expect(logs.named(INGESTION_EVENTS.quotaExhausted)).toEqual([
+      expect.objectContaining({
+        userId: "user-1",
+        retryAfterSeconds: null,
+        accounts: 1,
+        plays: 0,
+      }),
+    ]);
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
+      expect.objectContaining({ status: "quota", accounts: 1, plays: 0, failures: 0 }),
+    ]);
   });
 
   test("retries the quota-blocked account on the next run", async () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const cursor = new Date("2026-11-01T00:00:00.000Z");
-    const error = spyOn(console, "error").mockImplementation(() => {});
+    const logs = captureLogs();
 
     const blocked: CreateSpotifyClient = () => ({
       getRecentlyPlayedTracks: async () => {
@@ -479,7 +515,7 @@ describe("runIngestion", () => {
 
       await runIngestion(env, blocked);
     } finally {
-      error.mockRestore();
+      logs.restore();
     }
 
     const blockedUser = await db.query.users.findFirst({ where: { id: "user-1" } });
@@ -498,7 +534,7 @@ describe("runIngestion", () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const seen: string[] = [];
-    const error = spyOn(console, "error").mockImplementation(() => {});
+    const logs = captureLogs();
 
     try {
       await seedUser(db, { userId: "user-1", accessToken: "token-1" });
@@ -513,7 +549,7 @@ describe("runIngestion", () => {
         },
       }));
     } finally {
-      error.mockRestore();
+      logs.restore();
     }
 
     expect(seen).toHaveLength(2);
@@ -522,11 +558,7 @@ describe("runIngestion", () => {
   test("logs the retry delay from a quota error", async () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
-    const logged: string[] = [];
-
-    const error = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logged.push(args.map(String).join(" "));
-    });
+    const logs = captureLogs();
 
     try {
       await seedUser(db, { userId: "user-1", accessToken: "token-1" });
@@ -537,10 +569,12 @@ describe("runIngestion", () => {
         },
       }));
     } finally {
-      error.mockRestore();
+      logs.restore();
     }
 
-    expect(logged.join("\n")).toContain("Retry after 66362 seconds");
+    expect(logs.named(INGESTION_EVENTS.quotaExhausted)).toEqual([
+      expect.objectContaining({ userId: "user-1", retryAfterSeconds: 66_362 }),
+    ]);
   });
 
   test("fetches a user once when a second Spotify account is linked", async () => {
@@ -566,5 +600,58 @@ describe("runIngestion", () => {
 
     expect(calls).toHaveLength(1);
     expect(["token-1", "token-2"].includes(calls[0]?.accessToken ?? "")).toBe(true);
+  });
+
+  test("logs one run-complete event per run with the stored totals", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    const plays = [makePlay("2026-11-11T12:00:00.000Z"), makePlay("2026-11-11T12:01:00.000Z", "2")];
+
+    try {
+      await seedUser(db);
+      await runIngestion(
+        env,
+        clientFor([], () => plays),
+      );
+    } finally {
+      logs.restore();
+    }
+
+    expect(logs.named(INGESTION_EVENTS.accountIngested)).toEqual([
+      expect.objectContaining({ userId: "user-1", plays: 2 }),
+    ]);
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
+      expect.objectContaining({ status: "ok", accounts: 1, plays: 2, failures: 0 }),
+    ]);
+  });
+
+  test("counts a failed account in the run-complete event", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    try {
+      await seedUser(db);
+      await runIngestion(env, () => ({
+        getRecentlyPlayedTracks: async () => {
+          throw new Error("Spotify unavailable");
+        },
+      }));
+    } finally {
+      logs.restore();
+    }
+
+    expect(logs.named(INGESTION_EVENTS.accountFailed)).toEqual([
+      expect.objectContaining({
+        userId: "user-1",
+        errorName: "Error",
+        errorMessage: "Spotify unavailable",
+      }),
+    ]);
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
+      expect.objectContaining({ status: "partial", accounts: 1, plays: 0, failures: 1 }),
+    ]);
   });
 });
