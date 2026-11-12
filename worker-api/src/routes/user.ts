@@ -7,26 +7,58 @@ import type { AppEnv } from "../types.ts";
 import { authMiddleware } from "../auth-middleware.ts";
 import { nameSchema, usernameSchema } from "../data/validators.ts";
 import { createDatabase } from "../db/index.ts";
-import { findUserByIdPublic, findUserByUsernamePublic, onboardUser } from "../db/queries/users.ts";
+import {
+  canViewProfile,
+  findUserByIdPublic,
+  findUserByUsernamePublic,
+  onboardUser,
+  toPublicUser,
+  updateUserSettings,
+} from "../db/queries/users.ts";
 
 export default new Hono<AppEnv>()
   .use("/*", authMiddleware)
   .get("/me", async (c) => {
-    const { id, username, name, email, onboarded } = await c.get("getUserData")();
+    const { id, username, name, email, avatarUrl, onboarded, isPrivate } =
+      await c.get("getUserData")();
 
-    return c.json({ id, username, name, email, onboarded }, 200);
+    return c.json({ id, username, name, email, avatarUrl, onboarded, isPrivate }, 200);
   })
   .get("/byUsername", zValidator("query", z.object({ username: z.string() })), async (c) => {
     const { username } = c.req.valid("query");
     const user = await findUserByUsernamePublic(createDatabase(c.env.DB), username);
 
-    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
+    if (!user) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    if (!canViewProfile(user, c.get("user")?.id)) {
+      return c.json({ error: "Profile is private" }, 403);
+    }
+
+    return c.json(toPublicUser(user), 200);
   })
   .get("/byId", zValidator("query", z.object({ id: z.nanoid() })), async (c) => {
     const { id } = c.req.valid("query");
     const user = await findUserByIdPublic(createDatabase(c.env.DB), id);
 
-    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
+    if (!user) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    if (!canViewProfile(user, c.get("user")?.id)) {
+      return c.json({ error: "Profile is private" }, 403);
+    }
+
+    return c.json(toPublicUser(user), 200);
+  })
+  .patch("/settings", zValidator("json", z.object({ isPrivate: z.boolean() })), async (c) => {
+    const { id } = await c.get("getUserData")();
+    const { isPrivate } = c.req.valid("json");
+
+    await updateUserSettings(createDatabase(c.env.DB), id, { isPrivate });
+
+    return c.json({ isPrivate }, 200);
   })
   .put(
     "/onboard",

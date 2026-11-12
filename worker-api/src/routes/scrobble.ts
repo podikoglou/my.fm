@@ -7,7 +7,7 @@ import type { AppEnv } from "../types.ts";
 import { authMiddleware } from "../auth-middleware.ts";
 import { createDatabase } from "../db/index.ts";
 import { findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
-import { findUserByUsernamePublic } from "../db/queries/users.ts";
+import { canViewProfile, findUserByUsernamePublic } from "../db/queries/users.ts";
 
 export default new Hono<AppEnv>().use("/*", authMiddleware).get(
   "/getRecent",
@@ -29,6 +29,10 @@ export default new Hono<AppEnv>().use("/*", authMiddleware).get(
 
     if (!user) {
       return c.json({ error: "User not found" }, 404);
+    }
+
+    if (!canViewProfile(user, c.get("user")?.id)) {
+      return c.json({ error: "Profile is private" }, 403);
     }
 
     const scrobbles = await findRecentScrobblesByUserId(db, user.id, {

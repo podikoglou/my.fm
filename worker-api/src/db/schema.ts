@@ -18,6 +18,8 @@ export const users = sqliteTable("users", {
   lastRecentTracksFetchTime: integer({ mode: "timestamp" }),
 
   onboarded: integer({ mode: "boolean" }),
+
+  isPrivate: integer({ mode: "boolean" }).default(false).notNull(),
 });
 
 export type UserInsert = typeof users.$inferInsert;
