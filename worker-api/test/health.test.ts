@@ -26,7 +26,28 @@ describe("GET /health/ingestion", () => {
       status: "stale",
       lastRunAt: null,
       lastRunStatus: null,
+      blockedUntil: null,
       ageSeconds: null,
+    });
+  });
+
+  test("reports the end of a block", async () => {
+    const env = createTestEnv();
+    const blockedUntil = new Date(Date.now() + 60 * 60_000);
+    await recordIngestionRun(createDatabase(env.DB), {
+      at: new Date(),
+      status: "quota",
+      blockedUntil,
+    });
+
+    const response = await createApp().request("/health/ingestion", undefined, env);
+
+    // The schedule is alive, so the run counts as fresh even while Spotify
+    // blocks it.
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: "ok",
+      blockedUntil: blockedUntil.toISOString(),
     });
   });
 

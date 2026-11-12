@@ -6,7 +6,7 @@ import type { IngestionEventFields } from "../src/ingestion/events.ts";
 import type { CreateSpotifyClient, SpotifyPlay } from "../src/ingestion/spotify.ts";
 
 import { createDatabase } from "../src/db/index.ts";
-import { findIngestionRun } from "../src/db/queries/ingestionRuns.ts";
+import { findIngestionRun, recordIngestionRun } from "../src/db/queries/ingestionRuns.ts";
 import { createScrobbleId } from "../src/db/queries/scrobbles.ts";
 import {
   accounts,
@@ -498,12 +498,52 @@ describe("runIngestion", () => {
         accounts: 1,
         plays: 0,
         failures: 0,
-        retryAfterSeconds: null,
+        // The SDK error keeps no headers, so the run uses the fallback wait.
+        retryAfterSeconds: 30 * 60,
       }),
     ]);
+
+    const heartbeat = await findIngestionRun(db);
+    const waitMs = heartbeat!.blockedUntil!.getTime() - Date.now();
+
+    expect(waitMs).toBeGreaterThan(29 * 60_000);
+    expect(waitMs).toBeLessThanOrEqual(30 * 60_000);
   });
 
-  test("retries the quota-blocked account on the next run", async () => {
+  test("skips a run that is still inside a block", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const calls: FetchCall[] = [];
+    const logs = captureLogs();
+    const blockedUntil = new Date(Date.now() + 60_000);
+
+    try {
+      await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+      await recordIngestionRun(db, { at: new Date(), status: "quota", blockedUntil });
+
+      await runIngestion(
+        env,
+        clientFor(calls, () => []),
+      );
+    } finally {
+      logs.restore();
+    }
+
+    // No request may reach Spotify during a block.
+    expect(calls).toHaveLength(0);
+    expect(logs.named(INGESTION_EVENTS.runSkipped)).toEqual([
+      expect.objectContaining({ retryAfterSeconds: 60 }),
+    ]);
+    // The block must not produce a second error report.
+    expect(logs.messages).toHaveLength(0);
+
+    const heartbeat = await findIngestionRun(db);
+
+    expect(heartbeat?.status).toBe("quota");
+    expect(heartbeat?.blockedUntil?.getTime()).toBe(blockedUntil.getTime());
+  });
+
+  test("leaves the cursor unchanged while Spotify blocks the account", async () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const cursor = new Date("2026-11-01T00:00:00.000Z");
@@ -530,6 +570,18 @@ describe("runIngestion", () => {
     const blockedUser = await db.query.users.findFirst({ where: { id: "user-1" } });
     expect(blockedUser?.lastRecentTracksFetchTime?.toISOString()).toBe(cursor.toISOString());
     expect(await db.select().from(scrobbles)).toHaveLength(0);
+  });
+
+  test("resumes after the stored block ends", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+
+    await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+    await recordIngestionRun(db, {
+      at: new Date(),
+      status: "quota",
+      blockedUntil: new Date(Date.now() - 1_000),
+    });
 
     await runIngestion(
       env,
@@ -537,6 +589,31 @@ describe("runIngestion", () => {
     );
 
     expect(await db.select().from(scrobbles)).toHaveLength(1);
+    expect((await findIngestionRun(db))?.blockedUntil).toBeNull();
+  });
+
+  test("clamps a long block to one day", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    try {
+      await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+
+      await runIngestion(env, () => ({
+        getRecentlyPlayedTracks: async () => {
+          throw new SpotifyQuotaExceededError(10 * 24 * 60 * 60);
+        },
+      }));
+    } finally {
+      logs.restore();
+    }
+
+    const heartbeat = await findIngestionRun(db);
+    const waitMs = heartbeat!.blockedUntil!.getTime() - Date.now();
+
+    expect(waitMs).toBeLessThanOrEqual(24 * 60 * 60_000);
+    expect(waitMs).toBeGreaterThan(23 * 60 * 60_000);
   });
 
   test("continues with the next account when one fetch fails for another reason", async () => {

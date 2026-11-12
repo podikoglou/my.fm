@@ -31,6 +31,7 @@ export function createApp() {
           status: ok ? "ok" : "stale",
           lastRunAt: run?.lastRunAt ?? null,
           lastRunStatus: run?.status ?? null,
+          blockedUntil: run?.blockedUntil ?? null,
           ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
         },
         ok ? 200 : 503,

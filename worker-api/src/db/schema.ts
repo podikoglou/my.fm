@@ -35,6 +35,12 @@ export const ingestionRuns = sqliteTable("ingestion_runs", {
   id: integer().primaryKey(),
   lastRunAt: integer({ mode: "timestamp_ms" }).notNull(),
   status: text().notNull(),
+  /**
+   * The instant when Spotify accepts requests again, while a block lasts. A run
+   * reads it before it does any work, so a blocked application receives no
+   * requests. Null outside a block.
+   */
+  blockedUntil: integer({ mode: "timestamp_ms" }),
 });
 
 export type IngestionRun = typeof ingestionRuns.$inferSelect;

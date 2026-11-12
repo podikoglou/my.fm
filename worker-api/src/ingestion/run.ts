@@ -5,7 +5,7 @@ import type { CreateSpotifyClient } from "./spotify.ts";
 
 import { createAuth } from "../auth.ts";
 import { createDatabase } from "../db/index.ts";
-import { recordIngestionRun } from "../db/queries/ingestionRuns.ts";
+import { findIngestionRun, recordIngestionRun } from "../db/queries/ingestionRuns.ts";
 import {
   findSpotifyAccounts,
   findUserQueueDataById,
@@ -36,6 +36,31 @@ type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
  */
 export const INGESTION_STALE_AFTER_MS = 20 * 60_000;
 
+/**
+ * What to wait when Spotify blocks the application but sends no reset time.
+ * Long enough to stop a retry storm, short enough to notice an early reset.
+ */
+const BLOCK_FALLBACK_SECONDS = 30 * 60;
+
+/**
+ * The longest wait that a block may cause. A wrong reset time must not stop
+ * ingestion for days, and one request a day costs almost nothing.
+ */
+const BLOCK_MAX_SECONDS = 24 * 60 * 60;
+
+/**
+ * The end of a Spotify block and the wait that leads to it.
+ *
+ * Spotify sends the reset time in `Retry-After`. A block lasts until that one
+ * instant, so a run before it spends a request and fails again. The value can
+ * also be absent, because the SDK drops the headers on some errors.
+ */
+function blockWindow(now: Date, retryAfterSeconds: number | null) {
+  const seconds = Math.min(retryAfterSeconds ?? BLOCK_FALLBACK_SECONDS, BLOCK_MAX_SECONDS);
+
+  return { until: new Date(now.getTime() + seconds * 1000), seconds };
+}
+
 type AccountResult = {
   /** Plays that reached `storePlays`, including plays that already existed. */
   plays: number;
@@ -50,11 +75,10 @@ type AccountResult = {
  * and the loop continues. The cursor is not advanced for a failed account, so
  * the next run retries it.
  *
- * A quota error (HTTP 429) stops the whole run. All accounts use the same
- * application quota, so the next account would fail the same way. The next
- * Cron Trigger run tries again five minutes later, and the block lasts until
- * Spotify resets the quota. A block that covers more plays than one page loses
- * the plays between the old cursor and the newest play of the page.
+ * A quota error (HTTP 429) stops the whole run, because all accounts share one
+ * application quota. The end of the block goes on the heartbeat, and every run
+ * before that instant returns without a request. Spotify cannot return the
+ * plays from a block, so a run inside it only spends quota.
  *
  * Each run logs one `runComplete` event and one event per account, because the
  * invocation outcome stays `ok` for every error that this function catches.
@@ -64,6 +88,25 @@ export async function runIngestion(
   createClient: CreateSpotifyClient = (accessToken) => createSpotifyClient(env, accessToken),
 ) {
   const db = createDatabase(env.DB);
+  const now = new Date();
+  const previous = await findIngestionRun(db);
+
+  if (previous?.blockedUntil && previous.blockedUntil > now) {
+    // The first blocked run reported the block. Repeating the error every five
+    // minutes would bury that report in its own noise.
+    logIngestionEvent({
+      event: INGESTION_EVENTS.runSkipped,
+      retryAfterSeconds: Math.ceil((previous.blockedUntil.getTime() - now.getTime()) / 1000),
+    });
+    await recordIngestionRun(db, {
+      at: now,
+      status: "quota",
+      blockedUntil: previous.blockedUntil,
+    });
+
+    return;
+  }
+
   const auth = createAuth(env);
   const accounts = await findSpotifyAccounts(db);
   const seenUsers = new Set<string>();
@@ -92,15 +135,21 @@ export async function runIngestion(
       const quota = error instanceof Error ? getSpotifyQuotaError(error) : null;
 
       if (quota) {
+        const block = blockWindow(new Date(), quota.retryAfterSeconds);
+
         logIngestionFailure(INGESTION_EVENTS.quotaExhausted);
-        await recordIngestionRun(db, { at: new Date(), status: "quota" });
+        await recordIngestionRun(db, {
+          at: new Date(),
+          status: "quota",
+          blockedUntil: block.until,
+        });
         logIngestionEvent({
           event: INGESTION_EVENTS.runComplete,
           status: "quota",
           accounts: seenUsers.size,
           plays,
           failures,
-          retryAfterSeconds: quota.retryAfterSeconds,
+          retryAfterSeconds: block.seconds,
         });
 
         return;
@@ -115,15 +164,17 @@ export async function runIngestion(
     }
   }
 
+  const status = failures === 0 ? "ok" : "partial";
+
   logIngestionEvent({
     event: INGESTION_EVENTS.runComplete,
-    status: failures === 0 ? "ok" : "partial",
+    status,
     accounts: seenUsers.size,
     plays,
     failures,
   });
 
-  await recordIngestionRun(db, { at: new Date(), status: failures === 0 ? "ok" : "partial" });
+  await recordIngestionRun(db, { at: new Date(), status });
 }
 
 /**
