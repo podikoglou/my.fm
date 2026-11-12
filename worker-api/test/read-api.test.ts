@@ -170,6 +170,7 @@ describe("authenticated routes", () => {
       app.request("/user/byUsername?username=alex", undefined, env),
       app.request("/user/byId?id=user-1", undefined, env),
       app.request("/user/onboard", { method: "PUT" }, env),
+      app.request("/user/settings", { method: "PATCH" }, env),
       app.request("/scrobble/getRecent?username=alex&offset=0", undefined, env),
     ];
 
@@ -250,6 +251,105 @@ async function signIn(
     restoreFetch();
   }
 }
+
+describe("settings routes", () => {
+  test("returns the privacy setting on the current user", async () => {
+    const env = createTestEnv();
+    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+
+    const response = await createApp().request(
+      `${baseUrl}/user/me`,
+      { headers: { cookie: owner.cookie } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      id: owner.userId,
+      username: expect.any(String),
+      name: "Test User",
+      email: "owner@example.com",
+      avatarUrl: null,
+      onboarded: null,
+      isPrivate: false,
+    });
+  });
+
+  test("updates the privacy setting for the session user", async () => {
+    const env = createTestEnv();
+    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+
+    const response = await createApp().request(
+      `${baseUrl}/user/settings`,
+      {
+        method: "PATCH",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ isPrivate: true }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ isPrivate: true });
+
+    const user = await createDatabase(env.DB).query.users.findFirst({
+      where: { id: owner.userId },
+    });
+
+    expect(user?.isPrivate).toBe(true);
+  });
+
+  test("rejects an invalid privacy value", async () => {
+    const env = createTestEnv();
+    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+
+    const response = await createApp().request(
+      `${baseUrl}/user/settings`,
+      {
+        method: "PATCH",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ isPrivate: "yes" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test("hides the profile from other users after the owner makes it private", async () => {
+    const env = createTestEnv();
+    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+    const other = await signIn(env, { id: "spotify-other", email: "other@example.com" });
+
+    await createDatabase(env.DB)
+      .update(users)
+      .set({ username: "alex", name: "Alex", onboarded: true })
+      .where(eq(users.id, owner.userId));
+
+    const app = createApp();
+
+    const settings = await app.request(
+      `${baseUrl}/user/settings`,
+      {
+        method: "PATCH",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ isPrivate: true }),
+      },
+      env,
+    );
+
+    expect(settings.status).toBe(200);
+
+    const profile = await app.request(
+      `${baseUrl}/user/byUsername?username=alex`,
+      { headers: { cookie: other.cookie } },
+      env,
+    );
+
+    expect(profile.status).toBe(403);
+    expect(await profile.json()).toEqual({ error: "Profile is private" });
+  });
+});
 
 describe("profile visibility", () => {
   test("hides a private profile and its scrobbles from other users", async () => {

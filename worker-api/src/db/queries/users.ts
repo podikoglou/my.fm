@@ -70,6 +70,14 @@ export async function onboardUser(
     .where(eq(users.id, id));
 }
 
+export async function updateUserSettings(
+  db: Database,
+  id: User["id"],
+  values: Pick<User, "isPrivate">,
+) {
+  return await db.update(users).set(values).where(eq(users.id, id));
+}
+
 export async function findSpotifyAccounts(db: Database) {
   return await db.query.accounts.findMany({
     where: { providerId: "spotify" },

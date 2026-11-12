@@ -13,14 +13,16 @@ import {
   findUserByUsernamePublic,
   onboardUser,
   toPublicUser,
+  updateUserSettings,
 } from "../db/queries/users.ts";
 
 export default new Hono<AppEnv>()
   .use("/*", authMiddleware)
   .get("/me", async (c) => {
-    const { id, username, name, email, onboarded } = await c.get("getUserData")();
+    const { id, username, name, email, avatarUrl, onboarded, isPrivate } =
+      await c.get("getUserData")();
 
-    return c.json({ id, username, name, email, onboarded }, 200);
+    return c.json({ id, username, name, email, avatarUrl, onboarded, isPrivate }, 200);
   })
   .get("/byUsername", zValidator("query", z.object({ username: z.string() })), async (c) => {
     const { username } = c.req.valid("query");
@@ -49,6 +51,14 @@ export default new Hono<AppEnv>()
     }
 
     return c.json(toPublicUser(user), 200);
+  })
+  .patch("/settings", zValidator("json", z.object({ isPrivate: z.boolean() })), async (c) => {
+    const { id } = await c.get("getUserData")();
+    const { isPrivate } = c.req.valid("json");
+
+    await updateUserSettings(createDatabase(c.env.DB), id, { isPrivate });
+
+    return c.json({ isPrivate }, 200);
   })
   .put(
     "/onboard",
