@@ -51,3 +51,17 @@ bun run deploy
 ```
 
 The stack builds `build/client` and serves it through `worker.ts`.
+
+## Sign-in errors
+
+Better Auth sends OAuth failures to `/auth/error` with `?error=<code>` and an
+optional `?error_description=`. The route is `app/routes/auth-error.tsx`, and
+`app/lib/auth-paths.ts` holds the path so the redirect target and the route
+table cannot drift. `app/lib/auth-errors.ts` maps known codes to readable text,
+and the page offers a retry. Tests in `test/routes.test.ts` and
+`test/auth-errors.test.ts` fail when the route or a message disappears.
+
+Better Auth reads the error URL from the OAuth state that it stores at the start
+of the flow. Failures that occur before it can read that state, such as
+`state_not_found`, go to its own `/api/auth/error` page instead. Do not move
+`/auth/error` without checking both paths.
