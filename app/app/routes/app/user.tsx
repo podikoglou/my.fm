@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { DetailedError, parseResponse } from "hono/client";
-import { Lock, UserX } from "lucide-react";
+import { Lock, Settings, UserX } from "lucide-react";
+import { Link } from "react-router";
 
 import { ErrorCard } from "~/components/error-card";
+import { buttonVariants } from "~/components/ui/button";
 import { CardHeader, CardContent } from "~/components/ui/card";
 import { UserAvatar } from "~/components/user-avatar";
 import { UserTrackList } from "~/components/user-track-list";
@@ -19,6 +21,11 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
     queryKey: ["user", username],
     queryFn: () => parseResponse(apiClient.user.byUsername.$get({ query: { username } })),
     retry: false,
+  });
+
+  const { data: me } = useQuery({
+    queryKey: ["user", "me"],
+    queryFn: () => parseResponse(apiClient.user.me.$get()),
   });
 
   if (error) {
@@ -45,7 +52,21 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
 
   return (
     <>
-      <CardHeader className="flex flex-col items-center gap-4">
+      <CardHeader className="relative flex flex-col items-center gap-4">
+        {me?.id === data.id && (
+          <Link
+            to="/app/settings"
+            aria-label="Settings"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "icon-sm",
+              className: "absolute top-0 right-2",
+            })}
+          >
+            <Settings />
+          </Link>
+        )}
+
         <UserAvatar avatarUrl={data.avatarUrl} name={data.name} />
 
         <div className="space-y-1 text-center">
