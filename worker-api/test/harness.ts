@@ -20,9 +20,14 @@ export function createTestDatabase(onBatch?: () => void): D1Database {
   sqlite.exec("PRAGMA foreign_keys = ON");
   const directory = new URL("../drizzle/", import.meta.url);
 
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+  // `readdirSync` returns filesystem order, which differs between checkouts.
+  // Drizzle names each directory by its timestamp, so sorting by name is the
+  // order that the migrations must run in.
+  const migrations = readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .sort((a, b) => a.name.localeCompare(b.name));
 
+  for (const entry of migrations) {
     sqlite.exec(readFileSync(new URL(`${entry.name}/migration.sql`, directory), "utf8"));
   }
 
