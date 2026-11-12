@@ -1,5 +1,7 @@
 import { type RouteConfig, index, route, prefix, layout } from "@react-router/dev/routes";
 
+import { AUTH_ERROR_ROUTE } from "./lib/auth-paths";
+
 export default [
   layout("routes/layout.tsx", [
     index("routes/home.tsx"),
@@ -13,5 +15,7 @@ export default [
     ]),
 
     route("onboard", "routes/onboard.tsx"),
+
+    route(AUTH_ERROR_ROUTE, "routes/auth-error.tsx"),
   ]),
 ] satisfies RouteConfig;

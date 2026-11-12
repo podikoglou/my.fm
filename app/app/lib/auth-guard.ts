@@ -2,13 +2,14 @@ import { parseResponse } from "hono/client";
 
 import { apiClient } from "./api";
 import { authClient } from "./auth";
+import { AUTH_ERROR_PATH } from "./auth-paths";
 import { queryClient } from "./query";
 
-async function signIn(callbackURL: string) {
+export async function signInWithSpotify(callbackURL: string) {
   await authClient.signIn.social({
     provider: "spotify",
     callbackURL,
-    errorCallbackURL: "/auth/spotify/callback",
+    errorCallbackURL: AUTH_ERROR_PATH,
   });
 }
 
@@ -16,7 +17,7 @@ export async function requireAuth(callbackURL: string) {
   const session = await authClient.getSession();
 
   if (!session.data) {
-    await signIn(callbackURL);
+    await signInWithSpotify(callbackURL);
 
     return { session: null, user: null };
   }
@@ -30,7 +31,7 @@ export async function requireAuth(callbackURL: string) {
     return { session: session.data, user: data };
   } catch (err) {
     console.error(err);
-    await signIn(callbackURL);
+    await signInWithSpotify(callbackURL);
 
     return { session: null, user: null };
   }
