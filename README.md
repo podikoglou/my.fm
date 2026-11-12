@@ -44,12 +44,28 @@ Useful commands:
 - `bun run dev` starts the app, the API, and a local database.
 - `bun run dev:proxy` serves the app over HTTPS with Caddy.
 - `bun run deploy` creates or updates this stage's Cloudflare resources.
+- `bun run deploy:preview` deploys the `preview` stage.
 - `bun run destroy` removes this stage's Cloudflare resources.
+- `bun run destroy:preview` removes the `preview` stage.
 - `bun run test` runs the test suites.
 - `bun run lint` and `bun run fmt` check and format the code.
 - `bun run typecheck` typechecks the packages.
 - `bun run typecheck:infra` typechecks the root Alchemy stack.
 - `bun run db:generate` writes new migrations after a schema change.
+
+## Preview deployment
+
+`bun run deploy:preview` deploys the `preview` stage at
+<https://preview.fm.aleep.lol>. The stage is a full copy of the stack: its own
+Website Worker, API Worker, and D1 database, with its own session secret. The
+live stage is not touched.
+
+Alchemy declares the hostname in `alchemy.run.ts`, so the deploy attaches the
+DNS record and the certificate. The preview needs a matching Spotify redirect
+URI, `https://preview.fm.aleep.lol/api/auth/callback/spotify`, because Better
+Auth derives the callback URL from the request origin.
+
+`bun run destroy:preview` removes the stage and its domain.
 
 ## Demo
 
