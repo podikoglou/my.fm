@@ -20,6 +20,9 @@ export const Worker = Cloudflare.Worker("Worker", {
   // Every five minutes: the `scheduled` handler runs Spotify ingestion. A
   // longer gap keeps the app under its Spotify quota.
   crons: ["*/5 * * * *"],
+  // Workers Logs is on by default. Issues groups the errors that ingestion
+  // catches and logs, which the invocation outcome alone does not show.
+  observability: { enabled: true, issues: { enabled: true } },
   env: {
     DB: Database,
     BETTER_AUTH_SECRET: BetterAuthSecret,
