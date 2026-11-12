@@ -5,12 +5,18 @@ import type { CreateSpotifyClient } from "./spotify.ts";
 
 import { createAuth } from "../auth.ts";
 import { createDatabase } from "../db/index.ts";
+import { recordIngestionRun } from "../db/queries/ingestionRuns.ts";
 import {
   findSpotifyAccounts,
   findUserQueueDataById,
   updateLastRecentTracksFetchTime,
 } from "../db/queries/users.ts";
-import { INGESTION_EVENTS, logIngestionEvent } from "./events.ts";
+import {
+  INGESTION_EVENTS,
+  logIngestionEvent,
+  logIngestionFailure,
+  logIngestionWarning,
+} from "./events.ts";
 import { storePlays } from "./plays.ts";
 import { createSpotifyClient, getSpotifyQuotaError } from "./spotify.ts";
 
@@ -22,6 +28,13 @@ import { createSpotifyClient, getSpotifyQuotaError } from "./spotify.ts";
 const FETCH_LIMIT = 50;
 
 type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
+
+/**
+ * How long after the last run the schedule counts as stopped. The Cron Trigger
+ * runs every five minutes, so four missed runs is an outage rather than a slow
+ * start.
+ */
+export const INGESTION_STALE_AFTER_MS = 20 * 60_000;
 
 type AccountResult = {
   /** Plays that reached `storePlays`, including plays that already existed. */
@@ -79,19 +92,15 @@ export async function runIngestion(
       const quota = error instanceof Error ? getSpotifyQuotaError(error) : null;
 
       if (quota) {
-        logIngestionEvent("error", {
-          event: INGESTION_EVENTS.quotaExhausted,
-          userId: account.userId,
-          retryAfterSeconds: quota.retryAfterSeconds,
-          accounts: seenUsers.size,
-          plays,
-        });
-        logIngestionEvent("info", {
+        logIngestionFailure(INGESTION_EVENTS.quotaExhausted);
+        await recordIngestionRun(db, { at: new Date(), status: "quota" });
+        logIngestionEvent({
           event: INGESTION_EVENTS.runComplete,
           status: "quota",
           accounts: seenUsers.size,
           plays,
           failures,
+          retryAfterSeconds: quota.retryAfterSeconds,
         });
 
         return;
@@ -99,22 +108,22 @@ export async function runIngestion(
 
       failures += 1;
 
-      logIngestionEvent("error", {
-        event: INGESTION_EVENTS.accountFailed,
-        userId: account.userId,
-        errorName: error instanceof Error ? error.name : "NonError",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
+      logIngestionFailure(
+        INGESTION_EVENTS.accountFailed,
+        error instanceof Error ? error : String(error),
+      );
     }
   }
 
-  logIngestionEvent("info", {
+  logIngestionEvent({
     event: INGESTION_EVENTS.runComplete,
     status: failures === 0 ? "ok" : "partial",
     accounts: seenUsers.size,
     plays,
     failures,
   });
+
+  await recordIngestionRun(db, { at: new Date(), status: failures === 0 ? "ok" : "partial" });
 }
 
 /**
@@ -137,10 +146,7 @@ async function ingestAccount(
   });
 
   if (!token?.accessToken) {
-    logIngestionEvent("error", {
-      event: INGESTION_EVENTS.tokenMissing,
-      userId: account.userId,
-    });
+    logIngestionFailure(INGESTION_EVENTS.tokenMissing, account.userId);
 
     return { plays: 0, ok: false };
   }
@@ -148,10 +154,7 @@ async function ingestAccount(
   const queueData = await findUserQueueDataById(db, account.userId);
 
   if (!queueData) {
-    logIngestionEvent("warn", {
-      event: INGESTION_EVENTS.userMissing,
-      userId: account.userId,
-    });
+    logIngestionWarning(INGESTION_EVENTS.userMissing, account.userId);
 
     return { plays: 0, ok: false };
   }
@@ -184,7 +187,7 @@ async function ingestAccount(
     await updateLastRecentTracksFetchTime(db, account.userId, new Date());
   }
 
-  logIngestionEvent("info", {
+  logIngestionEvent({
     event: INGESTION_EVENTS.accountIngested,
     userId: account.userId,
     plays: scrobbleDates.length,

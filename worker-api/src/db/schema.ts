@@ -26,6 +26,19 @@ export type UserInsert = typeof users.$inferInsert;
 
 export type User = typeof users.$inferSelect;
 
+/**
+ * One row, written after every Cron Trigger run. `/health/ingestion` reads it
+ * so an uptime monitor can tell a stopped schedule from a healthy one: a run
+ * that never starts cannot log, and therefore cannot alert.
+ */
+export const ingestionRuns = sqliteTable("ingestion_runs", {
+  id: integer().primaryKey(),
+  lastRunAt: integer({ mode: "timestamp_ms" }).notNull(),
+  status: text().notNull(),
+});
+
+export type IngestionRun = typeof ingestionRuns.$inferSelect;
+
 export const sessions = sqliteTable(
   "sessions",
   {

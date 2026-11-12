@@ -6,12 +6,14 @@ import type { IngestionEventFields } from "../src/ingestion/events.ts";
 import type { CreateSpotifyClient, SpotifyPlay } from "../src/ingestion/spotify.ts";
 
 import { createDatabase } from "../src/db/index.ts";
+import { findIngestionRun } from "../src/db/queries/ingestionRuns.ts";
 import { createScrobbleId } from "../src/db/queries/scrobbles.ts";
 import {
   accounts,
   albumArtists,
   albums,
   artists,
+  ingestionRuns,
   scrobbles,
   trackArtists,
   tracks,
@@ -110,24 +112,32 @@ function clientFor(
 }
 
 /**
- * Capture the structured ingestion events and keep them out of the test
- * output. Each event is one object argument.
+ * Capture the ingestion log output and keep it out of the test output.
+ *
+ * Normal events are one object; failures are an event name followed by an
+ * optional detail.
  */
 function captureLogs() {
   const events: IngestionEventFields[] = [];
+  const messages: unknown[][] = [];
 
-  const record = (fields: IngestionEventFields) => {
+  const recordEvent = (fields: IngestionEventFields) => {
     events.push(fields);
   };
 
+  const recordMessage = (...args: unknown[]) => {
+    messages.push(args);
+  };
+
   const spies = [
-    spyOn(console, "log").mockImplementation(record),
-    spyOn(console, "warn").mockImplementation(record),
-    spyOn(console, "error").mockImplementation(record),
+    spyOn(console, "log").mockImplementation(recordEvent),
+    spyOn(console, "warn").mockImplementation(recordMessage),
+    spyOn(console, "error").mockImplementation(recordMessage),
   ];
 
   return {
     events,
+    messages,
     named: (event: string) => events.filter((entry) => entry.event === event),
     restore: () => {
       for (const spy of spies) {
@@ -481,16 +491,15 @@ describe("runIngestion", () => {
     // Both accounts share the application quota, so the second account must
     // not reach Spotify.
     expect(seen).toHaveLength(1);
-    expect(logs.named(INGESTION_EVENTS.quotaExhausted)).toEqual([
+    expect(logs.messages).toContainEqual([INGESTION_EVENTS.quotaExhausted]);
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
       expect.objectContaining({
-        userId: "user-1",
-        retryAfterSeconds: null,
+        status: "quota",
         accounts: 1,
         plays: 0,
+        failures: 0,
+        retryAfterSeconds: null,
       }),
-    ]);
-    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
-      expect.objectContaining({ status: "quota", accounts: 1, plays: 0, failures: 0 }),
     ]);
   });
 
@@ -572,8 +581,9 @@ describe("runIngestion", () => {
       logs.restore();
     }
 
-    expect(logs.named(INGESTION_EVENTS.quotaExhausted)).toEqual([
-      expect.objectContaining({ userId: "user-1", retryAfterSeconds: 66_362 }),
+    expect(logs.messages).toContainEqual([INGESTION_EVENTS.quotaExhausted]);
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
+      expect.objectContaining({ status: "quota", retryAfterSeconds: 66_362 }),
     ]);
   });
 
@@ -643,15 +653,47 @@ describe("runIngestion", () => {
       logs.restore();
     }
 
-    expect(logs.named(INGESTION_EVENTS.accountFailed)).toEqual([
-      expect.objectContaining({
-        userId: "user-1",
-        errorName: "Error",
-        errorMessage: "Spotify unavailable",
-      }),
-    ]);
+    const [failure] = logs.messages.filter(
+      ([message]) => message === INGESTION_EVENTS.accountFailed,
+    );
+
+    expect(failure?.[1]).toBeInstanceOf(Error);
     expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
       expect.objectContaining({ status: "partial", accounts: 1, plays: 0, failures: 1 }),
     ]);
+  });
+
+  test("records one heartbeat per run", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+    const before = Date.now();
+
+    await seedUser(db);
+
+    try {
+      await runIngestion(env, () => ({
+        getRecentlyPlayedTracks: async () => {
+          throw new Error("Spotify unavailable");
+        },
+      }));
+    } finally {
+      logs.restore();
+    }
+
+    const heartbeat = await findIngestionRun(db);
+
+    expect(heartbeat?.status).toBe("partial");
+    expect(heartbeat?.lastRunAt.getTime()).toBeGreaterThanOrEqual(before);
+
+    await runIngestion(
+      env,
+      clientFor([], () => []),
+    );
+
+    const updated = await findIngestionRun(db);
+
+    expect(updated?.status).toBe("ok");
+    expect(await db.select().from(ingestionRuns)).toHaveLength(1);
   });
 });

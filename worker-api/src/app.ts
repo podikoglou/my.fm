@@ -4,6 +4,9 @@ import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./types.ts";
 
 import { createAuth } from "./auth.ts";
+import { createDatabase } from "./db/index.ts";
+import { findIngestionRun } from "./db/queries/ingestionRuns.ts";
+import { INGESTION_STALE_AFTER_MS } from "./ingestion/run.ts";
 import scrobble from "./routes/scrobble.ts";
 import user from "./routes/user.ts";
 
@@ -17,6 +20,21 @@ export function createApp() {
       const ok = row?.ok === 1;
 
       return c.json({ status: ok ? "ok" : "error", database: ok ? "ok" : "error" }, ok ? 200 : 503);
+    })
+    .get("/health/ingestion", async (c) => {
+      const run = await findIngestionRun(createDatabase(c.env.DB));
+      const ageMs = run ? Date.now() - run.lastRunAt.getTime() : null;
+      const ok = ageMs !== null && ageMs <= INGESTION_STALE_AFTER_MS;
+
+      return c.json(
+        {
+          status: ok ? "ok" : "stale",
+          lastRunAt: run?.lastRunAt ?? null,
+          lastRunStatus: run?.status ?? null,
+          ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
+        },
+        ok ? 200 : 503,
+      );
     })
     .onError((err, c) => {
       const status = err instanceof HTTPException ? err.status : 500;

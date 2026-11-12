@@ -1,9 +1,10 @@
 /**
  * Event names for ingestion telemetry.
  *
- * Each event is logged as one object, so Workers Logs indexes `event` as a
- * field that queries and alerts can match. Keep a name stable and free of
- * variable text: IDs, counts, and error details belong in the fields.
+ * Workers Logs stores the keys of a logged object as fields, so a normal event
+ * is one object and a query matches `attributes['event']`. Workers Issues
+ * groups failures by their message text, so a failure logs its stable event
+ * name as the message and keeps the variable parts in the arguments.
  */
 export const INGESTION_EVENTS = {
   /** One account fetched and stored without error. */
@@ -25,12 +26,13 @@ export type IngestionEventName = (typeof INGESTION_EVENTS)[keyof typeof INGESTIO
 /** How the run ended. `quota` means Spotify blocked the whole application. */
 export type IngestionStatus = "ok" | "partial" | "quota";
 
+/** What a failure line adds after the event name: the cause, or the subject. */
+export type IngestionFailureDetail = string | Error;
+
 export type IngestionEventFields = {
   event: IngestionEventName;
   userId?: string;
   retryAfterSeconds?: number | null;
-  errorName?: string;
-  errorMessage?: string;
   accounts?: number;
   plays?: number;
   failures?: number;
@@ -38,23 +40,39 @@ export type IngestionEventFields = {
 };
 
 /**
- * Log one event as a single object argument.
+ * Log a normal event as one object.
  *
- * Workers Logs indexes the keys of an object argument. A message string before
- * the object is merged into the log text, and the field is lost.
+ * A message string before the object would merge into the log text and drop
+ * the fields, so the object stays the only argument.
  */
-export function logIngestionEvent(level: "info" | "warn" | "error", fields: IngestionEventFields) {
-  if (level === "error") {
-    console.error(fields);
-
-    return;
-  }
-
-  if (level === "warn") {
-    console.warn(fields);
-
-    return;
-  }
-
+export function logIngestionEvent(fields: IngestionEventFields) {
   console.log(fields);
+}
+
+/**
+ * Log a failure whose event name becomes the message.
+ *
+ * Pass details only when they identify the cause. A value that changes between
+ * otherwise identical failures, such as a retry delay, splits the Workers
+ * Issues group and produces a new notification each time.
+ */
+export function logIngestionFailure(event: IngestionEventName, detail?: IngestionFailureDetail) {
+  if (detail === undefined) {
+    console.error(event);
+
+    return;
+  }
+
+  console.error(event, detail);
+}
+
+/** Log a condition that is worth seeing but is not a failure. */
+export function logIngestionWarning(event: IngestionEventName, detail?: IngestionFailureDetail) {
+  if (detail === undefined) {
+    console.warn(event);
+
+    return;
+  }
+
+  console.warn(event, detail);
 }
