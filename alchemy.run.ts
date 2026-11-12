@@ -2,6 +2,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import { fileURLToPath } from "node:url";
 
 import { API_RUN_WORKER_FIRST } from "./app/api-paths.ts";
@@ -10,12 +11,11 @@ import { Database, Worker } from "./worker-api/src/alchemy.ts";
 const appDir = fileURLToPath(new URL("./app/", import.meta.url));
 
 /**
- * Custom hostname by stage. A stage with no entry serves its `workers.dev`
- * URL; any hostname attached to it outside Alchemy stays unmanaged.
+ * Custom hostname for the preview stage, from the deploy environment, so each
+ * deployment names a domain it owns. Without it the stage serves its
+ * `workers.dev` URL. Any hostname attached outside Alchemy stays unmanaged.
  */
-const WEBSITE_DOMAINS: Record<string, string> = {
-  preview: "preview.fm.aleep.lol",
-};
+const PreviewDomain = Config.String("WEBSITE_DOMAIN_PREVIEW").pipe(Config.option);
 
 /**
  * `Website.Vite` does not fit this build. React Router 7 declares an `ssr` Vite
@@ -32,13 +32,14 @@ export const Website = Cloudflare.Website.StaticSite(
   "Website",
   Effect.gen(function* () {
     const stage = yield* Alchemy.Stage;
+    const previewDomain = yield* Effect.orDie(PreviewDomain);
 
     return {
       cwd: appDir,
       command: "bun run build",
       outdir: "build/client",
       main: new URL("./app/worker.ts", import.meta.url).href,
-      domain: WEBSITE_DOMAINS[stage],
+      domain: stage === "preview" ? Option.getOrUndefined(previewDomain) : undefined,
       dev: {
         command: "bun run dev",
         env: {
