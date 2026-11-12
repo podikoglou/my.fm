@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
-import { UserX } from "lucide-react";
+import { DetailedError, parseResponse } from "hono/client";
+import { Lock, UserX } from "lucide-react";
 
 import { ErrorCard } from "~/components/error-card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
@@ -47,6 +47,16 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
   });
 
   if (error) {
+    if (error instanceof DetailedError && error.statusCode === 403) {
+      return (
+        <ErrorCard
+          Icon={Lock}
+          title={<>Private Profile</>}
+          description={<>This user's profile is private</>}
+        />
+      );
+    }
+
     return (
       <ErrorCard
         Icon={UserX}
