@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import z from "zod";
 
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
@@ -18,7 +20,7 @@ import {
   tracks,
   users,
 } from "../src/db/schema.ts";
-import { createTestEnv } from "./harness.ts";
+import { baseUrl, createTestEnv, replaceFetch } from "./harness.ts";
 
 const userId = "user-1";
 const now = new Date("2026-11-11T12:00:00.000Z");
@@ -113,6 +115,7 @@ describe("user queries", () => {
       username: "alex",
       name: "Alex",
       avatarUrl: "https://example.com/alex.jpg",
+      isPrivate: false,
     });
     expect(byId).toEqual(byUsername);
   });
@@ -175,5 +178,151 @@ describe("authenticated routes", () => {
       // The error handler forwards HTTPException's empty message.
       expect(await response.json()).toEqual({ error: "" });
     }
+  });
+});
+
+async function signIn(
+  env: ReturnType<typeof createTestEnv>,
+  spotify: { id: string; email: string },
+): Promise<{ cookie: string; userId: string }> {
+  const app = createApp();
+
+  const restoreFetch = replaceFetch(async (input) => {
+    const url = input instanceof Request ? input.url : input.toString();
+
+    if (url.startsWith("https://accounts.spotify.com/api/token")) {
+      return Response.json({
+        access_token: "access-token",
+        expires_in: 3600,
+        refresh_token: "refresh-token",
+        scope: "user-read-email",
+        token_type: "Bearer",
+      });
+    }
+
+    if (url.startsWith("https://api.spotify.com/v1/me")) {
+      return Response.json({
+        display_name: "Test User",
+        email: spotify.email,
+        id: spotify.id,
+        images: [],
+      });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  });
+
+  try {
+    const signInResponse = await app.request(
+      `${baseUrl}/api/auth/sign-in/social`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: baseUrl },
+        body: JSON.stringify({ provider: "spotify", callbackURL: `${baseUrl}/onboard` }),
+      },
+      env,
+    );
+
+    const { url } = z.object({ url: z.string() }).parse(await signInResponse.json());
+    const state = new URL(url).searchParams.get("state");
+    const cookies = signInResponse.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
+
+    const callback = await app.request(
+      `${baseUrl}/api/auth/callback/spotify?code=fake-code&state=${state}`,
+      { headers: { cookie: cookies.join("; ") } },
+      env,
+    );
+
+    expect(callback.status).toBe(302);
+
+    const sessionCookies = callback.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
+
+    const user = await createDatabase(env.DB).query.users.findFirst({
+      where: { email: spotify.email },
+    });
+
+    if (!user) {
+      throw new Error("The Spotify callback did not create a user");
+    }
+
+    return { cookie: sessionCookies.join("; "), userId: user.id };
+  } finally {
+    restoreFetch();
+  }
+}
+
+describe("profile visibility", () => {
+  test("hides a private profile and its scrobbles from other users", async () => {
+    const env = createTestEnv();
+    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+    const other = await signIn(env, { id: "spotify-other", email: "other@example.com" });
+
+    await createDatabase(env.DB)
+      .update(users)
+      .set({ username: "alex", name: "Alex", onboarded: true, isPrivate: true })
+      .where(eq(users.id, owner.userId));
+
+    const app = createApp();
+    const headers = { cookie: other.cookie };
+
+    const requests = [
+      app.request(`${baseUrl}/user/byUsername?username=alex`, { headers }, env),
+      app.request(`${baseUrl}/user/byId?id=${owner.userId}`, { headers }, env),
+      app.request(`${baseUrl}/scrobble/getRecent?username=alex&offset=0`, { headers }, env),
+    ];
+
+    for (const response of await Promise.all(requests)) {
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: "Profile is private" });
+    }
+  });
+
+  test("shows a private profile to its owner", async () => {
+    const env = createTestEnv();
+    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+
+    await createDatabase(env.DB)
+      .update(users)
+      .set({ username: "alex", name: "Alex", onboarded: true, isPrivate: true })
+      .where(eq(users.id, owner.userId));
+
+    const response = await createApp().request(
+      `${baseUrl}/user/byUsername?username=alex`,
+      { headers: { cookie: owner.cookie } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      id: owner.userId,
+      username: "alex",
+      name: "Alex",
+      avatarUrl: null,
+    });
+  });
+
+  test("shows a public profile to other users", async () => {
+    const env = createTestEnv();
+    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+    const other = await signIn(env, { id: "spotify-other", email: "other@example.com" });
+
+    await createDatabase(env.DB)
+      .update(users)
+      .set({ username: "alex", name: "Alex", onboarded: true })
+      .where(eq(users.id, owner.userId));
+
+    const response = await createApp().request(
+      `${baseUrl}/user/byUsername?username=alex`,
+      { headers: { cookie: other.cookie } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      id: owner.userId,
+      username: "alex",
+      name: "Alex",
+      avatarUrl: null,
+    });
   });
 });

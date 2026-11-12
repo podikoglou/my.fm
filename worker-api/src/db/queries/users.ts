@@ -4,33 +4,55 @@ import type { Database } from "../index.ts";
 
 import { users, type User } from "../schema.ts";
 
+const publicUserColumns = {
+  id: true,
+  username: true,
+  name: true,
+  avatarUrl: true,
+} as const;
+
+const profileColumns = {
+  ...publicUserColumns,
+  isPrivate: true,
+} as const;
+
+export type PublicUser = Pick<User, "id" | "username" | "name" | "avatarUrl">;
+
+export type UserProfile = PublicUser & Pick<User, "isPrivate">;
+
+export function canViewProfile(profile: UserProfile, viewerId?: User["id"]) {
+  return !profile.isPrivate || profile.id === viewerId;
+}
+
+export function toPublicUser(profile: UserProfile): PublicUser {
+  const { isPrivate: _, ...user } = profile;
+
+  return user;
+}
+
 export async function findUserById(db: Database, id: User["id"]) {
   return await db.query.users.findFirst({
     where: { id },
   });
 }
 
-export async function findUserByUsernamePublic(db: Database, username: User["username"]) {
+export async function findUserByUsernamePublic(
+  db: Database,
+  username: User["username"],
+): Promise<UserProfile | undefined> {
   return await db.query.users.findFirst({
     where: { username },
-    columns: {
-      id: true,
-      username: true,
-      name: true,
-      avatarUrl: true,
-    },
+    columns: profileColumns,
   });
 }
 
-export async function findUserByIdPublic(db: Database, id: User["id"]) {
+export async function findUserByIdPublic(
+  db: Database,
+  id: User["id"],
+): Promise<UserProfile | undefined> {
   return await db.query.users.findFirst({
     where: { id },
-    columns: {
-      id: true,
-      username: true,
-      name: true,
-      avatarUrl: true,
-    },
+    columns: profileColumns,
   });
 }
 

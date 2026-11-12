@@ -7,7 +7,13 @@ import type { AppEnv } from "../types.ts";
 import { authMiddleware } from "../auth-middleware.ts";
 import { nameSchema, usernameSchema } from "../data/validators.ts";
 import { createDatabase } from "../db/index.ts";
-import { findUserByIdPublic, findUserByUsernamePublic, onboardUser } from "../db/queries/users.ts";
+import {
+  canViewProfile,
+  findUserByIdPublic,
+  findUserByUsernamePublic,
+  onboardUser,
+  toPublicUser,
+} from "../db/queries/users.ts";
 
 export default new Hono<AppEnv>()
   .use("/*", authMiddleware)
@@ -20,13 +26,29 @@ export default new Hono<AppEnv>()
     const { username } = c.req.valid("query");
     const user = await findUserByUsernamePublic(createDatabase(c.env.DB), username);
 
-    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
+    if (!user) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    if (!canViewProfile(user, c.get("user")?.id)) {
+      return c.json({ error: "Profile is private" }, 403);
+    }
+
+    return c.json(toPublicUser(user), 200);
   })
   .get("/byId", zValidator("query", z.object({ id: z.nanoid() })), async (c) => {
     const { id } = c.req.valid("query");
     const user = await findUserByIdPublic(createDatabase(c.env.DB), id);
 
-    return user ? c.json(user, 200) : c.json({ error: "User not found" }, 404);
+    if (!user) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    if (!canViewProfile(user, c.get("user")?.id)) {
+      return c.json({ error: "Profile is private" }, 403);
+    }
+
+    return c.json(toPublicUser(user), 200);
   })
   .put(
     "/onboard",
