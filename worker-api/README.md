@@ -79,6 +79,45 @@ Spotify block lasted about eighteen hours.
 Other errors stay isolated per account: the run logs the error and continues
 with the next account.
 
+## Observability
+
+Workers Logs and Workers Issues are on (see `observability` in
+`src/alchemy.ts`).
+
+A normal event is one object, so Workers Logs indexes its keys and a query
+matches `attributes['event']`. A failure logs its event name as the message,
+because Workers Issues groups occurrences by that text and shows it as the
+issue title. Use several words and keep the message stable: Issues replaces
+numbers and other variable parts with a token, and a message that collapses to
+one token groups every unrelated failure into the same issue. The event names
+live in `src/ingestion/events.ts`.
+
+Every run logs `ingestion run complete` and writes one heartbeat row. A run that
+catches an error still ends with an invocation outcome of `ok`, so these are the
+record of what the run did.
+
+The root stack creates a Discord webhook and two Workers Issues automations.
+One notifies on the first occurrence of an issue. The other notifies when a
+resolved issue comes back after a quiet day, which is the shape of a quota
+block. The webhook URL comes from `DISCORD_ALERT_WEBHOOK` and is read at deploy
+time, so it is not bound to the Worker.
+
+Cloudflare's custom alert policies require a paid plan. This account is on the
+Free plan, so the alerts use Workers Issues.
+
+Issues cannot observe an absence of logs, so a Cron Trigger that stops is caught
+by `GET /health/ingestion`. It answers `503` when the heartbeat is older than
+twenty minutes and `200` otherwise. Point an uptime monitor at that path: with
+no monitor, a schedule that stops produces no notification.
+
+To read the events by hand:
+
+```sh
+cf sql query "SELECT timestamp, message FROM logs.workersLogs
+  WHERE scriptName = '<script>' AND attributes['event'] = 'ingestion run complete'
+  FORMAT JSON" --scope-account <account-id> --time-since <iso> --time-until <iso>
+```
+
 ## Database changes
 
 Edit `src/db/schema.ts`, then generate the migration:
