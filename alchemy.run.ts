@@ -1,13 +1,11 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
-import * as Output from "alchemy/Output";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import { fileURLToPath } from "node:url";
 
 import { API_RUN_WORKER_FIRST } from "./app/api-paths.ts";
 import { Database, Worker } from "./worker-api/src/alchemy.ts";
-import { INGESTION_EVENTS } from "./worker-api/src/ingestion/events.ts";
 
 const appDir = fileURLToPath(new URL("./app/", import.meta.url));
 
@@ -84,46 +82,8 @@ export default Alchemy.Stack(
       url: yield* Config.String("DISCORD_ALERT_WEBHOOK"),
     });
 
-    /**
-     * Count the log lines for one ingestion event of this Worker.
-     *
-     * Workers Logs stores the keys of a logged object under `attributes`, and
-     * an alert query runs without a request scope, so the query names the
-     * account and the script itself.
-     */
-    const countEvent = (event: string) =>
-      Output.map(Output.all(worker.accountId, worker.workerName), ([accountId, scriptName]) =>
-        [
-          "SELECT count() AS value FROM logs.workersLogs",
-          `WHERE accountTag = '${accountId}'`,
-          `AND scriptName = '${scriptName}'`,
-          `AND attributes['event'] = '${event}'`,
-        ].join(" "),
-      );
-
-    // Spotify blocks the whole application at once, so one occurrence is a
-    // real outage and not noise.
-    yield* Cloudflare.Alerting.CustomAlert("QuotaAlert", {
-      query: countEvent(INGESTION_EVENTS.quotaExhausted),
-      trigger: { type: "threshold", operator: ">", value: 0, window: "10m" },
-      every: "5m",
-      alertInterval: "6h",
-      mechanisms: { webhooks: [{ id: webhook.webhookId }] },
-    });
-
-    // A run logs one completion event, so no completion in the window means
-    // the run did not finish. This covers a removed Cron Trigger, a broken
-    // deploy, and a Worker that never starts, which an error alert cannot see.
-    yield* Cloudflare.Alerting.CustomAlert("StalledAlert", {
-      query: countEvent(INGESTION_EVENTS.runComplete),
-      trigger: { type: "threshold", operator: "==", value: 0, window: "30m" },
-      every: "15m",
-      alertInterval: "6h",
-      mechanisms: { webhooks: [{ id: webhook.webhookId }] },
-    });
-
-    // Issues groups the errors that the run catches and logs. The policy only
-    // says where the notifications go.
+    // Issues collects the errors that a run catches and logs, then groups the
+    // occurrences. The policy only decides where the notifications go.
     const issuePolicy = yield* Cloudflare.Alerting.NotificationPolicy("IssuePolicy", {
       alertType: "workers_observability_real_time_issue",
       mechanisms: { webhooks: [{ id: webhook.webhookId }] },
@@ -133,6 +93,14 @@ export default Alchemy.Stack(
       policyId: issuePolicy.policyId,
       service: worker.workerName,
       afterOccurrences: 1,
+    });
+
+    // A resolved issue that comes back is the normal shape of a quota block,
+    // so notify again after a quiet day rather than once per issue lifetime.
+    yield* Cloudflare.Workers.IssueAutomation("IssueRecurrence", {
+      policyId: issuePolicy.policyId,
+      service: worker.workerName,
+      afterInactivitySeconds: 24 * 60 * 60,
     });
 
     return {
