@@ -14,10 +14,12 @@ Both components are deployed with [Alchemy](https://alchemy.run).
 ## Development
 
 You need [Bun](https://bun.sh) and a [Spotify
-application](https://developer.spotify.com/). I also suggest
-[Caddy](https://caddyserver.com/) for proxying through a HTTPs-enabled domain.
+application](https://developer.spotify.com/). [Caddy](https://caddyserver.com/)
+is optional: it serves the app over HTTPS on a local domain.
 
-Your Spotify app should have a redirect URI of `https://my.fm/api/auth/callback/spotify` 
+The Spotify app needs a redirect URI that matches the origin you use in
+development. With the Caddy proxy below, that is
+`https://my.fm/api/auth/callback/spotify`.
 
 ```sh
 cp .env.example .env # then fill in the Spotify credentials
@@ -55,15 +57,15 @@ Useful commands:
 
 ## Preview deployment
 
-`bun run deploy:preview` deploys the `preview` stage at
-<https://preview.fm.aleep.lol>. The stage is a full copy of the stack: its own
-Website Worker, API Worker, and D1 database, with its own session secret. The
-live stage is not touched.
+`bun run deploy:preview` deploys the `preview` stage, a full copy of the stack:
+its own Website Worker, API Worker, and D1 database, with its own session
+secret. The live stage is not touched.
 
-Alchemy declares the hostname in `alchemy.run.ts`, so the deploy attaches the
-DNS record and the certificate. The preview needs a matching Spotify redirect
-URI, `https://preview.fm.aleep.lol/api/auth/callback/spotify`, because Better
-Auth derives the callback URL from the request origin.
+A stage serves its `workers.dev` URL unless `WEBSITE_DOMAIN_PREVIEW` names a
+hostname you own. Set it in `.env`; Alchemy attaches the DNS record and the
+certificate at deploy time. A hostname needs a matching Spotify redirect URI,
+`https://<hostname>/api/auth/callback/spotify`, because Better Auth derives the
+callback URL from the request origin.
 
 `bun run destroy:preview` removes the stage and its domain.
 

@@ -110,7 +110,7 @@ resolved issue comes back after a quiet day, which is the shape of a quota
 block. The webhook URL comes from `DISCORD_ALERT_WEBHOOK` and is read at deploy
 time, so it is not bound to the Worker.
 
-Cloudflare's custom alert policies require a paid plan. This account is on the
+Cloudflare's custom alert policies require a paid plan. The project targets the
 Free plan, so the alerts use Workers Issues.
 
 Issues cannot observe an absence of logs, so a Cron Trigger that stops is caught
