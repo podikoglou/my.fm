@@ -86,12 +86,13 @@ Workers Logs and Workers Issues are on (see `observability` in
 
 A normal event is one object, so Workers Logs indexes its keys and a query
 matches `attributes['event']`. A failure logs its event name as the message,
-because Workers Issues groups occurrences by that text. Keep a failure message
-stable: a value that changes between occurrences splits the group and produces
-a new notification each time. The event names live in
-`src/ingestion/events.ts`.
+because Workers Issues groups occurrences by that text and shows it as the
+issue title. Use several words and keep the message stable: Issues replaces
+numbers and other variable parts with a token, and a message that collapses to
+one token groups every unrelated failure into the same issue. The event names
+live in `src/ingestion/events.ts`.
 
-Every run logs `ingestion_run_complete` and writes one heartbeat row. A run that
+Every run logs `ingestion run complete` and writes one heartbeat row. A run that
 catches an error still ends with an invocation outcome of `ok`, so these are the
 record of what the run did.
 
@@ -113,7 +114,7 @@ To read the events by hand:
 
 ```sh
 cf sql query "SELECT timestamp, message FROM logs.workersLogs
-  WHERE scriptName = '<script>' AND attributes['event'] = 'ingestion_run_complete'
+  WHERE scriptName = '<script>' AND attributes['event'] = 'ingestion run complete'
   FORMAT JSON" --scope-account <account-id> --time-since <iso> --time-until <iso>
 ```
 

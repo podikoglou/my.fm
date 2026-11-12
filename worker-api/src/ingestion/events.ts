@@ -8,17 +8,17 @@
  */
 export const INGESTION_EVENTS = {
   /** One account fetched and stored without error. */
-  accountIngested: "ingestion_account_ingested",
+  accountIngested: "ingestion account ingested",
   /** The run stopped because Spotify rejected the request with HTTP 429. */
-  quotaExhausted: "ingestion_quota_exhausted",
+  quotaExhausted: "ingestion quota exhausted",
   /** One account failed for a reason other than the application quota. */
-  accountFailed: "ingestion_account_failed",
+  accountFailed: "ingestion account failed",
   /** The account has no access token, so Spotify was not called. */
-  tokenMissing: "ingestion_token_missing",
+  tokenMissing: "ingestion token missing",
   /** The account row exists but its user no longer does. */
-  userMissing: "ingestion_user_missing",
+  userMissing: "ingestion user missing",
   /** The run reached the end of the account list. Logged once per run. */
-  runComplete: "ingestion_run_complete",
+  runComplete: "ingestion run complete",
 } as const;
 
 export type IngestionEventName = (typeof INGESTION_EVENTS)[keyof typeof INGESTION_EVENTS];
