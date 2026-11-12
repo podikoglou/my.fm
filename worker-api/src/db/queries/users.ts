@@ -48,9 +48,6 @@ export async function onboardUser(
     .where(eq(users.id, id));
 }
 
-/**
- * Find every Spotify account with the local account ID and its owner.
- */
 export async function findSpotifyAccounts(db: Database) {
   return await db.query.accounts.findMany({
     where: { providerId: "spotify" },

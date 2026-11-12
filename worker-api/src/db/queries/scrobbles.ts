@@ -23,10 +23,6 @@ export type ScrobbleValues = Pick<
   "userId" | "trackSpotifyUri" | "albumSpotifyUri" | "scrobbleDate"
 > & { id: string };
 
-/**
- * Build a scrobble insert. Ingestion adds it to the play batch, after the
- * track and album it references.
- */
 export function insertScrobble(db: Database, values: ScrobbleValues) {
   return db.insert(scrobbles).values(values).onConflictDoNothing().returning();
 }

@@ -8,12 +8,8 @@ import type { WorkerEnv } from "../src/alchemy.ts";
 export const baseUrl = "http://app.test";
 
 /**
- * A minimal D1 implementation backed by an in-memory SQLite database. It
- * applies the checked-in Drizzle migrations, so tests exercise the same
- * driver, adapter, and schema as the Worker.
- *
- * `onBatch` observes each batch, so a test can assert how Drizzle groups
- * writes.
+ * Create an in-memory D1 database with the checked-in migrations.
+ * `onBatch` observes each batch call.
  */
 export function createTestDatabase(onBatch?: () => void): D1Database {
   const sqlite = new SQLite(":memory:");

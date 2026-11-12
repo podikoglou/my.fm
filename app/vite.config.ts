@@ -6,17 +6,9 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import { API_DEV_URL, APP_DEV_PORT, DEV_APP_HOST } from "../dev";
 import { API_HEALTH_PATH, API_PATH_PREFIXES } from "./api-paths";
 
-/**
- * `alchemy dev` starts the API Worker on the shared dev port. A standalone
- * `bun run dev` in this package has no API behind the proxy; run
- * `bun run dev` from the repository root instead.
- */
 const apiDevUrl = process.env.API_DEV_URL ?? API_DEV_URL;
 
-/**
- * Path-segment patterns, so `/apiary` is not proxied. A key that starts with
- * `^` is a regular expression in Vite's proxy config.
- */
+// Path-segment patterns. A key that starts with `^` is a regular expression.
 const apiPaths = [...API_PATH_PREFIXES.map((prefix) => `^${prefix}`), `^${API_HEALTH_PATH}$`];
 
 export default defineConfig({
@@ -27,9 +19,7 @@ export default defineConfig({
     strictPort: true,
     // Caddy forwards the browser's Host header.
     allowedHosts: [DEV_APP_HOST],
-    // `changeOrigin: false` keeps the original Host header. With it set to
-    // `true`, the API Worker would see the wrong origin and the Spotify
-    // callback would change. This setting is load-bearing.
+    // Keep the original Host header for the Spotify callback.
     proxy: Object.fromEntries(
       apiPaths.map((path) => [path, { target: apiDevUrl, changeOrigin: false }]),
     ),

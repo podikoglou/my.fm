@@ -7,16 +7,6 @@ import type { WorkerEnv } from "./alchemy.ts";
 import { createDatabase } from "./db/index.ts";
 import * as schema from "./db/schema.ts";
 
-/**
- * Create the Better Auth instance for the current Worker environment.
- *
- * A Worker has no `process.env`, so the values Better Auth would otherwise
- * read from the environment are passed explicitly from bindings.
- *
- * The app is served from the same origin as the auth routes, so Better Auth
- * derives its base URL and trusted origin from the incoming request. This
- * means that no deploy-time origin or redirect values are needed.
- */
 export function createAuth(env: WorkerEnv) {
   const db = createDatabase(env.DB);
 
@@ -47,9 +37,7 @@ export function createAuth(env: WorkerEnv) {
         username: {
           type: "string",
           required: true,
-          // Better Auth 1.7 validates required fields from the provider profile
-          // before the create hook runs. The Spotify profile has no username,
-          // so a default value keeps the first sign-in working.
+          // Spotify profiles have no username, so provide one before validation.
           defaultValue: () => nanoid(),
         },
       },

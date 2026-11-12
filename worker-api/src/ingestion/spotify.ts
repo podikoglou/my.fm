@@ -2,12 +2,6 @@ import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 
 import type { WorkerEnv } from "../alchemy.ts";
 
-/**
- * The parts of a Spotify play that ingestion stores.
- *
- * These are structural subsets of the SDK's types, so a real SDK response is
- * assignable and tests can build small fixtures without the full payload.
- */
 export type SpotifyArtist = {
   name: string;
   uri: string;
@@ -46,7 +40,6 @@ export type RecentlyPlayedPage = {
   items: SpotifyPlay[];
 };
 
-/** The two fetch limits. */
 export type RecentTracksLimit = 6 | 50;
 
 export type SpotifyClient = {

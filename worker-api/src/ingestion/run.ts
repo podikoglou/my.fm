@@ -18,15 +18,7 @@ const FETCH_LIMIT_REGULAR = 6;
 
 type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
 
-/**
- * Fetch recently played tracks for every Spotify account and store them.
- *
- * Each Cron Trigger run scans the Spotify accounts and processes them in
- * order.
- *
- * A failure for one account is logged and does not stop the other accounts.
- * The cursor is not advanced for the failed user, so the next run retries it.
- */
+/** Fetch and store recent plays for every Spotify account. */
 export async function runIngestion(
   env: WorkerEnv,
   createClient: CreateSpotifyClient = (accessToken) => createSpotifyClient(env, accessToken),

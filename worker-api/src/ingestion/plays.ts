@@ -13,19 +13,7 @@ import { insertTrack } from "../db/queries/tracks.ts";
 
 const PLAYS_PER_BATCH = 10;
 
-/**
- * Store fetched plays and everything they reference.
- *
- * D1 counts one `db.batch()` call as one query against the per-invocation
- * limit, so this sends the statements in batches. A single batch for a whole
- * fetch would be one query, but a failure would roll back every play. Ten
- * plays per batch bounds the rollback while keeping an initial fetch of fifty
- * plays at five batches. A batch is a transaction: either the whole chunk is
- * stored or none of it is. All inserts use `onConflictDoNothing`, so a
- * re-fetched play stays idempotent.
- *
- * Returns the play times so the caller can advance the user's fetch cursor.
- */
+/** Store plays and their related rows in bounded batches. */
 export async function storePlays(db: Database, userId: User["id"], plays: SpotifyPlay[]) {
   const scrobbleDates: Date[] = [];
 

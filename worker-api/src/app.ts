@@ -10,8 +10,6 @@ import user from "./routes/user.ts";
 export function createApp() {
   return (
     new Hono<AppEnv>()
-      // The browser reaches this API through the app Worker, so every request is
-      // same-origin and CORS is not part of the contract.
       .on(["POST", "GET"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw))
       .route("/user", user)
       .route("/scrobble", scrobble)
