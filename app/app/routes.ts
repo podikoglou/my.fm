@@ -8,6 +8,7 @@ export default [
       layout("routes/app/layout.tsx", [
         index("routes/app/index.tsx"),
         route("user/:username", "routes/app/user.tsx"),
+        route("settings", "routes/app/settings.tsx"),
       ]),
     ]),
 
