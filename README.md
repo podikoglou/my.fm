@@ -32,6 +32,9 @@ Static assets      Spotify API
 - The **stack** (`alchemy.run.ts`) deploys the app, the API, the database, and
   the Cron Trigger together.
 
+D1 stores users, sessions, connected Spotify accounts, and the music history.
+The history includes tracks, albums, artists, and scrobbles.
+
 The app and the API share one origin. The browser keeps one first-party
 session cookie, and the Spotify callback returns to the app origin.
 
