@@ -31,6 +31,25 @@ directory. Alchemy applies pending migrations on the next deploy. The Worker
 never migrates at request time, so a schema change that ships without a
 migration fails in production rather than in review.
 
+## Cache
+
+The API Worker enables Workers Cache. A cache hit is served from the edge and
+does not run the Worker. The cache key includes the path and query string, so
+each feed cursor page has its own entry.
+
+Only `GET /api/feed` is public. Every other response is `private, no-store`,
+set in `worker-api/src/app.ts`. The default matters: user routes authenticate
+with a cookie, and the automatic cache bypass only covers `Authorization` and
+`Set-Cookie`. Without the default, a user-specific response could be stored and
+served to another user.
+
+A cached feed page can still show a profile that has just become private until
+its cache lifetime expires: 30 seconds for the first page and 5 minutes for a
+cursor page. The next request after that reads the current privacy setting.
+
+`alchemy dev` does not emulate Workers Cache. Check the `Cf-Cache-Status`
+response header on a deployed stage.
+
 ## Free plan limits
 
 The project targets the Cloudflare Free plan. Custom alert policies need a paid

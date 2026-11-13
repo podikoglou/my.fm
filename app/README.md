@@ -54,14 +54,15 @@ The stack builds `build/client` and serves it through `worker.ts`.
 
 ## Routing
 
-The page routes are pathless layouts over the root, so a profile is
-`/user/:username` and the settings page is `/settings`. A profile is readable
-without a session, so it sits outside the guarded layout that redirects `/` and
-`/settings` to Spotify. A private profile answers `403` to every visitor except
-its owner, and an account appears in public only after onboarding. The API keeps
-its own space: the Worker forwards `/api/*` and `/health` to the API Worker and
-serves every other path from the SPA build. `api-paths.ts` holds those prefixes,
-and `test/worker.test.ts` fails when a page path and an API path overlap.
+The page routes are pathless layouts over the root. `/` redirects to `/feed`,
+the public global feed. A profile is `/user/:username` and the settings page is
+`/settings`. The feed and a profile are readable without a session, so they sit
+outside the guarded layout that sends `/settings` to Spotify. A private profile
+answers `403` to every visitor except its owner, and an account appears in
+public only after onboarding. The API keeps its own space: the Worker forwards
+`/api/*` and `/health` to the API Worker and serves every other path from the SPA
+build. `api-paths.ts` holds those prefixes, and `test/worker.test.ts` fails when
+a page path and an API path overlap.
 
 ## Sign-in errors
 
