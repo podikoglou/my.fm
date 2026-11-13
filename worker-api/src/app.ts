@@ -10,11 +10,23 @@ import { INGESTION_STALE_AFTER_MS } from "./ingestion/run.ts";
 import scrobble from "./routes/scrobble.ts";
 import user from "./routes/user.ts";
 
+/**
+ * The routes that belong to the browser client, mounted at `/api`.
+ *
+ * `/user/:username` is a page in the web application, so the user API cannot
+ * keep the bare `/user` prefix. The web application forwards `/api/*` here.
+ */
+function createApi() {
+  return new Hono<AppEnv>()
+    .on(["POST", "GET"], "/auth/*", (c) => createAuth(c.env).handler(c.req.raw))
+    .route("/user", user)
+    .route("/scrobble", scrobble);
+}
+
 export function createApp() {
   return new Hono<AppEnv>()
-    .on(["POST", "GET"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw))
-    .route("/user", user)
-    .route("/scrobble", scrobble)
+    .route("/api", createApi())
+    // Health stays at the root, where monitoring expects it.
     .get("/health", async (c) => {
       const row = await c.env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
       const ok = row?.ok === 1;
@@ -45,7 +57,8 @@ export function createApp() {
 }
 
 /**
- * The Hono RPC type for the API. Clients import this type to type their
- * requests, as the web application does.
+ * The Hono RPC type for the client routes. Clients mount it at `/api`, so
+ * `hc<AppType>("/api")` reaches the same paths that the web application
+ * forwards.
  */
-export type AppType = ReturnType<typeof createApp>;
+export type AppType = ReturnType<typeof createApi>;
