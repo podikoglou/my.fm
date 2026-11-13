@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { DetailedError, parseResponse } from "hono/client";
 import { Lock, Settings, UserX } from "lucide-react";
-import { Link, useLocation } from "react-router";
+import { Link, Navigate, useLocation } from "react-router";
 
 import { ErrorCard } from "~/components/error-card";
 import { Button, buttonVariants } from "~/components/ui/button";
@@ -37,6 +37,11 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
 
   async function signIn() {
     await signInWithSpotify(location.pathname);
+  }
+
+  // The guarded layout skips this route, so the onboarding check lives here.
+  if (me && !me.onboarded) {
+    return <Navigate to="/onboard" replace />;
   }
 
   if (error) {
