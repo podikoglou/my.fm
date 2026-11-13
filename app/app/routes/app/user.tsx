@@ -55,7 +55,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
       <CardHeader className="relative flex flex-col items-center gap-4">
         {me?.id === data.id && (
           <Link
-            to="/app/settings"
+            to="/settings"
             aria-label="Settings"
             className={buttonVariants({
               variant: "ghost",
