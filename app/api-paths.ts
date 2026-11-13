@@ -2,9 +2,10 @@
  * Paths that the app Worker sends to the API Worker.
  *
  * One list drives both the deployed asset routing and the Worker's request
- * check, so the two cannot drift.
+ * check, so the two cannot drift. The user and scrobble routes live under
+ * `/api`, because `/user/:username` is a page in the web app.
  */
-export const API_PATH_PREFIXES = ["/api/", "/user/", "/scrobble/"] as const;
+export const API_PATH_PREFIXES = ["/api/"] as const;
 
 /** The exact `GET /health` path belongs to the API as well. */
 export const API_HEALTH_PATH = "/health";

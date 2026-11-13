@@ -52,6 +52,14 @@ bun run deploy
 
 The stack builds `build/client` and serves it through `worker.ts`.
 
+## Routing
+
+The page routes are pathless layouts over the root, so a profile is
+`/user/:username` and the settings page is `/settings`. The API keeps its own
+space: the Worker forwards `/api/*` and `/health` to the API Worker and serves
+every other path from the SPA build. `api-paths.ts` holds those prefixes, and
+`test/worker.test.ts` fails when a page path and an API path overlap.
+
 ## Sign-in errors
 
 Better Auth sends OAuth failures to `/auth/error` with `?error=<code>` and an

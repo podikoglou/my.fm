@@ -12,5 +12,5 @@ export default function AppIndexPage() {
 
   if (!data) return <></>;
 
-  return <Navigate to={`/app/user/${data.username}`} replace />;
+  return <Navigate to={`/user/${data.username}`} replace />;
 }

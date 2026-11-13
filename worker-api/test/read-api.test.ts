@@ -166,12 +166,12 @@ describe("authenticated routes", () => {
     const app = createApp();
 
     const requests = [
-      app.request("/user/me", undefined, env),
-      app.request("/user/byUsername?username=alex", undefined, env),
-      app.request("/user/byId?id=user-1", undefined, env),
-      app.request("/user/onboard", { method: "PUT" }, env),
-      app.request("/user/settings", { method: "PATCH" }, env),
-      app.request("/scrobble/getRecent?username=alex&offset=0", undefined, env),
+      app.request("/api/user/me", undefined, env),
+      app.request("/api/user/byUsername?username=alex", undefined, env),
+      app.request("/api/user/byId?id=user-1", undefined, env),
+      app.request("/api/user/onboard", { method: "PUT" }, env),
+      app.request("/api/user/settings", { method: "PATCH" }, env),
+      app.request("/api/scrobble/getRecent?username=alex&offset=0", undefined, env),
     ];
 
     for (const response of await Promise.all(requests)) {
@@ -179,6 +179,12 @@ describe("authenticated routes", () => {
       // The error handler forwards HTTPException's empty message.
       expect(await response.json()).toEqual({ error: "" });
     }
+  });
+
+  test("does not serve the client routes outside /api", async () => {
+    const response = await createApp().request("/user/me", undefined, createTestEnv());
+
+    expect(response.status).toBe(404);
   });
 });
 
@@ -258,7 +264,7 @@ describe("settings routes", () => {
     const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
 
     const response = await createApp().request(
-      `${baseUrl}/user/me`,
+      `${baseUrl}/api/user/me`,
       { headers: { cookie: owner.cookie } },
       env,
     );
@@ -280,7 +286,7 @@ describe("settings routes", () => {
     const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
 
     const response = await createApp().request(
-      `${baseUrl}/user/settings`,
+      `${baseUrl}/api/user/settings`,
       {
         method: "PATCH",
         headers: { cookie: owner.cookie, "content-type": "application/json" },
@@ -304,7 +310,7 @@ describe("settings routes", () => {
     const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
 
     const response = await createApp().request(
-      `${baseUrl}/user/settings`,
+      `${baseUrl}/api/user/settings`,
       {
         method: "PATCH",
         headers: { cookie: owner.cookie, "content-type": "application/json" },
@@ -329,7 +335,7 @@ describe("settings routes", () => {
     const app = createApp();
 
     const settings = await app.request(
-      `${baseUrl}/user/settings`,
+      `${baseUrl}/api/user/settings`,
       {
         method: "PATCH",
         headers: { cookie: owner.cookie, "content-type": "application/json" },
@@ -341,7 +347,7 @@ describe("settings routes", () => {
     expect(settings.status).toBe(200);
 
     const profile = await app.request(
-      `${baseUrl}/user/byUsername?username=alex`,
+      `${baseUrl}/api/user/byUsername?username=alex`,
       { headers: { cookie: other.cookie } },
       env,
     );
@@ -366,9 +372,9 @@ describe("profile visibility", () => {
     const headers = { cookie: other.cookie };
 
     const requests = [
-      app.request(`${baseUrl}/user/byUsername?username=alex`, { headers }, env),
-      app.request(`${baseUrl}/user/byId?id=${owner.userId}`, { headers }, env),
-      app.request(`${baseUrl}/scrobble/getRecent?username=alex&offset=0`, { headers }, env),
+      app.request(`${baseUrl}/api/user/byUsername?username=alex`, { headers }, env),
+      app.request(`${baseUrl}/api/user/byId?id=${owner.userId}`, { headers }, env),
+      app.request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=0`, { headers }, env),
     ];
 
     for (const response of await Promise.all(requests)) {
@@ -387,7 +393,7 @@ describe("profile visibility", () => {
       .where(eq(users.id, owner.userId));
 
     const response = await createApp().request(
-      `${baseUrl}/user/byUsername?username=alex`,
+      `${baseUrl}/api/user/byUsername?username=alex`,
       { headers: { cookie: owner.cookie } },
       env,
     );
@@ -412,7 +418,7 @@ describe("profile visibility", () => {
       .where(eq(users.id, owner.userId));
 
     const response = await createApp().request(
-      `${baseUrl}/user/byUsername?username=alex`,
+      `${baseUrl}/api/user/byUsername?username=alex`,
       { headers: { cookie: other.cookie } },
       env,
     );
