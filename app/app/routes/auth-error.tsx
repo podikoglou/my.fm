@@ -27,7 +27,7 @@ export default function AuthErrorPage() {
     setPending(true);
 
     try {
-      await signInWithSpotify("/app");
+      await signInWithSpotify("/");
     } catch (cause) {
       // The button must not stay disabled when the request never leaves.
       console.error(cause);
