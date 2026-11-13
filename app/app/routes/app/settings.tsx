@@ -63,7 +63,7 @@ export default function SettingsPage() {
           </div>
 
           <Link
-            to={`/app/user/${data.username}`}
+            to={`/user/${data.username}`}
             className={buttonVariants({ variant: "ghost", size: "sm" })}
           >
             <ArrowLeft />
