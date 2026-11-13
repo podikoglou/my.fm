@@ -4,7 +4,7 @@ import z from "zod";
 
 import type { AppEnv } from "../types.ts";
 
-import { authMiddleware } from "../auth-middleware.ts";
+import { requireSession, sessionMiddleware } from "../auth-middleware.ts";
 import { nameSchema, usernameSchema } from "../data/validators.ts";
 import { createDatabase } from "../db/index.ts";
 import {
@@ -17,7 +17,10 @@ import {
 } from "../db/queries/users.ts";
 
 export default new Hono<AppEnv>()
-  .use("/*", authMiddleware)
+  .use("/*", sessionMiddleware)
+  .use("/me", requireSession)
+  .use("/settings", requireSession)
+  .use("/onboard", requireSession)
   .get("/me", async (c) => {
     const { id, username, name, email, avatarUrl, onboarded, isPrivate } =
       await c.get("getUserData")();

@@ -4,12 +4,12 @@ import z from "zod";
 
 import type { AppEnv } from "../types.ts";
 
-import { authMiddleware } from "../auth-middleware.ts";
+import { sessionMiddleware } from "../auth-middleware.ts";
 import { createDatabase } from "../db/index.ts";
 import { findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { canViewProfile, findUserByUsernamePublic } from "../db/queries/users.ts";
 
-export default new Hono<AppEnv>().use("/*", authMiddleware).get(
+export default new Hono<AppEnv>().use("/*", sessionMiddleware).get(
   "/getRecent",
   zValidator(
     "query",
