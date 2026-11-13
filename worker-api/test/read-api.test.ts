@@ -22,7 +22,7 @@ import {
 } from "../src/db/schema.ts";
 import { baseUrl, createTestEnv, replaceFetch } from "./harness.ts";
 
-const userId = "user-1";
+const userId = "V1StGXR8_Z5jdHi6B-myT";
 const now = new Date("2026-11-11T12:00:00.000Z");
 
 async function seed() {
@@ -160,18 +160,91 @@ describe("scrobble queries", () => {
   });
 });
 
+describe("anonymous reads", () => {
+  test("serves a public profile without a session", async () => {
+    const { env } = await seed();
+    const app = createApp();
+
+    const byUsername = await app.request("/api/user/byUsername?username=alex", undefined, env);
+    const byId = await app.request(`/api/user/byId?id=${userId}`, undefined, env);
+
+    expect(byUsername.status).toBe(200);
+    expect(byId.status).toBe(200);
+
+    const profile = {
+      id: userId,
+      username: "alex",
+      name: "Alex",
+      avatarUrl: "https://example.com/alex.jpg",
+    };
+
+    expect(await byUsername.json()).toEqual(profile);
+    expect(await byId.json()).toEqual(profile);
+  });
+
+  test("serves the scrobbles of a public profile without a session", async () => {
+    const { env } = await seed();
+
+    const response = await createApp().request(
+      "/api/scrobble/getRecent?username=alex&offset=0",
+      undefined,
+      env,
+    );
+
+    expect(response.status).toBe(200);
+
+    const scrobbles = z.array(z.object({ id: z.string() })).parse(await response.json());
+
+    expect(scrobbles.map(({ id }) => id)).toEqual(["scrobble-new", "scrobble-old"]);
+  });
+
+  test("hides a private profile and its scrobbles from an anonymous visitor", async () => {
+    const { env, db } = await seed();
+
+    await db.update(users).set({ isPrivate: true }).where(eq(users.id, userId));
+
+    const app = createApp();
+
+    const responses = await Promise.all([
+      app.request("/api/user/byUsername?username=alex", undefined, env),
+      app.request(`/api/user/byId?id=${userId}`, undefined, env),
+      app.request("/api/scrobble/getRecent?username=alex&offset=0", undefined, env),
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: "Profile is private" });
+    }
+  });
+
+  test("treats an account that has not onboarded as not found", async () => {
+    const { env, db } = await seed();
+
+    await db.update(users).set({ onboarded: false }).where(eq(users.id, userId));
+
+    const app = createApp();
+
+    const responses = await Promise.all([
+      app.request("/api/user/byUsername?username=alex", undefined, env),
+      app.request(`/api/user/byId?id=${userId}`, undefined, env),
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: "User not found" });
+    }
+  });
+});
+
 describe("authenticated routes", () => {
-  test("rejects requests without a session", async () => {
+  test("rejects the session routes without a session", async () => {
     const env = createTestEnv();
     const app = createApp();
 
     const requests = [
       app.request("/api/user/me", undefined, env),
-      app.request("/api/user/byUsername?username=alex", undefined, env),
-      app.request("/api/user/byId?id=user-1", undefined, env),
       app.request("/api/user/onboard", { method: "PUT" }, env),
       app.request("/api/user/settings", { method: "PATCH" }, env),
-      app.request("/api/scrobble/getRecent?username=alex&offset=0", undefined, env),
     ];
 
     for (const response of await Promise.all(requests)) {
