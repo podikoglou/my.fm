@@ -20,6 +20,10 @@ export const Worker = Cloudflare.Worker("Worker", {
   // Every five minutes: the `scheduled` handler runs Spotify ingestion. A
   // longer gap keeps the app under its Spotify quota.
   crons: ["*/5 * * * *"],
+  // Only `/api/feed` opts into public caching. Every other response carries
+  // `private, no-store`, set in `src/app.ts`, because cookie-authenticated
+  // routes do not trigger the automatic cache bypass.
+  cache: { enabled: true },
   // Workers Logs is on by default. Issues groups the errors that ingestion
   // catches and logs, which the invocation outcome alone does not show.
   observability: { enabled: true, issues: { enabled: true } },

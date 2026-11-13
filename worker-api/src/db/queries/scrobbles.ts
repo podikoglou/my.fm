@@ -1,3 +1,5 @@
+import { sql } from "drizzle-orm";
+
 import type { Database } from "../index.ts";
 
 import { scrobbles, type ScrobbleInsert, type User } from "../schema.ts";
@@ -60,3 +62,67 @@ export async function findRecentScrobblesByUserId(
     },
   });
 }
+
+export type FeedCursor = {
+  scrobbleDate: Date;
+  id: string;
+};
+
+/**
+ * Read the global feed. Only public, onboarded users appear, and the cursor
+ * continues after the last row of the previous page.
+ *
+ * The row-value comparison keeps the keyset on one index range. An `OR` of
+ * two comparisons can make the planner read the index twice.
+ */
+export async function findPublicFeed(
+  db: Database,
+  { cursor, limit }: { cursor?: FeedCursor; limit: number },
+) {
+  return await db.query.scrobbles.findMany({
+    where: {
+      user: { isPrivate: false, onboarded: true },
+      scrobbleDate: { isNotNull: true as const },
+      RAW: (table: typeof scrobbles) =>
+        cursor
+          ? sql`(${table.scrobbleDate}, ${table.id}) < (${Math.floor(
+              cursor.scrobbleDate.getTime() / 1000,
+            )}, ${cursor.id})`
+          : sql`1 = 1`,
+    },
+    orderBy: { scrobbleDate: "desc", id: "desc" },
+    limit,
+    columns: {
+      id: true,
+      scrobbleDate: true,
+    },
+    with: {
+      user: {
+        columns: {
+          username: true,
+          name: true,
+          avatarUrl: true,
+        },
+      },
+      track: {
+        columns: {
+          name: true,
+          imageUrl: true,
+        },
+        with: {
+          trackArtists: {
+            columns: { position: true },
+            with: {
+              artist: {
+                columns: { name: true },
+              },
+            },
+            orderBy: { position: "asc" },
+          },
+        },
+      },
+    },
+  });
+}
+
+export type FeedRow = Awaited<ReturnType<typeof findPublicFeed>>[number];
