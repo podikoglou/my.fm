@@ -54,6 +54,16 @@ README shows the local callback URL.
 - Cron Trigger for Spotify ingestion
 - Alchemy stack in the repository root
 
+## Reading a profile
+
+`GET /api/user/byUsername`, `GET /api/user/byId` and
+`GET /api/scrobble/getRecent` answer a request without a session. The route
+attaches the session when one exists and passes its user to the visibility
+check, so a private profile answers `403` to every viewer except its owner. An
+account is public only after onboarding, because onboarding is what gives it a
+username that someone can share. The routes that read or change your own
+account still require a session.
+
 ## Ingestion
 
 The Cron Trigger runs the `scheduled` handler every five minutes
