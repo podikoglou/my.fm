@@ -4,13 +4,13 @@ import { AUTH_ERROR_ROUTE } from "./lib/auth-paths";
 
 export default [
   layout("routes/layout.tsx", [
-    // The guarded layout has no path, so a profile lives at `/user/:username`
-    // rather than below an `/app` prefix.
+    // The guarded layout has no path, so `/` and `/settings` keep their URLs.
     layout("routes/app/layout.tsx", [
       index("routes/app/index.tsx"),
-      route("user/:username", "routes/app/user.tsx"),
       route("settings", "routes/app/settings.tsx"),
     ]),
+
+    route("user/:username", "routes/app/user.tsx"),
 
     route("onboard", "routes/onboard.tsx"),
 

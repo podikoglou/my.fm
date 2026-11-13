@@ -9,23 +9,35 @@ import { createDatabase } from "./db/index.ts";
 import { findUserById } from "./db/queries/users.ts";
 
 /**
- * Require a Better Auth session and expose the application user on the
- * request context.
+ * Attach the session when the request carries one. A request without a session
+ * is valid and reaches the handler.
  */
-export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
+export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const session = await createAuth(c.env).api.getSession({
     headers: c.req.raw.headers,
   });
 
-  if (!session) {
+  c.set("user", session?.user ?? null);
+  c.set("session", session?.session ?? null);
+
+  await next();
+};
+
+/**
+ * Require the session that `sessionMiddleware` set, and expose the application
+ * user. It must run after `sessionMiddleware`, so a request reads the session
+ * once.
+ */
+export const requireSession: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const session = c.get("session");
+  const viewer = c.get("user");
+
+  if (!session || !viewer) {
     throw new HTTPException(401);
   }
 
-  c.set("user", session.user);
-  c.set("session", session.session);
-
   c.set("getUserData", async () => {
-    const user = await findUserById(createDatabase(c.env.DB), session.user.id);
+    const user = await findUserById(createDatabase(c.env.DB), viewer.id);
 
     // Stop the request cycle early if the session points at a deleted user.
     if (!user) {

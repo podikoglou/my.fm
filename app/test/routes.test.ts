@@ -12,6 +12,19 @@ function flatten(nodes: readonly RouteNode[]): RouteNode[] {
   return nodes.flatMap((node) => [node, ...flatten(node.children ?? [])]);
 }
 
+/** Return the nodes from the root down to `path`, or nothing when it is absent. */
+function findChain(nodes: readonly RouteNode[], path: string): RouteNode[] | undefined {
+  for (const node of nodes) {
+    if (node.path === path) return [node];
+
+    const chain = findChain(node.children ?? [], path);
+
+    if (chain) return [node, ...chain];
+  }
+
+  return undefined;
+}
+
 test("the OAuth error page is registered where Better Auth redirects", () => {
   const node = flatten(routes).find(({ path }) => path === AUTH_ERROR_ROUTE);
 
@@ -25,4 +38,11 @@ test("the profile is a page at /user/:username and not below /app", () => {
 
   expect(paths).toContain("user/:username");
   expect(paths.filter((path) => path === "app" || path.startsWith("app/"))).toEqual([]);
+});
+
+test("the profile route is not behind the guarded layout", () => {
+  const files = findChain(routes, "user/:username")?.map(({ file }) => file) ?? [];
+
+  expect(files).toContain("routes/app/user.tsx");
+  expect(files).not.toContain("routes/app/layout.tsx");
 });
