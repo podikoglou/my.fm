@@ -41,33 +41,45 @@ function createEnv() {
 }
 
 test("asset routing covers every API path", () => {
-  expect(API_RUN_WORKER_FIRST).toEqual(["/api/*", "/user/*", "/scrobble/*", "/health"]);
+  expect(API_RUN_WORKER_FIRST).toEqual(["/api/*", "/health"]);
 });
 
 test("forwards API paths over the service binding", async () => {
   const { env, apiPaths, assetPaths } = createEnv();
 
-  for (const path of ["/api/auth/get-session", "/user/me", "/scrobble/getRecent", "/health"]) {
+  for (const path of [
+    "/api/auth/get-session",
+    "/api/user/me",
+    "/api/scrobble/getRecent",
+    "/health",
+  ]) {
     const response = await worker.fetch(new Request(`https://app.test${path}`), env);
 
     expect(await response.text()).toBe("api");
   }
 
-  expect(apiPaths).toEqual(["/api/auth/get-session", "/user/me", "/scrobble/getRecent", "/health"]);
+  expect(apiPaths).toEqual([
+    "/api/auth/get-session",
+    "/api/user/me",
+    "/api/scrobble/getRecent",
+    "/health",
+  ]);
   expect(assetPaths).toEqual([]);
 });
 
 test("serves every other path from the assets", async () => {
   const { env, apiPaths, assetPaths } = createEnv();
 
-  for (const path of ["/", "/app", "/app/user/alex", "/apiary", "/api"]) {
+  const paths = ["/", "/user/alex", "/settings", "/apiary", "/api"];
+
+  for (const path of paths) {
     const response = await worker.fetch(new Request(`https://app.test${path}`), env);
 
     expect(await response.text()).toBe("asset");
   }
 
   expect(apiPaths).toEqual([]);
-  expect(assetPaths).toEqual(["/", "/app", "/app/user/alex", "/apiary", "/api"]);
+  expect(assetPaths).toEqual(paths);
 });
 
 test("returns the API response and request unchanged", async () => {

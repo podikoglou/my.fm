@@ -19,3 +19,10 @@ test("the OAuth error page is registered where Better Auth redirects", () => {
   expect(`/${node!.path}`).toBe(AUTH_ERROR_PATH);
   expect(existsSync(join(import.meta.dir, "../app", node!.file!))).toBe(true);
 });
+
+test("the profile is a page at /user/:username and not below /app", () => {
+  const paths = flatten(routes).flatMap(({ path }) => (path === undefined ? [] : [path]));
+
+  expect(paths).toContain("user/:username");
+  expect(paths.filter((path) => path === "app" || path.startsWith("app/"))).toEqual([]);
+});
