@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
 import { apiClient } from "~/lib/api";
 
 import { ErrorCard } from "./error-card";
-import { Track } from "./track-card";
+import { FeedTrack } from "./feed-track-card";
 
 function fetchFeedPage(cursor: string | null) {
   return parseResponse(
@@ -86,17 +86,14 @@ export function FeedTrackList() {
   return (
     <div className="h-full space-y-1 overflow-y-auto pr-1">
       {scrobbles.map((scrobble) => (
-        <Track
+        <FeedTrack
           key={scrobble.id}
-          title={scrobble.track.name}
-          artist={`${scrobble.user.name} · ${scrobble.track.artists.join(", ")}`}
-          imageUrl={scrobble.track.imageUrl}
-          extra={
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {scrobble.scrobbleDate
-                ? formatDistanceToNow(new Date(scrobble.scrobbleDate), { addSuffix: true })
-                : null}
-            </span>
+          user={scrobble.user}
+          track={scrobble.track}
+          time={
+            scrobble.scrobbleDate
+              ? formatDistanceToNow(new Date(scrobble.scrobbleDate), { addSuffix: true })
+              : null
           }
         />
       ))}
