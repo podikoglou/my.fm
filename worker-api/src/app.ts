@@ -24,36 +24,41 @@ function createApi() {
 }
 
 export function createApp() {
-  return new Hono<AppEnv>()
-    .route("/api", createApi())
-    // Health stays at the root, where monitoring expects it.
-    .get("/health", async (c) => {
-      const row = await c.env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
-      const ok = row?.ok === 1;
+  return (
+    new Hono<AppEnv>()
+      .route("/api", createApi())
+      // Health stays at the root, where monitoring expects it.
+      .get("/health", async (c) => {
+        const row = await c.env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
+        const ok = row?.ok === 1;
 
-      return c.json({ status: ok ? "ok" : "error", database: ok ? "ok" : "error" }, ok ? 200 : 503);
-    })
-    .get("/health/ingestion", async (c) => {
-      const run = await findIngestionRun(createDatabase(c.env.DB));
-      const ageMs = run ? Date.now() - run.lastRunAt.getTime() : null;
-      const ok = ageMs !== null && ageMs <= INGESTION_STALE_AFTER_MS;
+        return c.json(
+          { status: ok ? "ok" : "error", database: ok ? "ok" : "error" },
+          ok ? 200 : 503,
+        );
+      })
+      .get("/health/ingestion", async (c) => {
+        const run = await findIngestionRun(createDatabase(c.env.DB));
+        const ageMs = run ? Date.now() - run.lastRunAt.getTime() : null;
+        const ok = ageMs !== null && ageMs <= INGESTION_STALE_AFTER_MS;
 
-      return c.json(
-        {
-          status: ok ? "ok" : "stale",
-          lastRunAt: run?.lastRunAt ?? null,
-          lastRunStatus: run?.status ?? null,
-          blockedUntil: run?.blockedUntil ?? null,
-          ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
-        },
-        ok ? 200 : 503,
-      );
-    })
-    .onError((err, c) => {
-      const status = err instanceof HTTPException ? err.status : 500;
+        return c.json(
+          {
+            status: ok ? "ok" : "stale",
+            lastRunAt: run?.lastRunAt ?? null,
+            lastRunStatus: run?.status ?? null,
+            blockedUntil: run?.blockedUntil ?? null,
+            ageSeconds: ageMs === null ? null : Math.round(ageMs / 1000),
+          },
+          ok ? 200 : 503,
+        );
+      })
+      .onError((err, c) => {
+        const status = err instanceof HTTPException ? err.status : 500;
 
-      return c.json({ error: err.message ?? "Internal server error" }, status);
-    });
+        return c.json({ error: err.message ?? "Internal server error" }, status);
+      })
+  );
 }
 
 /**
