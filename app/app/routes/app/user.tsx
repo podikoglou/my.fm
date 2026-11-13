@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { DetailedError, parseResponse } from "hono/client";
 import { Lock, Settings, UserX } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { ErrorCard } from "~/components/error-card";
-import { buttonVariants } from "~/components/ui/button";
+import { Button, buttonVariants } from "~/components/ui/button";
 import { CardHeader, CardContent } from "~/components/ui/card";
 import { UserAvatar } from "~/components/user-avatar";
 import { UserTrackList } from "~/components/user-track-list";
 import { apiClient } from "~/lib/api";
+import { authClient } from "~/lib/auth";
+import { signInWithSpotify } from "~/lib/auth-guard";
 
 import type { Route } from "./+types/user";
 
@@ -17,16 +19,25 @@ export async function clientLoader({ params }: Route.LoaderArgs) {
 }
 
 export default function AppUserPage({ loaderData: { username } }: Route.ComponentProps) {
+  const location = useLocation();
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+
   const { data, error } = useQuery({
     queryKey: ["user", username],
     queryFn: () => parseResponse(apiClient.user.byUsername.$get({ query: { username } })),
     retry: false,
   });
 
+  // The API answers 401 without a session, so ask only when there is one.
   const { data: me } = useQuery({
     queryKey: ["user", "me"],
     queryFn: () => parseResponse(apiClient.user.me.$get()),
+    enabled: Boolean(session),
   });
+
+  async function signIn() {
+    await signInWithSpotify(location.pathname);
+  }
 
   if (error) {
     if (error instanceof DetailedError && error.statusCode === 403) {
@@ -65,6 +76,12 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
           >
             <Settings />
           </Link>
+        )}
+
+        {!sessionPending && !session && (
+          <Button variant="ghost" size="sm" className="absolute top-0 right-2" onClick={signIn}>
+            Sign in
+          </Button>
         )}
 
         <UserAvatar avatarUrl={data.avatarUrl} name={data.name} />
