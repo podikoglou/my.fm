@@ -107,24 +107,30 @@ export const verification = sqliteTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
-export const scrobbles = sqliteTable("scrobbles", {
-  id: text().primaryKey(),
-  createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
+export const scrobbles = sqliteTable(
+  "scrobbles",
+  {
+    id: text().primaryKey(),
+    createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
 
-  userId: text()
-    .notNull()
-    .references(() => users.id),
+    userId: text()
+      .notNull()
+      .references(() => users.id),
 
-  trackSpotifyUri: text()
-    .notNull()
-    .references(() => tracks.spotifyUri),
+    trackSpotifyUri: text()
+      .notNull()
+      .references(() => tracks.spotifyUri),
 
-  albumSpotifyUri: text()
-    .notNull()
-    .references(() => albums.spotifyUri),
+    albumSpotifyUri: text()
+      .notNull()
+      .references(() => albums.spotifyUri),
 
-  scrobbleDate: integer({ mode: "timestamp" }),
-});
+    scrobbleDate: integer({ mode: "timestamp" }),
+  },
+  // The public feed reads every user's scrobbles in play-time order. The ID
+  // breaks ties inside one second, so the keyset cursor is exact.
+  (table) => [index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id)],
+);
 
 export type ScrobbleInsert = typeof scrobbles.$inferInsert;
 
