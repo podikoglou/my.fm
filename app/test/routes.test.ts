@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { AUTH_ERROR_PATH, AUTH_ERROR_ROUTE } from "../app/lib/auth-paths.ts";
 import routes from "../app/routes.ts";
 
-type RouteNode = { file?: string; path?: string; children?: RouteNode[] };
+type RouteNode = { file?: string; path?: string; index?: boolean; children?: RouteNode[] };
 
 /** Flatten the route table, because child routes live inside layouts. */
 function flatten(nodes: readonly RouteNode[]): RouteNode[] {
@@ -18,6 +18,22 @@ function findChain(nodes: readonly RouteNode[], path: string): RouteNode[] | und
     if (node.path === path) return [node];
 
     const chain = findChain(node.children ?? [], path);
+
+    if (chain) return [node, ...chain];
+  }
+
+  return undefined;
+}
+
+/** Return the nodes from the root down to the first match. */
+function findChainWhere(
+  nodes: readonly RouteNode[],
+  match: (node: RouteNode) => boolean,
+): RouteNode[] | undefined {
+  for (const node of nodes) {
+    if (match(node)) return [node];
+
+    const chain = findChainWhere(node.children ?? [], match);
 
     if (chain) return [node, ...chain];
   }
@@ -44,5 +60,21 @@ test("the profile route is not behind the guarded layout", () => {
   const files = findChain(routes, "user/:username")?.map(({ file }) => file) ?? [];
 
   expect(files).toContain("routes/app/user.tsx");
+  expect(files).not.toContain("routes/app/layout.tsx");
+});
+
+test("the feed is a public page outside the guarded layout", () => {
+  const chain = findChain(routes, "feed");
+  const files = chain?.map(({ file }) => file) ?? [];
+
+  expect(files).toContain("routes/feed.tsx");
+  expect(files).not.toContain("routes/app/layout.tsx");
+});
+
+test("the root sends a visitor to the public feed", () => {
+  const chain = findChainWhere(routes, (node) => node.index === true);
+  const files = chain?.map(({ file }) => file) ?? [];
+
+  expect(files).toContain("routes/index.tsx");
   expect(files).not.toContain("routes/app/layout.tsx");
 });
