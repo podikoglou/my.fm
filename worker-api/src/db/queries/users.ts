@@ -41,7 +41,9 @@ export async function findUserByUsernamePublic(
   username: User["username"],
 ): Promise<UserProfile | undefined> {
   return await db.query.users.findFirst({
-    where: { username },
+    // A profile is public only after onboarding, which gives it a username that
+    // someone can share.
+    where: { username, onboarded: true },
     columns: profileColumns,
   });
 }
@@ -51,7 +53,7 @@ export async function findUserByIdPublic(
   id: User["id"],
 ): Promise<UserProfile | undefined> {
   return await db.query.users.findFirst({
-    where: { id },
+    where: { id, onboarded: true },
     columns: profileColumns,
   });
 }
