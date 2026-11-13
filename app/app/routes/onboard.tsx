@@ -24,7 +24,7 @@ export async function clientLoader() {
   const { user } = await requireAuth("/onboard");
 
   if (user && user.onboarded) {
-    throw redirect("/app");
+    throw redirect("/");
   }
 }
 
@@ -50,7 +50,7 @@ export default function OnboardPage() {
     mutationFn: (data: FormValues) => parseResponse(apiClient.user.onboard.$put({ form: data })),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-      navigate("/app");
+      navigate("/");
     },
     onError: (error) => console.error(error),
   });
