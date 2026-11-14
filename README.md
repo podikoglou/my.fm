@@ -55,20 +55,6 @@ Useful commands:
 - `bun run typecheck:infra` typechecks the root Alchemy stack.
 - `bun run db:generate` writes new migrations after a schema change.
 
-## Preview deployment
-
-`bun run deploy:preview` deploys the `preview` stage, a full copy of the stack:
-its own Website Worker, API Worker, and D1 database, with its own session
-secret. The live stage is not touched.
-
-A stage serves its `workers.dev` URL unless `WEBSITE_DOMAIN_PREVIEW` names a
-hostname you own. Set it in `.env`; Alchemy attaches the DNS record and the
-certificate at deploy time. A hostname needs a matching Spotify redirect URI,
-`https://<hostname>/api/auth/callback/spotify`, because Better Auth derives the
-callback URL from the request origin.
-
-`bun run destroy:preview` removes the stage and its domain.
-
 ## Demo
 
 Here is what it looks like:
