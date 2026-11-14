@@ -44,7 +44,17 @@ const feedResponse = z.object({
       track: z.object({
         name: z.string(),
         imageUrl: z.string(),
-        artists: z.array(z.string()),
+        spotifyUri: z.string(),
+        artists: z.array(
+          z.object({
+            name: z.string(),
+            spotifyUri: z.string(),
+          }),
+        ),
+      }),
+      album: z.object({
+        name: z.string(),
+        spotifyUri: z.string(),
       }),
     }),
   ),
@@ -169,7 +179,15 @@ describe("public feed", () => {
     expect(body.items[0]?.track).toEqual({
       name: "A Track",
       imageUrl: "https://example.com/track.jpg",
-      artists: ["First Artist", "Second Artist"],
+      spotifyUri: "spotify:track:1",
+      artists: [
+        { name: "First Artist", spotifyUri: "spotify:artist:1" },
+        { name: "Second Artist", spotifyUri: "spotify:artist:2" },
+      ],
+    });
+    expect(body.items[0]?.album).toEqual({
+      name: "An Album",
+      spotifyUri: "spotify:album:1",
     });
     expect(body.nextCursor).toBeNull();
   });

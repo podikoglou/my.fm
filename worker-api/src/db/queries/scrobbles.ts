@@ -104,17 +104,24 @@ export async function findPublicFeed(
           avatarUrl: true,
         },
       },
+      album: {
+        columns: {
+          name: true,
+          spotifyUri: true,
+        },
+      },
       track: {
         columns: {
           name: true,
           imageUrl: true,
+          spotifyUri: true,
         },
         with: {
           trackArtists: {
             columns: { position: true },
             with: {
               artist: {
-                columns: { name: true },
+                columns: { name: true, spotifyUri: true },
               },
             },
             orderBy: { position: "asc" },

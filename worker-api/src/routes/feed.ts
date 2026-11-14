@@ -55,7 +55,15 @@ function toFeedItem(row: FeedRow) {
     track: {
       name: row.track.name,
       imageUrl: row.track.imageUrl,
-      artists: row.track.trackArtists.map(({ artist }) => artist.name),
+      spotifyUri: row.track.spotifyUri,
+      artists: row.track.trackArtists.map(({ artist }) => ({
+        name: artist.name,
+        spotifyUri: artist.spotifyUri,
+      })),
+    },
+    album: {
+      name: row.album.name,
+      spotifyUri: row.album.spotifyUri,
     },
   };
 }
