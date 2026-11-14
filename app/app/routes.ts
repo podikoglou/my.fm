@@ -4,11 +4,12 @@ import { AUTH_ERROR_ROUTE } from "./lib/auth-paths";
 
 export default [
   layout("routes/layout.tsx", [
-    // The guarded layout has no path, so `/` and `/settings` keep their URLs.
-    layout("routes/app/layout.tsx", [
-      index("routes/app/index.tsx"),
-      route("settings", "routes/app/settings.tsx"),
-    ]),
+    // The feed is public, so it sits outside the guarded layout.
+    index("routes/index.tsx"),
+    route("feed", "routes/feed.tsx"),
+
+    // The guarded layout has no path, so `/settings` keeps its URL.
+    layout("routes/app/layout.tsx", [route("settings", "routes/app/settings.tsx")]),
 
     route("user/:username", "routes/app/user.tsx"),
 
