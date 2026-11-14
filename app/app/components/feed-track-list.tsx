@@ -90,6 +90,7 @@ export function FeedTrackList() {
           key={scrobble.id}
           user={scrobble.user}
           track={scrobble.track}
+          album={scrobble.album}
           time={
             scrobble.scrobbleDate
               ? formatDistanceToNow(new Date(scrobble.scrobbleDate), { addSuffix: true })

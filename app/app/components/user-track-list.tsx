@@ -74,9 +74,13 @@ export function UserTrackList({ username }: { username: string }) {
       <div className="h-full space-y-1 overflow-y-auto pr-1">
         {allScrobbles.map((scrobble) => (
           <Track
-            artist={scrobble.track.artists.map((a) => a.name).join(", ")}
+            key={scrobble.id}
+            artists={scrobble.track.artists}
             title={scrobble.track.name}
             imageUrl={scrobble.album.imageUrl}
+            albumSpotifyUri={scrobble.album.spotifyUri}
+            albumTitle={scrobble.album.name}
+            trackSpotifyUri={scrobble.track.spotifyUri}
             extra={
               <span className="shrink-0 text-xs text-muted-foreground">
                 {scrobble.scrobbleDate ? formatTimeAgo(new Date(scrobble.scrobbleDate)) : null}
