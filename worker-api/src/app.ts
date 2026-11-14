@@ -7,6 +7,7 @@ import { createAuth } from "./auth.ts";
 import { createDatabase } from "./db/index.ts";
 import { findIngestionRun } from "./db/queries/ingestionRuns.ts";
 import { INGESTION_STALE_AFTER_MS } from "./ingestion/run.ts";
+import { rateLimit } from "./rate-limit-middleware.ts";
 import feed from "./routes/feed.ts";
 import scrobble from "./routes/scrobble.ts";
 import user from "./routes/user.ts";
@@ -19,7 +20,9 @@ import user from "./routes/user.ts";
  */
 function createApi() {
   return new Hono<AppEnv>()
-    .on(["POST", "GET"], "/auth/*", (c) => createAuth(c.env).handler(c.req.raw))
+    .on(["POST", "GET"], "/auth/*", rateLimit("AUTH_RATE_LIMIT"), (c) =>
+      createAuth(c.env).handler(c.req.raw),
+    )
     .route("/user", user)
     .route("/scrobble", scrobble)
     .route("/feed", feed);
