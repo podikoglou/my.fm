@@ -9,7 +9,8 @@ import { findIngestionRun, recordIngestionRun } from "../db/queries/ingestionRun
 import {
   findSpotifyAccounts,
   findUserQueueDataById,
-  updateLastRecentTracksFetchTime,
+  updateUserFetchState,
+  type UserFetchStateUpdate,
 } from "../db/queries/users.ts";
 import {
   INGESTION_EVENTS,
@@ -61,11 +62,47 @@ function blockWindow(now: Date, retryAfterSeconds: number | null) {
   return { until: new Date(now.getTime() + seconds * 1000), seconds };
 }
 
+export const INGESTION_CONFIG = {
+  /** How often to fetch Spotify for an active user (ms). */
+  activeIntervalMs: 1 * 60_000,
+  /** How often to fetch Spotify for an inactive user (ms). */
+  inactiveIntervalMs: 10 * 60_000,
+  /** How long a user remains in the active group after recent playback (ms). */
+  activeWindowMs: 15 * 60_000,
+} as const;
+
+export type IngestionConfig = typeof INGESTION_CONFIG;
+
+export function shouldFetchUser(
+  user: {
+    lastFetchedAt?: Date | null;
+    lastActiveAt?: Date | null;
+    lastRecentTracksFetchTime?: Date | null;
+  },
+  now: Date,
+  config: IngestionConfig = INGESTION_CONFIG,
+): boolean {
+  if (!user.lastFetchedAt || !user.lastRecentTracksFetchTime) {
+    return true;
+  }
+
+  const timeSinceLastFetch = now.getTime() - user.lastFetchedAt.getTime();
+
+  const isActive =
+    user.lastActiveAt != null &&
+    now.getTime() - user.lastActiveAt.getTime() < config.activeWindowMs;
+
+  const intervalMs = isActive ? config.activeIntervalMs : config.inactiveIntervalMs;
+
+  return timeSinceLastFetch >= intervalMs;
+}
+
 type AccountResult = {
   /** Plays that reached `storePlays`, including plays that already existed. */
   plays: number;
   /** False when the account was skipped or failed without throwing. */
   ok: boolean;
+  skipped?: boolean;
 };
 
 /**
@@ -86,9 +123,9 @@ type AccountResult = {
 export async function runIngestion(
   env: WorkerEnv,
   createClient: CreateSpotifyClient = (accessToken) => createSpotifyClient(env, accessToken),
+  now: Date = new Date(),
 ) {
   const db = createDatabase(env.DB);
-  const now = new Date();
   const previous = await findIngestionRun(db);
 
   if (previous?.blockedUntil && previous.blockedUntil > now) {
@@ -113,6 +150,7 @@ export async function runIngestion(
 
   let plays = 0;
   let failures = 0;
+  let attemptedAccounts = 0;
 
   for (const account of accounts) {
     // A user must have exactly one Spotify account. Keep the first row and
@@ -124,29 +162,35 @@ export async function runIngestion(
     seenUsers.add(account.userId);
 
     try {
-      const result = await ingestAccount(db, auth, account, createClient);
+      const result = await ingestAccount(db, auth, account, createClient, now);
 
+      if (result.skipped) {
+        continue;
+      }
+
+      attemptedAccounts += 1;
       plays += result.plays;
 
       if (!result.ok) {
         failures += 1;
       }
     } catch (error) {
+      attemptedAccounts += 1;
       const quota = error instanceof Error ? getSpotifyQuotaError(error) : null;
 
       if (quota) {
-        const block = blockWindow(new Date(), quota.retryAfterSeconds);
+        const block = blockWindow(now, quota.retryAfterSeconds);
 
         logIngestionFailure(INGESTION_EVENTS.quotaExhausted);
         await recordIngestionRun(db, {
-          at: new Date(),
+          at: now,
           status: "quota",
           blockedUntil: block.until,
         });
         logIngestionEvent({
           event: INGESTION_EVENTS.runComplete,
           status: "quota",
-          accounts: seenUsers.size,
+          accounts: attemptedAccounts,
           plays,
           failures,
           retryAfterSeconds: block.seconds,
@@ -169,12 +213,12 @@ export async function runIngestion(
   logIngestionEvent({
     event: INGESTION_EVENTS.runComplete,
     status,
-    accounts: seenUsers.size,
+    accounts: attemptedAccounts,
     plays,
     failures,
   });
 
-  await recordIngestionRun(db, { at: new Date(), status });
+  await recordIngestionRun(db, { at: now, status });
 }
 
 /**
@@ -190,7 +234,20 @@ async function ingestAccount(
   auth: Auth,
   account: SpotifyAccount,
   createClient: CreateSpotifyClient,
+  now: Date,
 ): Promise<AccountResult> {
+  const queueData = await findUserQueueDataById(db, account.userId);
+
+  if (!queueData) {
+    logIngestionWarning(INGESTION_EVENTS.userMissing, account.userId);
+
+    return { plays: 0, ok: false };
+  }
+
+  if (!shouldFetchUser(queueData, now)) {
+    return { plays: 0, ok: true, skipped: true };
+  }
+
   // Better Auth selects the account row by its local ID.
   const token = await auth.api.getAccessToken({
     body: { accountId: account.id, userId: account.userId },
@@ -198,14 +255,6 @@ async function ingestAccount(
 
   if (!token?.accessToken) {
     logIngestionFailure(INGESTION_EVENTS.tokenMissing, account.userId);
-
-    return { plays: 0, ok: false };
-  }
-
-  const queueData = await findUserQueueDataById(db, account.userId);
-
-  if (!queueData) {
-    logIngestionWarning(INGESTION_EVENTS.userMissing, account.userId);
 
     return { plays: 0, ok: false };
   }
@@ -230,13 +279,22 @@ async function ingestAccount(
     }
   }
 
-  if (mostRecentScrobbleDate) {
-    await updateLastRecentTracksFetchTime(db, account.userId, mostRecentScrobbleDate);
-  } else if (lastRecentTracksFetchTime) {
-    // No new plays after the cursor: move it to now so the next fetch asks
-    // only for plays after this point.
-    await updateLastRecentTracksFetchTime(db, account.userId, new Date());
+  const isRecentPlay =
+    mostRecentScrobbleDate !== null &&
+    now.getTime() - mostRecentScrobbleDate.getTime() <= INGESTION_CONFIG.activeWindowMs;
+
+  const nextCursor = mostRecentScrobbleDate ?? queueData.lastRecentTracksFetchTime ?? now;
+
+  const update: UserFetchStateUpdate = {
+    lastFetchedAt: now,
+    lastRecentTracksFetchTime: nextCursor,
+  };
+
+  if (isRecentPlay) {
+    update.lastActiveAt = now;
   }
+
+  await updateUserFetchState(db, account.userId, update);
 
   logIngestionEvent({
     event: INGESTION_EVENTS.accountIngested,
@@ -244,5 +302,5 @@ async function ingestAccount(
     plays: scrobbleDates.length,
   });
 
-  return { plays: scrobbleDates.length, ok: true };
+  return { plays: scrobbleDates.length, ok: true, skipped: false };
 }

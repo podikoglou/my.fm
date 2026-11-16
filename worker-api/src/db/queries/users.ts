@@ -95,8 +95,24 @@ export async function findUserQueueDataById(db: Database, id: User["id"]) {
     where: { id },
     columns: {
       lastRecentTracksFetchTime: true,
+      lastFetchedAt: true,
+      lastActiveAt: true,
     },
   });
+}
+
+export type UserFetchStateUpdate = {
+  lastFetchedAt: Date;
+  lastRecentTracksFetchTime?: Date;
+  lastActiveAt?: Date;
+};
+
+export async function updateUserFetchState(
+  db: Database,
+  userId: User["id"],
+  values: UserFetchStateUpdate,
+) {
+  await db.update(users).set(values).where(eq(users.id, userId));
 }
 
 export async function updateLastRecentTracksFetchTime(

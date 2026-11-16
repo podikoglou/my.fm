@@ -21,7 +21,7 @@ import {
 } from "../src/db/schema.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { storePlays } from "../src/ingestion/plays.ts";
-import { runIngestion } from "../src/ingestion/run.ts";
+import { runIngestion, shouldFetchUser } from "../src/ingestion/run.ts";
 import { SpotifyQuotaExceededError } from "../src/ingestion/spotify.ts";
 import { createTestDatabase, createTestEnv, replaceFetch } from "./harness.ts";
 
@@ -772,5 +772,211 @@ describe("runIngestion", () => {
 
     expect(updated?.status).toBe("ok");
     expect(await db.select().from(ingestionRuns)).toHaveLength(1);
+  });
+});
+
+describe("shouldFetchUser", () => {
+  const baseTime = new Date("2026-11-16T12:00:00.000Z");
+
+  test("fetches immediately if user was never fetched", () => {
+    expect(shouldFetchUser({ lastFetchedAt: null, lastActiveAt: null }, baseTime)).toBe(true);
+  });
+
+  test("fetches immediately if cursor was reset to null", () => {
+    expect(
+      shouldFetchUser(
+        {
+          lastFetchedAt: new Date(baseTime.getTime() - 60_000),
+          lastRecentTracksFetchTime: null,
+          lastActiveAt: null,
+        },
+        baseTime,
+      ),
+    ).toBe(true);
+  });
+
+  test("skips inactive user when fetch interval has not elapsed", () => {
+    // Fetched 5 minutes ago (< 10 min inactive interval)
+    const lastFetchedAt = new Date(baseTime.getTime() - 5 * 60_000);
+    expect(
+      shouldFetchUser(
+        { lastFetchedAt, lastActiveAt: null, lastRecentTracksFetchTime: lastFetchedAt },
+        baseTime,
+      ),
+    ).toBe(false);
+  });
+
+  test("fetches inactive user when fetch interval has elapsed", () => {
+    // Fetched 10 minutes ago (>= 10 min inactive interval)
+    const lastFetchedAt = new Date(baseTime.getTime() - 10 * 60_000);
+    expect(
+      shouldFetchUser(
+        { lastFetchedAt, lastActiveAt: null, lastRecentTracksFetchTime: lastFetchedAt },
+        baseTime,
+      ),
+    ).toBe(true);
+  });
+
+  test("skips active user when active interval has not elapsed", () => {
+    // Active 2 min ago, fetched 30s ago (< 1 min active interval)
+    const lastActiveAt = new Date(baseTime.getTime() - 2 * 60_000);
+    const lastFetchedAt = new Date(baseTime.getTime() - 30_000);
+    expect(
+      shouldFetchUser(
+        { lastFetchedAt, lastActiveAt, lastRecentTracksFetchTime: lastFetchedAt },
+        baseTime,
+      ),
+    ).toBe(false);
+  });
+
+  test("fetches active user when active interval has elapsed", () => {
+    // Active 2 min ago, fetched 1 min ago (>= 1 min active interval)
+    const lastActiveAt = new Date(baseTime.getTime() - 2 * 60_000);
+    const lastFetchedAt = new Date(baseTime.getTime() - 60_000);
+    expect(
+      shouldFetchUser(
+        { lastFetchedAt, lastActiveAt, lastRecentTracksFetchTime: lastFetchedAt },
+        baseTime,
+      ),
+    ).toBe(true);
+  });
+
+  test("treats user as inactive once active window has expired", () => {
+    // Active 16 minutes ago (> 15 min active window), fetched 2 minutes ago (< 10 min inactive interval)
+    const lastActiveAt = new Date(baseTime.getTime() - 16 * 60_000);
+    const lastFetchedAt = new Date(baseTime.getTime() - 2 * 60_000);
+    expect(
+      shouldFetchUser(
+        { lastFetchedAt, lastActiveAt, lastRecentTracksFetchTime: lastFetchedAt },
+        baseTime,
+      ),
+    ).toBe(false);
+
+    // After 10 minutes from last fetch, inactive user is now due
+    const laterTime = new Date(baseTime.getTime() + 8 * 60_000);
+    expect(
+      shouldFetchUser(
+        { lastFetchedAt, lastActiveAt, lastRecentTracksFetchTime: lastFetchedAt },
+        laterTime,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("dynamic fetch intervals in runIngestion", () => {
+  test("skips inactive user on subsequent tick within 10-minute window", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const t0 = new Date("2026-11-16T12:00:00.000Z");
+    const t1 = new Date("2026-11-16T12:02:00.000Z"); // 2 min later
+    const calls: FetchCall[] = [];
+
+    await seedUser(db);
+
+    // Initial run at t0: user fetched
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      t0,
+    );
+    expect(calls).toHaveLength(1);
+
+    // Second run at t1 (2 min later): user skipped
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      t1,
+    );
+    expect(calls).toHaveLength(1); // No new Spotify call!
+  });
+
+  test("fetches inactive user after 10 minutes", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const t0 = new Date("2026-11-16T12:00:00.000Z");
+    const t10 = new Date("2026-11-16T12:10:00.000Z"); // 10 min later
+    const calls: FetchCall[] = [];
+
+    await seedUser(db);
+
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      t0,
+    );
+    expect(calls).toHaveLength(1);
+
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      t10,
+    );
+    expect(calls).toHaveLength(2); // Second Spotify call made!
+  });
+
+  test("promotes user to active when recent plays are found and fetches them 1 minute later", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const t0 = new Date("2026-11-16T12:00:00.000Z");
+    const t1 = new Date("2026-11-16T12:01:00.000Z"); // 1 min later
+    const calls: FetchCall[] = [];
+    const play = makePlay("2026-11-16T11:58:00.000Z"); // played 2 min ago
+
+    await seedUser(db);
+
+    // First run returns recent play
+    await runIngestion(
+      env,
+      clientFor(calls, () => [play]),
+      t0,
+    );
+    expect(calls).toHaveLength(1);
+
+    const user = await db.query.users.findFirst({ where: { id: "user-1" } });
+    expect(user?.lastActiveAt?.getTime()).toBe(t0.getTime());
+
+    // Second run at t1 (1 min later): active user is fetched!
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      t1,
+    );
+    expect(calls).toHaveLength(2);
+  });
+
+  test("keeps user active during 15-minute window even if fetch returns 0 plays", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const t0 = new Date("2026-11-16T12:00:00.000Z");
+    const t1 = new Date("2026-11-16T12:01:00.000Z");
+    const t2 = new Date("2026-11-16T12:02:00.000Z");
+    const calls: FetchCall[] = [];
+    const play = makePlay("2026-11-16T11:59:00.000Z");
+
+    await seedUser(db);
+
+    // t0: user listens to song -> marked active
+    await runIngestion(
+      env,
+      clientFor(calls, () => [play]),
+      t0,
+    );
+    expect(calls).toHaveLength(1);
+
+    // t1: active fetch returns 0 plays -> lastActiveAt stays t0
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      t1,
+    );
+    expect(calls).toHaveLength(2);
+
+    // t2: user is still within 15-minute active window -> fetched again at t2!
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      t2,
+    );
+    expect(calls).toHaveLength(3);
   });
 });
