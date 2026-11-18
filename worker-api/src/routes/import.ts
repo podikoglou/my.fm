@@ -11,6 +11,7 @@ import {
   insertImport,
 } from "../db/queries/imports.ts";
 import {
+  getImportR2Key,
   MAX_FILE_SIZE_BYTES,
   parseCsvHeaders,
   parseScrobbleRow,
@@ -123,7 +124,7 @@ export default new Hono<AppEnv>()
     }
 
     const id = crypto.randomUUID();
-    const r2Key = `imports/${id}.csv`;
+    const r2Key = getImportR2Key(id);
 
     await c.env.IMPORTS_BUCKET.put(r2Key, buffer, {
       httpMetadata: { contentType: "text/csv; charset=utf-8" },
@@ -135,7 +136,6 @@ export default new Hono<AppEnv>()
       id,
       userId: user.id,
       filename: file.name || "listening-history.csv",
-      r2Key,
       status: "pending",
       cursor: 0,
       totalLines: lines.length,
