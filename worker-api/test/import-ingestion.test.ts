@@ -170,4 +170,70 @@ describe("import ingestion cron processor", () => {
     expect(unlinked?.artistName).toBe("Unknown Singer");
     expect(unlinked?.trackSpotifyUri).toBeNull();
   });
+
+  test("handles track with album Spotify URI but missing track Spotify URI without foreign key failure", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const userId = "user-partial-match";
+
+    await db.insert(users).values({
+      id: userId,
+      username: "user_partial",
+      name: "User Partial",
+      email: "partial@example.com",
+    });
+
+    const csvContent =
+      "Artist;Album;Track;Date#user_partial\n" +
+      "IDK;IDK & FRIENDS :);ONCE UPON A TIME (FREESTYLE);1644472883000";
+
+    const r2Key = "imports/import-partial.csv";
+    await env.IMPORTS_BUCKET.put(r2Key, csvContent);
+
+    await insertImport(db, {
+      id: "import-partial",
+      userId,
+      filename: "partial.csv",
+      status: "pending",
+      cursor: 0,
+      totalLines: 2,
+      processedRows: 0,
+      skippedRows: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const mockFetch = async () => ({
+      q0: {
+        title: "ONCE UPON A TIME (FREESTYLE)",
+        spotifyUrl: null, // No track URL
+        album: {
+          title: "IDK & FRIENDS :)",
+          spotifyUrl: "https://open.spotify.com/album/spotify-album-partial-1",
+          releaseDate: "2018",
+          type: "album",
+        },
+        artist: {
+          name: "IDK",
+          spotifyUrl: "https://open.spotify.com/artist/spotify-artist-partial-1",
+        },
+      },
+    });
+
+    const runResult = await runImportIngestion(env, {
+      batchLimit: 500,
+      throttleMs: 0,
+      fetchBatch: mockFetch,
+    });
+
+    expect(runResult.status).toBe("completed");
+    expect(runResult.processed).toBe(1);
+
+    const storedScrobbles = await db.select().from(scrobbles);
+    expect(storedScrobbles).toHaveLength(1);
+    expect(storedScrobbles[0]?.trackName).toBe("ONCE UPON A TIME (FREESTYLE)");
+    expect(storedScrobbles[0]?.albumName).toBe("IDK & FRIENDS :)");
+    expect(storedScrobbles[0]?.trackSpotifyUri).toBeNull();
+    expect(storedScrobbles[0]?.albumSpotifyUri).toBeNull();
+  });
 });
