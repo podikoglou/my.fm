@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
+import { DetailedError, parseResponse } from "hono/client";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -16,7 +16,6 @@ import { Switch } from "~/components/ui/switch";
 import { UserAvatar } from "~/components/user-avatar";
 import { apiClient } from "~/lib/api";
 import { queryClient } from "~/lib/query";
-import { cn } from "~/lib/utils";
 
 const formSchema = z.object({
   isPrivate: z.boolean(),
@@ -27,6 +26,17 @@ type FormValues = z.infer<typeof formSchema>;
 const errorResponseSchema = z.object({
   error: z.string().optional(),
 });
+
+function importErrorMessage(error: Error): string {
+  if (error instanceof DetailedError) {
+    const parsed = errorResponseSchema.safeParse(error.detail?.data);
+    const serverError = parsed.success ? parsed.data.error : undefined;
+
+    return serverError ?? "Import failed. Please try again.";
+  }
+
+  return "Network error during upload.";
+}
 
 async function fetchCurrentUser() {
   return parseResponse(apiClient.user.me.$get());
@@ -59,55 +69,27 @@ export default function SettingsPage() {
   });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState(false);
 
-  const { data: latestImportData, refetch: refetchLatestImport } = useQuery({
+  const { data: latestImportData } = useQuery({
     queryKey: ["import", "latest"],
     queryFn: fetchLatestImport,
   });
 
   const latestImport = latestImportData?.import;
 
-  const handleImportSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const uploadImport = useMutation({
+    mutationFn: (file: File) => parseResponse(apiClient.import.$post({ form: { file } })),
+    onSuccess: () => {
+      setSelectedFile(null);
+      queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
+    },
+  });
+
+  const handleImportSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!selectedFile) {
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadMessage(null);
-    setUploadError(false);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-
-      const res = await fetch("/api/import", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const rawJson: unknown = await res.json().catch(() => ({}));
-        const parsed = errorResponseSchema.safeParse(rawJson);
-        const errorText = parsed.success ? parsed.data.error : undefined;
-
-        setUploadError(true);
-        setUploadMessage(errorText ?? "Import failed. Please try again.");
-      } else {
-        setUploadError(false);
-        setUploadMessage("File accepted. Ingestion will process in the background.");
-        setSelectedFile(null);
-        await refetchLatestImport();
-      }
-    } catch {
-      setUploadError(true);
-      setUploadMessage("Network error during upload.");
-    } finally {
-      setIsUploading(false);
+    if (selectedFile) {
+      uploadImport.mutate(selectedFile);
     }
   };
 
@@ -203,7 +185,7 @@ export default function SettingsPage() {
               type="file"
               accept=".csv"
               onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-              disabled={isUploading}
+              disabled={uploadImport.isPending}
             />
 
             {latestImport && (
@@ -214,19 +196,22 @@ export default function SettingsPage() {
               </p>
             )}
 
-            {uploadMessage && (
-              <p
-                className={cn(
-                  "text-sm",
-                  uploadError ? "text-destructive" : "text-muted-foreground",
-                )}
-              >
-                {uploadMessage}
+            {uploadImport.isSuccess && (
+              <p className="text-sm text-muted-foreground">
+                File accepted. Ingestion will process in the background.
               </p>
             )}
 
-            <Button type="submit" disabled={!selectedFile || isUploading} className="self-start">
-              {isUploading ? "Uploading..." : "Import"}
+            {uploadImport.error && (
+              <p className="text-sm text-destructive">{importErrorMessage(uploadImport.error)}</p>
+            )}
+
+            <Button
+              type="submit"
+              disabled={!selectedFile || uploadImport.isPending}
+              className="self-start"
+            >
+              {uploadImport.isPending ? "Uploading..." : "Import"}
             </Button>
           </form>
         </div>
