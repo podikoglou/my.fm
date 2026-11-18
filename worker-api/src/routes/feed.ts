@@ -44,6 +44,33 @@ function decodeCursor(value: string) {
 }
 
 function toFeedItem(row: FeedRow) {
+  const track = row.track
+    ? {
+        name: row.track.name,
+        imageUrl: row.track.imageUrl,
+        spotifyUri: row.track.spotifyUri,
+        artists: row.track.trackArtists.map(({ artist }) => ({
+          name: artist.name,
+          spotifyUri: artist.spotifyUri,
+        })),
+      }
+    : {
+        name: row.trackName ?? "Unknown Track",
+        imageUrl: row.coverArtUrl ?? "",
+        spotifyUri: row.trackSpotifyUri ?? undefined,
+        artists: row.artistName ? [{ name: row.artistName, spotifyUri: undefined }] : [],
+      };
+
+  const album = row.album
+    ? {
+        name: row.album.name,
+        spotifyUri: row.album.spotifyUri,
+      }
+    : {
+        name: row.albumName ?? undefined,
+        spotifyUri: row.albumSpotifyUri ?? undefined,
+      };
+
   return {
     id: row.id,
     scrobbleDate: row.scrobbleDate,
@@ -52,19 +79,8 @@ function toFeedItem(row: FeedRow) {
       name: row.user.name,
       avatarUrl: row.user.avatarUrl,
     },
-    track: {
-      name: row.track.name,
-      imageUrl: row.track.imageUrl,
-      spotifyUri: row.track.spotifyUri,
-      artists: row.track.trackArtists.map(({ artist }) => ({
-        name: artist.name,
-        spotifyUri: artist.spotifyUri,
-      })),
-    },
-    album: {
-      name: row.album.name,
-      spotifyUri: row.album.spotifyUri,
-    },
+    track,
+    album,
   };
 }
 

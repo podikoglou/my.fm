@@ -119,26 +119,64 @@ export const scrobbles = sqliteTable(
 
     userId: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
 
-    trackSpotifyUri: text()
-      .notNull()
-      .references(() => tracks.spotifyUri),
+    trackSpotifyUri: text().references(() => tracks.spotifyUri),
 
-    albumSpotifyUri: text()
-      .notNull()
-      .references(() => albums.spotifyUri),
+    albumSpotifyUri: text().references(() => albums.spotifyUri),
+
+    coverArtUrl: text(),
+    artistName: text(),
+    albumName: text(),
+    trackName: text(),
+    normArtistKey: text(),
+    normTrackKey: text(),
 
     scrobbleDate: integer({ mode: "timestamp" }),
+    importId: text().references(() => imports.id, { onDelete: "cascade" }),
   },
-  // The public feed reads every user's scrobbles in play-time order. The ID
-  // breaks ties inside one second, so the keyset cursor is exact.
-  (table) => [index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id)],
+  // Keyset pagination and lookup indexes
+  (table) => [
+    index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id),
+    index("scrobbles_user_id_scrobble_date_idx").on(table.userId, table.scrobbleDate),
+    index("scrobbles_norm_track_key_idx").on(table.normTrackKey),
+    index("scrobbles_import_id_idx").on(table.importId),
+  ],
 );
 
 export type ScrobbleInsert = typeof scrobbles.$inferInsert;
 
 export type Scrobble = typeof scrobbles.$inferSelect;
+
+export const imports = sqliteTable(
+  "imports",
+  {
+    id: text().primaryKey(),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    filename: text().notNull(),
+    r2Key: text().notNull(),
+    status: text({ enum: ["pending", "processing", "completed", "failed"] }).notNull(),
+    cursor: integer().notNull().default(0),
+    totalLines: integer(),
+    processedRows: integer().notNull().default(0),
+    skippedRows: integer().notNull().default(0),
+    error: text(),
+    createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
+    updatedAt: integer({ mode: "timestamp_ms" })
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("imports_status_created_at_idx").on(table.status, table.createdAt),
+    index("imports_user_id_idx").on(table.userId),
+  ],
+);
+
+export type ImportInsert = typeof imports.$inferInsert;
+
+export type Import = typeof imports.$inferSelect;
 
 export const albums = sqliteTable("albums", {
   spotifyUri: text().primaryKey(),
@@ -235,12 +273,14 @@ export const relations = defineRelations(
     trackArtists,
     albumArtists,
     tracks,
+    imports,
   },
   (r) => ({
     users: {
       scrobbles: r.many.scrobbles({ from: r.users.id, to: r.scrobbles.userId }),
       sessions: r.many.sessions({ from: r.users.id, to: r.sessions.userId }),
       accounts: r.many.accounts({ from: r.users.id, to: r.accounts.userId }),
+      imports: r.many.imports({ from: r.users.id, to: r.imports.userId }),
     },
     sessions: {
       user: r.one.users({ from: r.sessions.userId, to: r.users.id, optional: false }),
@@ -248,17 +288,26 @@ export const relations = defineRelations(
     accounts: {
       user: r.one.users({ from: r.accounts.userId, to: r.users.id, optional: false }),
     },
+    imports: {
+      user: r.one.users({ from: r.imports.userId, to: r.users.id, optional: false }),
+      scrobbles: r.many.scrobbles({ from: r.imports.id, to: r.scrobbles.importId }),
+    },
     scrobbles: {
       user: r.one.users({ from: r.scrobbles.userId, to: r.users.id, optional: false }),
       track: r.one.tracks({
         from: r.scrobbles.trackSpotifyUri,
         to: r.tracks.spotifyUri,
-        optional: false,
+        optional: true,
       }),
       album: r.one.albums({
         from: r.scrobbles.albumSpotifyUri,
         to: r.albums.spotifyUri,
-        optional: false,
+        optional: true,
+      }),
+      import: r.one.imports({
+        from: r.scrobbles.importId,
+        to: r.imports.id,
+        optional: true,
       }),
     },
     albums: {

@@ -41,40 +41,67 @@ export default new Hono<AppEnv>().use("/*", sessionMiddleware).get(
     });
 
     return c.json(
-      scrobbles.map(({ id, track, album, scrobbleDate }) => {
-        // track artists
-        const trackArtists = track.trackArtists
-          .map((artist) => ({
-            ...artist.artist,
-            position: artist.position,
-          }))
-          .sort((a, b) => a.position - b.position)
-          .map(({ position: _, ...rest }) => rest);
-
-        // album artists
-        const albumArtists = album.albumArtists
-          .map((artist) => ({
-            ...artist.artist,
-            position: artist.position,
-          }))
-          .sort((a, b) => a.position - b.position)
-          .map(({ position: _, ...rest }) => rest);
-
-        return {
+      scrobbles.map(
+        ({
           id,
-          track: {
-            ...track,
-            trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
-            artists: trackArtists,
-          },
-          album: {
-            ...album,
-            albumArtists: undefined,
-            artists: albumArtists,
-          },
+          track,
+          album,
           scrobbleDate,
-        };
-      }),
+          artistName,
+          albumName,
+          trackName,
+          coverArtUrl,
+          trackSpotifyUri,
+          albumSpotifyUri,
+        }) => {
+          const resolvedTrack = track
+            ? {
+                ...track,
+                trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
+                artists: track.trackArtists
+                  .map((artist) => ({
+                    ...artist.artist,
+                    position: artist.position,
+                  }))
+                  .sort((a, b) => a.position - b.position)
+                  .map(({ position: _, ...rest }) => rest),
+              }
+            : {
+                spotifyUri: trackSpotifyUri ?? undefined,
+                name: trackName ?? "Unknown Track",
+                imageUrl: coverArtUrl ?? "",
+                artists: artistName
+                  ? [{ name: artistName, spotifyUri: undefined, imageUrl: null }]
+                  : [],
+              };
+
+          const resolvedAlbum = album
+            ? {
+                ...album,
+                albumArtists: undefined,
+                artists: album.albumArtists
+                  .map((artist) => ({
+                    ...artist.artist,
+                    position: artist.position,
+                  }))
+                  .sort((a, b) => a.position - b.position)
+                  .map(({ position: _, ...rest }) => rest),
+              }
+            : {
+                spotifyUri: albumSpotifyUri ?? undefined,
+                name: albumName ?? "",
+                imageUrl: coverArtUrl ?? "",
+                artists: [],
+              };
+
+          return {
+            id,
+            track: resolvedTrack,
+            album: resolvedAlbum,
+            scrobbleDate,
+          };
+        },
+      ),
       200,
     );
   },

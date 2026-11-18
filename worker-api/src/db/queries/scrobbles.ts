@@ -22,7 +22,17 @@ export async function createScrobbleId(userId: User["id"], scrobbleDate: Date) {
 
 export type ScrobbleValues = Pick<
   ScrobbleInsert,
-  "userId" | "trackSpotifyUri" | "albumSpotifyUri" | "scrobbleDate"
+  | "userId"
+  | "trackSpotifyUri"
+  | "albumSpotifyUri"
+  | "coverArtUrl"
+  | "artistName"
+  | "albumName"
+  | "trackName"
+  | "normArtistKey"
+  | "normTrackKey"
+  | "scrobbleDate"
+  | "importId"
 > & { id: string };
 
 export function insertScrobble(db: Database, values: ScrobbleValues) {
@@ -95,6 +105,12 @@ export async function findPublicFeed(
     columns: {
       id: true,
       scrobbleDate: true,
+      artistName: true,
+      albumName: true,
+      trackName: true,
+      coverArtUrl: true,
+      trackSpotifyUri: true,
+      albumSpotifyUri: true,
     },
     with: {
       user: {
