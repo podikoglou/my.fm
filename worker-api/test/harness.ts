@@ -76,10 +76,65 @@ function asD1Database<T>(value: T): D1Database {
   return value as D1Database;
 }
 
+function asR2Bucket<T>(value: T): R2Bucket {
+  // SAFETY: `value` implements get, put, and delete that the import code calls;
+  // the rest of the R2 interface is unreachable in these tests.
+  return value as R2Bucket;
+}
+
+export function createTestR2Bucket(): R2Bucket {
+  const store = new Map<string, { body: Uint8Array; httpMetadata?: R2PutOptions }>();
+
+  return asR2Bucket({
+    async get(key: string) {
+      const item = store.get(key);
+
+      if (!item) {
+        return null;
+      }
+
+      const body = item.body;
+      const text = new TextDecoder().decode(body);
+
+      return {
+        key,
+        async text() {
+          return text;
+        },
+        async arrayBuffer() {
+          return body.buffer;
+        },
+      };
+    },
+    async put(key: string, value: string | ArrayBuffer | ArrayBufferView, options?: R2PutOptions) {
+      let body: Uint8Array;
+
+      if (value instanceof ArrayBuffer) {
+        body = new Uint8Array(value);
+      } else if (ArrayBuffer.isView(value)) {
+        body = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      } else {
+        body = new TextEncoder().encode(value);
+      }
+
+      store.set(key, { body, httpMetadata: options });
+
+      return null;
+    },
+    async delete(key: string) {
+      store.delete(key);
+    },
+  });
+}
+
 /** Create a Worker environment for a test, with a fresh migrated database. */
-export function createTestEnv(database: D1Database = createTestDatabase()): WorkerEnv {
+export function createTestEnv(
+  database: D1Database = createTestDatabase(),
+  bucket: R2Bucket = createTestR2Bucket(),
+): WorkerEnv {
   return {
     DB: database,
+    IMPORTS_BUCKET: bucket,
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
     SPOTIFY_CLIENT_ID: "test-client-id",
     SPOTIFY_CLIENT_SECRET: "test-client-secret",

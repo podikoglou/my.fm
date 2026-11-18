@@ -7,6 +7,8 @@ import { Database } from "./database.ts";
 
 export { Database } from "./database.ts";
 
+export const ImportsBucket = Cloudflare.R2.Bucket("ImportsBucket");
+
 /**
  * Minted once and kept in stack state. A new value would invalidate every
  * session that Better Auth has issued.
@@ -27,6 +29,7 @@ export const Worker = Cloudflare.Worker("Worker", {
   observability: { enabled: true, issues: { enabled: true } },
   env: {
     DB: Database,
+    IMPORTS_BUCKET: ImportsBucket,
     BETTER_AUTH_SECRET: BetterAuthSecret,
     SPOTIFY_CLIENT_ID: Config.String("SPOTIFY_CLIENT_ID"),
     SPOTIFY_CLIENT_SECRET: Config.Redacted("SPOTIFY_CLIENT_SECRET"),
