@@ -818,9 +818,9 @@ describe("shouldFetchUser", () => {
   });
 
   test("skips active user when active interval has not elapsed", () => {
-    // Active 2 min ago, fetched 30s ago (< 1 min active interval)
+    // Active 2 min ago, fetched 2 min ago (< 3 min active interval)
     const lastActiveAt = new Date(baseTime.getTime() - 2 * 60_000);
-    const lastFetchedAt = new Date(baseTime.getTime() - 30_000);
+    const lastFetchedAt = new Date(baseTime.getTime() - 2 * 60_000);
     expect(
       shouldFetchUser(
         { lastFetchedAt, lastActiveAt, lastRecentTracksFetchTime: lastFetchedAt },
@@ -830,9 +830,9 @@ describe("shouldFetchUser", () => {
   });
 
   test("fetches active user when active interval has elapsed", () => {
-    // Active 2 min ago, fetched 1 min ago (>= 1 min active interval)
+    // Active 2 min ago, fetched 3 min ago (>= 3 min active interval)
     const lastActiveAt = new Date(baseTime.getTime() - 2 * 60_000);
-    const lastFetchedAt = new Date(baseTime.getTime() - 60_000);
+    const lastFetchedAt = new Date(baseTime.getTime() - 3 * 60_000);
     expect(
       shouldFetchUser(
         { lastFetchedAt, lastActiveAt, lastRecentTracksFetchTime: lastFetchedAt },
@@ -914,11 +914,11 @@ describe("dynamic fetch intervals in runIngestion", () => {
     expect(calls).toHaveLength(2); // Second Spotify call made!
   });
 
-  test("promotes user to active when recent plays are found and fetches them 1 minute later", async () => {
+  test("promotes user to active when recent plays are found and fetches them 3 minutes later", async () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const t0 = new Date("2026-11-16T12:00:00.000Z");
-    const t1 = new Date("2026-11-16T12:01:00.000Z"); // 1 min later
+    const t3 = new Date("2026-11-16T12:03:00.000Z"); // 3 min later
     const calls: FetchCall[] = [];
     const play = makePlay("2026-11-16T11:58:00.000Z"); // played 2 min ago
 
@@ -935,11 +935,11 @@ describe("dynamic fetch intervals in runIngestion", () => {
     const user = await db.query.users.findFirst({ where: { id: "user-1" } });
     expect(user?.lastActiveAt?.getTime()).toBe(t0.getTime());
 
-    // Second run at t1 (1 min later): active user is fetched!
+    // Second run at t3 (3 min later): active user is fetched!
     await runIngestion(
       env,
       clientFor(calls, () => []),
-      t1,
+      t3,
     );
     expect(calls).toHaveLength(2);
   });
@@ -948,8 +948,8 @@ describe("dynamic fetch intervals in runIngestion", () => {
     const env = createTestEnv();
     const db = createDatabase(env.DB);
     const t0 = new Date("2026-11-16T12:00:00.000Z");
-    const t1 = new Date("2026-11-16T12:01:00.000Z");
-    const t2 = new Date("2026-11-16T12:02:00.000Z");
+    const t3 = new Date("2026-11-16T12:03:00.000Z");
+    const t6 = new Date("2026-11-16T12:06:00.000Z");
     const calls: FetchCall[] = [];
     const play = makePlay("2026-11-16T11:59:00.000Z");
 
@@ -963,19 +963,19 @@ describe("dynamic fetch intervals in runIngestion", () => {
     );
     expect(calls).toHaveLength(1);
 
-    // t1: active fetch returns 0 plays -> lastActiveAt stays t0
+    // t3: active fetch returns 0 plays -> lastActiveAt stays t0
     await runIngestion(
       env,
       clientFor(calls, () => []),
-      t1,
+      t3,
     );
     expect(calls).toHaveLength(2);
 
-    // t2: user is still within 15-minute active window -> fetched again at t2!
+    // t6: user is still within 15-minute active window -> fetched again at t6!
     await runIngestion(
       env,
       clientFor(calls, () => []),
-      t2,
+      t6,
     );
     expect(calls).toHaveLength(3);
   });

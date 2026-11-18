@@ -64,7 +64,7 @@ function blockWindow(now: Date, retryAfterSeconds: number | null) {
 
 export const INGESTION_CONFIG = {
   /** How often to fetch Spotify for an active user (ms). */
-  activeIntervalMs: 1 * 60_000,
+  activeIntervalMs: 3 * 60_000,
   /** How often to fetch Spotify for an inactive user (ms). */
   inactiveIntervalMs: 10 * 60_000,
   /** How long a user remains in the active group after recent playback (ms). */

@@ -18,7 +18,7 @@ export const Worker = Cloudflare.Worker("Worker", {
   compatibility: { date: "2026-11-02" },
   dev: { port: API_DEV_PORT, strictPort: true },
   // Runs every minute. Ingestion dynamically adjusts per-user fetch intervals
-  // (every minute for active listeners, every 10 minutes for inactive users)
+  // (every 3 minutes for active listeners, every 10 minutes for inactive users)
   // to stay well within Spotify's quota while delivering near real-time updates.
   crons: ["* * * * *"],
   cache: { enabled: true },
