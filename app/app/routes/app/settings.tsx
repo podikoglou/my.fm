@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
 import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router";
 import { z } from "zod";
@@ -9,11 +10,13 @@ import { z } from "zod";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Form, FormField, FormItem } from "~/components/ui/form";
+import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { UserAvatar } from "~/components/user-avatar";
 import { apiClient } from "~/lib/api";
 import { queryClient } from "~/lib/query";
+import { cn } from "~/lib/utils";
 
 const formSchema = z.object({
   isPrivate: z.boolean(),
@@ -21,11 +24,19 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const errorResponseSchema = z.object({
+  error: z.string().optional(),
+});
+
 async function fetchCurrentUser() {
   return parseResponse(apiClient.user.me.$get());
 }
 
 type CurrentUser = Awaited<ReturnType<typeof fetchCurrentUser>>;
+
+async function fetchLatestImport() {
+  return parseResponse(apiClient.import.latest.$get());
+}
 
 export default function SettingsPage() {
   const { data } = useQuery({ queryKey: ["user", "me"], queryFn: fetchCurrentUser });
@@ -46,6 +57,59 @@ export default function SettingsPage() {
       form.reset({ isPrivate: settings.isPrivate });
     },
   });
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState(false);
+
+  const { data: latestImportData, refetch: refetchLatestImport } = useQuery({
+    queryKey: ["import", "latest"],
+    queryFn: fetchLatestImport,
+  });
+
+  const latestImport = latestImportData?.import;
+
+  const handleImportSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!selectedFile) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadMessage(null);
+    setUploadError(false);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const res = await fetch("/api/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const rawJson: unknown = await res.json().catch(() => ({}));
+        const parsed = errorResponseSchema.safeParse(rawJson);
+        const errorText = parsed.success ? parsed.data.error : undefined;
+
+        setUploadError(true);
+        setUploadMessage(errorText ?? "Import failed. Please try again.");
+      } else {
+        setUploadError(false);
+        setUploadMessage("File accepted. Ingestion will process in the background.");
+        setSelectedFile(null);
+        await refetchLatestImport();
+      }
+    } catch {
+      setUploadError(true);
+      setUploadMessage("Network error during upload.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   if (!data) return <></>;
 
@@ -124,6 +188,48 @@ export default function SettingsPage() {
             </Button>
           </form>
         </Form>
+
+        <div className="flex flex-col gap-4 rounded-lg border p-4">
+          <div className="space-y-1">
+            <Label htmlFor="history-file">Import listening history</Label>
+            <p className="text-sm text-muted-foreground">
+              Upload a listening history CSV export (up to 10 MB).
+            </p>
+          </div>
+
+          <form onSubmit={handleImportSubmit} className="flex flex-col gap-3">
+            <Input
+              id="history-file"
+              type="file"
+              accept=".csv"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+              disabled={isUploading}
+            />
+
+            {latestImport && (
+              <p className="text-xs text-muted-foreground">
+                Status: {latestImport.status}
+                {latestImport.processedRows > 0 &&
+                  ` (${latestImport.processedRows} plays processed)`}
+              </p>
+            )}
+
+            {uploadMessage && (
+              <p
+                className={cn(
+                  "text-sm",
+                  uploadError ? "text-destructive" : "text-muted-foreground",
+                )}
+              >
+                {uploadMessage}
+              </p>
+            )}
+
+            <Button type="submit" disabled={!selectedFile || isUploading} className="self-start">
+              {isUploading ? "Uploading..." : "Import"}
+            </Button>
+          </form>
+        </div>
       </CardContent>
     </>
   );
