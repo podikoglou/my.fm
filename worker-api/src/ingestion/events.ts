@@ -21,6 +21,12 @@ export const INGESTION_EVENTS = {
   runComplete: "ingestion run complete",
   /** The run did no work because a Spotify block is still active. */
   runSkipped: "ingestion run skipped",
+  /** One import batch resolved and stored without error. */
+  importIngested: "ingestion import ingested",
+  /** An import batch failed; the next cron run retries it. */
+  importBatchFailed: "ingestion import batch failed",
+  /** An import was abandoned after repeated consecutive batch failures. */
+  importFailed: "ingestion import failed",
 } as const;
 
 export type IngestionEventName = (typeof INGESTION_EVENTS)[keyof typeof INGESTION_EVENTS];
@@ -34,9 +40,11 @@ export type IngestionFailureDetail = string | Error;
 export type IngestionEventFields = {
   event: IngestionEventName;
   userId?: string;
+  importId?: string;
   retryAfterSeconds?: number | null;
   accounts?: number;
   plays?: number;
+  processed?: number;
   failures?: number;
   status?: IngestionStatus;
 };

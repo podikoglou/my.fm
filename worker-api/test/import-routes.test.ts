@@ -6,6 +6,7 @@ import type { WorkerEnv } from "../src/alchemy.ts";
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
 import { imports } from "../src/db/schema.ts";
+import { runImportIngestion } from "../src/ingestion/import.ts";
 import { baseUrl, createTestEnv, replaceFetch } from "./harness.ts";
 
 async function signIn(env: WorkerEnv, spotify: { id: string; email: string }) {
@@ -295,5 +296,60 @@ describe("import routes", () => {
     );
 
     expect(second.status).toBe(409);
+  });
+
+  test("reports failed status and error after repeated ingestion failures", async () => {
+    const env = createTestEnv();
+    const app = createApp();
+    const { cookie } = await signIn(env, { id: "user-6", email: "user6@example.com" });
+
+    const csvContent =
+      "Artist;Album;Track;Date#user6\n" + "Anderson .Paak;Ventura;Come Home;1644436588000";
+
+    const file = new File([csvContent], "export.csv", { type: "text/csv" });
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const upload = await app.request(
+      `${baseUrl}/api/import`,
+      {
+        method: "POST",
+        headers: { cookie },
+        body: formData,
+      },
+      env,
+    );
+
+    expect(upload.status).toBe(202);
+
+    const fetchBatch = async () => {
+      throw new Error("metadata endpoint unavailable");
+    };
+
+    for (let i = 0; i < 3; i++) {
+      await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+    }
+
+    const latestResponse = await app.request(
+      `${baseUrl}/api/import/latest`,
+      { headers: { cookie } },
+      env,
+    );
+
+    expect(latestResponse.status).toBe(200);
+
+    const latestBody = z
+      .object({
+        import: z
+          .object({
+            status: z.string(),
+            error: z.string().nullable(),
+          })
+          .nullable(),
+      })
+      .parse(await latestResponse.json());
+
+    expect(latestBody.import?.status).toBe("failed");
+    expect(latestBody.import?.error).toContain("repeated metadata batch errors");
   });
 });

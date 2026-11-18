@@ -1,12 +1,54 @@
 import { describe, expect, test } from "bun:test";
 
+import type { WorkerEnv } from "../src/alchemy.ts";
+import type { Database } from "../src/db/index.ts";
 import type { GqlTrack } from "../src/import/graphql.ts";
 
 import { createDatabase } from "../src/db/index.ts";
-import { insertImport } from "../src/db/queries/imports.ts";
+import { findActiveImportForCron, insertImport } from "../src/db/queries/imports.ts";
 import { albums, artists, imports, scrobbles, tracks, users } from "../src/db/schema.ts";
+import { getImportR2Key } from "../src/import/csv.ts";
 import { runImportIngestion } from "../src/ingestion/import.ts";
 import { createTestEnv } from "./harness.ts";
+
+const FAILING_CSV =
+  "Artist;Album;Track;Date#user\n" +
+  "Anderson .Paak;Ventura;Come Home;1644436588000\n" +
+  "KOTA The Friend;EVERYTHING;Summerhouse;1644437031000";
+
+async function seedImport(
+  env: WorkerEnv,
+  db: Database,
+  values: { id: string; userId: string; username: string; createdAt: Date },
+) {
+  await db.insert(users).values({
+    id: values.userId,
+    username: values.username,
+    name: values.username,
+    email: `${values.username}@example.com`,
+  });
+
+  await env.IMPORTS_BUCKET.put(getImportR2Key(values.id), FAILING_CSV);
+
+  await insertImport(db, {
+    id: values.id,
+    userId: values.userId,
+    filename: "export.csv",
+    status: "pending",
+    cursor: 0,
+    totalLines: 3,
+    processedRows: 0,
+    skippedRows: 0,
+    createdAt: values.createdAt,
+    updatedAt: values.createdAt,
+  });
+}
+
+function throwingFetchBatch() {
+  return async () => {
+    throw new Error("metadata endpoint unavailable");
+  };
+}
 
 describe("import ingestion cron processor", () => {
   test("returns idle when no active import exists", async () => {
@@ -234,5 +276,145 @@ describe("import ingestion cron processor", () => {
     expect(storedScrobbles[0]?.albumName).toBe("IDK & FRIENDS :)");
     expect(storedScrobbles[0]?.trackSpotifyUri).toBeNull();
     expect(storedScrobbles[0]?.albumSpotifyUri).toBeNull();
+  });
+
+  test("keeps the import processing with an unmoved cursor when a metadata batch fails", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-flaky",
+      userId: "user-flaky",
+      username: "user_flaky",
+      createdAt: new Date(),
+    });
+
+    const fetchBatch = throwingFetchBatch();
+
+    await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+    await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.status).toBe("processing");
+    expect(row?.cursor).toBe(0);
+    expect(row?.processedRows).toBe(0);
+    expect(row?.attemptCount).toBe(2);
+  });
+
+  test("marks the import failed after three consecutive batch failures", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-doomed",
+      userId: "user-doomed",
+      username: "user_doomed",
+      createdAt: new Date(),
+    });
+
+    const fetchBatch = throwingFetchBatch();
+
+    for (let i = 0; i < 3; i++) {
+      await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+    }
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.status).toBe("failed");
+    expect(row?.error).toContain("repeated metadata batch errors");
+    expect(row?.cursor).toBe(0);
+
+    const active = await findActiveImportForCron(db);
+
+    expect(active).toBeUndefined();
+
+    // A failed import is terminal, so its file must not linger in storage.
+    const r2After = await env.IMPORTS_BUCKET.get(getImportR2Key("import-doomed"));
+
+    expect(r2After).toBeNull();
+  });
+
+  test("resets the failure counter after a successful run", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-recovered",
+      userId: "user-recovered",
+      username: "user_recovered",
+      createdAt: new Date(),
+    });
+
+    let failing = true;
+
+    const fetchBatch = async () => {
+      if (failing) {
+        throw new Error("metadata endpoint unavailable");
+      }
+
+      return { q0: null, q1: null } satisfies Record<string, GqlTrack | null>;
+    };
+
+    await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+
+    failing = false;
+
+    const result = await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+
+    expect(result.status).toBe("completed");
+    expect(result.processed).toBe(2);
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.status).toBe("completed");
+    expect(row?.cursor).toBe(3);
+    expect(row?.attemptCount).toBe(0);
+  });
+
+  test("a permanently failing import does not block another user's import", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-stuck",
+      userId: "user-stuck",
+      username: "user_stuck",
+      createdAt: new Date("2026-11-17T00:00:00Z"),
+    });
+
+    await seedImport(env, db, {
+      id: "import-next",
+      userId: "user-next",
+      username: "user_next",
+      createdAt: new Date("2026-11-18T00:00:00Z"),
+    });
+
+    const failingBatch = throwingFetchBatch();
+
+    for (let i = 0; i < 3; i++) {
+      await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch: failingBatch });
+    }
+
+    // The oldest import gave up, so the cron queue must now hold the next one.
+    const active = await findActiveImportForCron(db);
+
+    expect(active?.id).toBe("import-next");
+
+    const result = await runImportIngestion(env, {
+      batchLimit: 500,
+      throttleMs: 0,
+      fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
+    });
+
+    expect(result.status).toBe("completed");
+
+    const rows = await db.select().from(imports);
+    const stuck = rows.find((row) => row.id === "import-stuck");
+    const next = rows.find((row) => row.id === "import-next");
+
+    expect(stuck?.status).toBe("failed");
+    expect(next?.status).toBe("completed");
+    expect(next?.processedRows).toBe(2);
   });
 });

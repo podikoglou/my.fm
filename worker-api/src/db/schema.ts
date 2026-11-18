@@ -161,6 +161,12 @@ export const imports = sqliteTable(
     totalLines: integer(),
     processedRows: integer().notNull().default(0),
     skippedRows: integer().notNull().default(0),
+    /**
+     * Consecutive cron runs that ended in a caught batch failure. The cron
+     * processor abandons the import when this reaches its attempt limit, so a
+     * persistently failing resolver cannot wedge the queue behind it.
+     */
+    attemptCount: integer().notNull().default(0),
     error: text(),
     createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
     updatedAt: integer({ mode: "timestamp_ms" })

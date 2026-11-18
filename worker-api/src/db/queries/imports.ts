@@ -74,6 +74,7 @@ export type UpdateImportValues = {
   totalLines?: number;
   processedRows?: number;
   skippedRows?: number;
+  attemptCount?: number;
   error?: string | null;
   updatedAt?: Date;
 };

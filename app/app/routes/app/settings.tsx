@@ -196,6 +196,12 @@ export default function SettingsPage() {
               </p>
             )}
 
+            {latestImport?.status === "failed" && (
+              <p className="text-sm text-destructive">
+                {latestImport.error ?? "Import failed. Please try again."}
+              </p>
+            )}
+
             {uploadImport.isSuccess && (
               <p className="text-sm text-muted-foreground">
                 File accepted. Ingestion will process in the background.
