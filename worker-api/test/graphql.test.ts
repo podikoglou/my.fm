@@ -152,6 +152,32 @@ describe("graphql helper", () => {
     expect(res2?.trackSpotifyUri).toBe("spotify:track:p2");
   });
 
+  it("propagates fetch errors instead of filling fallback metadata", async () => {
+    const fetchBatch = async () => {
+      throw new Error("GraphQL request failed: 503 Service Unavailable");
+    };
+
+    const items = [
+      { key: "item1", artist: "Artist 1", title: "Title 1", album: "WithAlbum" },
+      { key: "item2", artist: "Artist 2", title: "Title 2", album: null },
+    ];
+
+    await expect(resolveTracksWaterfall(items, { throttleMs: 0, fetchBatch })).rejects.toThrow(
+      "503",
+    );
+  });
+
+  it("fails when the response is missing an expected alias", async () => {
+    // An empty data object would otherwise read as a universal no-match.
+    const fetchBatch = async (): Promise<Record<string, GqlTrack | null>> => ({});
+
+    const items = [{ key: "item1", artist: "Artist 1", title: "Title 1", album: null }];
+
+    await expect(resolveTracksWaterfall(items, { throttleMs: 0, fetchBatch })).rejects.toThrow(
+      "missing alias q0",
+    );
+  });
+
   it("fetches fail on a non-OK response status", async () => {
     const restoreFetch = replaceFetch(async () => new Response("rate limited", { status: 429 }));
 

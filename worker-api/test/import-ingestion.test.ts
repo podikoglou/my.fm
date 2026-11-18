@@ -103,11 +103,10 @@ describe("import ingestion cron processor", () => {
     } satisfies Record<string, GqlTrack | null>;
 
     const mockFetch = async (_endpoint: string, query: string) => {
-      const response: Record<string, GqlTrack | null> = {};
-
-      if (query.includes("Come Home")) {
-        response.q0 = mockDb.matched;
-      }
+      const response = {
+        q0: query.includes("Come Home") ? mockDb.matched : null,
+        q1: null,
+      } satisfies Record<string, GqlTrack | null>;
 
       return response;
     };
