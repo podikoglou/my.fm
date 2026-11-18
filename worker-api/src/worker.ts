@@ -1,6 +1,7 @@
 import type { WorkerEnv } from "./alchemy.ts";
 
 import { createApp } from "./app.ts";
+import { runImportIngestion } from "./ingestion/import.ts";
 import { runIngestion } from "./ingestion/run.ts";
 
 const app = createApp();
@@ -11,5 +12,6 @@ export default {
   },
   async scheduled(controller: ScheduledController, env: WorkerEnv, _ctx: ExecutionContext) {
     await runIngestion(env, undefined, new Date(controller.scheduledTime));
+    await runImportIngestion(env);
   },
 } satisfies ExportedHandler<WorkerEnv>;
