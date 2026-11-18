@@ -175,3 +175,7 @@ export function splitCsvLines(content: string): string[] {
 
   return clean.split(/\r?\n/);
 }
+
+export function getImportR2Key(id: string): string {
+  return `imports/${id}.csv`;
+}

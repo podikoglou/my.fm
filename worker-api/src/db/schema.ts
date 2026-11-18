@@ -156,7 +156,6 @@ export const imports = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     filename: text().notNull(),
-    r2Key: text().notNull(),
     status: text({ enum: ["pending", "processing", "completed", "failed"] }).notNull(),
     cursor: integer().notNull().default(0),
     totalLines: integer(),

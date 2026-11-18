@@ -13,6 +13,7 @@ import { insertScrobble } from "../db/queries/scrobbles.ts";
 import { insertTrackArtist } from "../db/queries/trackArtists.ts";
 import { insertTrack } from "../db/queries/tracks.ts";
 import {
+  getImportR2Key,
   parseCsvHeaders,
   parseScrobbleRow,
   splitCsvLines,
@@ -51,7 +52,8 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
     await updateImport(db, activeImport.id, { status: "processing" });
   }
 
-  const r2Object = await env.IMPORTS_BUCKET.get(activeImport.r2Key);
+  const r2Key = getImportR2Key(activeImport.id);
+  const r2Object = await env.IMPORTS_BUCKET.get(r2Key);
 
   if (!r2Object) {
     await updateImport(db, activeImport.id, {
@@ -73,7 +75,7 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
       totalLines,
     });
 
-    await env.IMPORTS_BUCKET.delete(activeImport.r2Key);
+    await env.IMPORTS_BUCKET.delete(r2Key);
 
     return { status: "failed", processed: 0 };
   }
@@ -87,7 +89,7 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
       totalLines,
     });
 
-    await env.IMPORTS_BUCKET.delete(activeImport.r2Key);
+    await env.IMPORTS_BUCKET.delete(r2Key);
 
     return { status: "failed", processed: 0 };
   }
@@ -101,7 +103,7 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
       totalLines,
     });
 
-    await env.IMPORTS_BUCKET.delete(activeImport.r2Key);
+    await env.IMPORTS_BUCKET.delete(r2Key);
 
     return { status: "failed", processed: 0 };
   }
@@ -116,7 +118,7 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
       totalLines,
     });
 
-    await env.IMPORTS_BUCKET.delete(activeImport.r2Key);
+    await env.IMPORTS_BUCKET.delete(r2Key);
 
     return { status: "completed", processed: 0 };
   }
@@ -178,7 +180,7 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
       status: "completed",
     });
 
-    await env.IMPORTS_BUCKET.delete(activeImport.r2Key);
+    await env.IMPORTS_BUCKET.delete(r2Key);
   } else {
     await updateImport(db, activeImport.id, {
       cursor: endIndex,

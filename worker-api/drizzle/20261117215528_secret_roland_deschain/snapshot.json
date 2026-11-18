@@ -356,16 +356,6 @@
     },
     {
       "table": "imports",
-      "name": "r2Key",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "imports",
       "name": "status",
       "type": "text",
       "notNull": true,

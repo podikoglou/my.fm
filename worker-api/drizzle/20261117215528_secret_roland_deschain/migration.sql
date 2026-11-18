@@ -2,7 +2,6 @@ CREATE TABLE `imports` (
 	`id` text PRIMARY KEY,
 	`userId` text NOT NULL,
 	`filename` text NOT NULL,
-	`r2Key` text NOT NULL,
 	`status` text NOT NULL,
 	`cursor` integer DEFAULT 0 NOT NULL,
 	`totalLines` integer,
