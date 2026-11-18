@@ -168,7 +168,11 @@ export async function fetchGraphQLBatch(
   // SAFETY: GraphQL endpoint returns a standard JSON envelope with data and optional errors.
   const json = (await response.json()) as GqlResponseBody;
 
-  return json.data ?? {};
+  if (!json.data) {
+    throw new Error(`GraphQL response is missing the data envelope: HTTP ${response.status}`);
+  }
+
+  return json.data;
 }
 
 export async function sleep(ms: number): Promise<void> {

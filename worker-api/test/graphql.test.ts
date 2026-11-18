@@ -5,9 +5,12 @@ import type { GqlTrack } from "../src/import/graphql.ts";
 import {
   buildBatchQuery,
   extractResolvedMetadata,
+  fetchGraphQLBatch,
+  GRAPHQL_ENDPOINT,
   spotifyUrlToUri,
 } from "../src/import/graphql.ts";
 import { resolveTracksWaterfall } from "../src/import/resolver.ts";
+import { replaceFetch } from "./harness.ts";
 
 describe("graphql helper", () => {
   it("converts spotify URLs to URIs", () => {
@@ -147,5 +150,29 @@ describe("graphql helper", () => {
 
     expect(res1?.trackSpotifyUri).toBe("spotify:track:p1");
     expect(res2?.trackSpotifyUri).toBe("spotify:track:p2");
+  });
+
+  it("fetches fail on a non-OK response status", async () => {
+    const restoreFetch = replaceFetch(async () => new Response("rate limited", { status: 429 }));
+
+    try {
+      await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
+        "429",
+      );
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  it("fetches fail when the response envelope has no data", async () => {
+    const restoreFetch = replaceFetch(async () => Response.json({ errors: [{ message: "boom" }] }));
+
+    try {
+      await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
+        "missing the data envelope",
+      );
+    } finally {
+      restoreFetch();
+    }
   });
 });
