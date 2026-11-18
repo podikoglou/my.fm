@@ -214,7 +214,12 @@ async function persistBatch(
         resolvedMap.get(item.normTrackKey) ??
         extractResolvedMetadata(item.row.artist, item.row.track, item.row.album, null);
 
+      let effectiveTrackSpotifyUri: string | null = null;
+      let effectiveAlbumSpotifyUri: string | null = null;
+
       if (metadata.trackSpotifyUri) {
+        effectiveTrackSpotifyUri = metadata.trackSpotifyUri;
+
         if (metadata.artistSpotifyUri) {
           statements.push(
             insertArtist(db, {
@@ -226,6 +231,8 @@ async function persistBatch(
         }
 
         if (metadata.albumSpotifyUri) {
+          effectiveAlbumSpotifyUri = metadata.albumSpotifyUri;
+
           statements.push(
             insertAlbum(db, {
               spotifyUri: metadata.albumSpotifyUri,
@@ -267,8 +274,8 @@ async function persistBatch(
         insertScrobble(db, {
           id: item.scrobbleId,
           userId,
-          trackSpotifyUri: metadata.trackSpotifyUri,
-          albumSpotifyUri: metadata.albumSpotifyUri,
+          trackSpotifyUri: effectiveTrackSpotifyUri,
+          albumSpotifyUri: effectiveAlbumSpotifyUri,
           coverArtUrl: metadata.coverArtUrl,
           artistName: metadata.artistName,
           albumName: metadata.albumName,
