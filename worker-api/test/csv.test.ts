@@ -160,4 +160,55 @@ describe("csv parsing", () => {
 
     expect(splitCsvLines(lf)).toEqual(["line1", "line2"]);
   });
+
+  it("keeps a quoted LF newline inside one line", () => {
+    const content = 'Artist;"Live\nVol. 2";Track;1644436279000';
+
+    expect(splitCsvLines(content)).toEqual([content]);
+    expect(parseCsvLine(content)).toEqual(["Artist", "Live\nVol. 2", "Track", "1644436279000"]);
+  });
+
+  it("keeps a quoted CRLF newline inside one line", () => {
+    const content = 'Artist;"Live\r\nVol. 2";Track;1644436279000';
+
+    expect(splitCsvLines(content)).toEqual([content]);
+    expect(parseCsvLine(content)).toEqual(["Artist", "Live\r\nVol. 2", "Track", "1644436279000"]);
+  });
+
+  it("joins physical lines broken by a quoted newline into one logical row", () => {
+    const content = 'Artist;"Live\nVol. 2";Track;1644436279000\nNext;Album;Track;1644436280000';
+
+    expect(splitCsvLines(content)).toEqual([
+      'Artist;"Live\nVol. 2";Track;1644436279000',
+      "Next;Album;Track;1644436280000",
+    ]);
+  });
+
+  it("splits rows after a quoted field ending in an escaped quote", () => {
+    const content = '"He said ""hi""";Album;Track;1644436279000\nNext;Album;Track;1644436280000';
+
+    expect(splitCsvLines(content)).toEqual([
+      '"He said ""hi""";Album;Track;1644436279000',
+      "Next;Album;Track;1644436280000",
+    ]);
+  });
+
+  it("terminates a trailing row containing a quoted newline", () => {
+    const noTrailingNewline =
+      'First;Album;Track;1644436279000\nArtist;"Live\nVol. 2";Track;1644436280000';
+
+    expect(splitCsvLines(noTrailingNewline)).toEqual([
+      "First;Album;Track;1644436279000",
+      'Artist;"Live\nVol. 2";Track;1644436280000',
+    ]);
+
+    const trailingNewline =
+      'First;Album;Track;1644436279000\nArtist;"Live\nVol. 2";Track;1644436280000\n';
+
+    expect(splitCsvLines(trailingNewline)).toEqual([
+      "First;Album;Track;1644436279000",
+      'Artist;"Live\nVol. 2";Track;1644436280000',
+      "",
+    ]);
+  });
 });

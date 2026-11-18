@@ -173,7 +173,45 @@ export function parseScrobbleRow(
 export function splitCsvLines(content: string): string[] {
   const clean = stripBom(content);
 
-  return clean.split(/\r?\n/);
+  const lines: string[] = [];
+  let lineStart = 0;
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < clean.length) {
+    if (inQuotes) {
+      if (clean[i] === '"') {
+        if (clean[i + 1] === '"') {
+          i += 2;
+          continue;
+        }
+
+        inQuotes = false;
+      }
+
+      i++;
+      continue;
+    }
+
+    if (clean[i] === '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+
+    if (clean[i] === "\n") {
+      // A lone \r is field data, not a terminator; only \r directly before \n is stripped.
+      const end = clean[i - 1] === "\r" ? i - 1 : i;
+      lines.push(clean.slice(lineStart, end));
+      lineStart = i + 1;
+    }
+
+    i++;
+  }
+
+  lines.push(clean.slice(lineStart));
+
+  return lines;
 }
 
 export function getImportR2Key(id: string): string {
