@@ -44,6 +44,11 @@ export async function resolveTracksWaterfall(
   const uniqueItems = Array.from(uniqueItemsMap.values());
 
   // Pass 1: Try with album if available, or without album if not.
+  //
+  // A failed batch aborts the whole run: the caller must not advance its
+  // cursor past rows whose enrichment never happened. A null alias is a
+  // legitimate "no match"; a missing alias means the endpoint misbehaved
+  // and is treated as a hard error, not as a no-match.
   const pass1Unresolved: QueryItem[] = [];
 
   for (let i = 0; i < uniqueItems.length; i += batchSize) {
@@ -53,45 +58,38 @@ export async function resolveTracksWaterfall(
 
     const chunk = uniqueItems.slice(i, i + batchSize);
     const query = buildBatchQuery(chunk);
+    const data = await fetchBatch(endpoint, query);
 
-    try {
-      const data = await fetchBatch(endpoint, query);
+    for (let j = 0; j < chunk.length; j++) {
+      const item = chunk[j];
 
-      for (let j = 0; j < chunk.length; j++) {
-        const item = chunk[j];
-
-        if (!item) {
-          continue;
-        }
-
-        const alias = `q${j}`;
-        const track = data[alias] ?? null;
-
-        if (track) {
-          results.set(
-            item.key,
-            extractResolvedMetadata(item.artist, item.title, item.album ?? null, track),
-          );
-        } else if (item.album) {
-          // If track wasn't found with album, queue for Pass 2 without album.
-          pass1Unresolved.push({
-            key: item.key,
-            artist: item.artist,
-            title: item.title,
-            album: null,
-          });
-        } else {
-          // No album was provided and search failed.
-          results.set(item.key, extractResolvedMetadata(item.artist, item.title, null, null));
-        }
+      if (!item) {
+        continue;
       }
-    } catch {
-      // On network or endpoint error, fill unresolved fallbacks.
-      for (const item of chunk) {
+
+      const alias = `q${j}`;
+      const track = data[alias];
+
+      if (track === undefined) {
+        throw new Error(`GraphQL response is missing alias ${alias}`);
+      }
+
+      if (track) {
         results.set(
           item.key,
-          extractResolvedMetadata(item.artist, item.title, item.album ?? null, null),
+          extractResolvedMetadata(item.artist, item.title, item.album ?? null, track),
         );
+      } else if (item.album) {
+        // If track wasn't found with album, queue for Pass 2 without album.
+        pass1Unresolved.push({
+          key: item.key,
+          artist: item.artist,
+          title: item.title,
+          album: null,
+        });
+      } else {
+        // No album was provided and search failed.
+        results.set(item.key, extractResolvedMetadata(item.artist, item.title, null, null));
       }
     }
   }
@@ -104,26 +102,23 @@ export async function resolveTracksWaterfall(
 
     const chunk = pass1Unresolved.slice(i, i + batchSize);
     const query = buildBatchQuery(chunk);
+    const data = await fetchBatch(endpoint, query);
 
-    try {
-      const data = await fetchBatch(endpoint, query);
+    for (let j = 0; j < chunk.length; j++) {
+      const item = chunk[j];
 
-      for (let j = 0; j < chunk.length; j++) {
-        const item = chunk[j];
-
-        if (!item) {
-          continue;
-        }
-
-        const alias = `q${j}`;
-        const track = data[alias] ?? null;
-
-        results.set(item.key, extractResolvedMetadata(item.artist, item.title, null, track));
+      if (!item) {
+        continue;
       }
-    } catch {
-      for (const item of chunk) {
-        results.set(item.key, extractResolvedMetadata(item.artist, item.title, null, null));
+
+      const alias = `q${j}`;
+      const track = data[alias];
+
+      if (track === undefined) {
+        throw new Error(`GraphQL response is missing alias ${alias}`);
       }
+
+      results.set(item.key, extractResolvedMetadata(item.artist, item.title, null, track));
     }
   }
 
