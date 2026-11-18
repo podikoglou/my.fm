@@ -1,0 +1,1 @@
+ALTER TABLE `imports` ADD `attemptCount` integer DEFAULT 0 NOT NULL;

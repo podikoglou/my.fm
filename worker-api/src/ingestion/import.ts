@@ -22,10 +22,20 @@ import {
 import { extractResolvedMetadata } from "../import/graphql.ts";
 import { computeImportScrobbleId, computeNormKeys } from "../import/normalize.ts";
 import { resolveTracksWaterfall } from "../import/resolver.ts";
+import { INGESTION_EVENTS, logIngestionEvent, logIngestionFailure } from "./events.ts";
 
 export const IMPORT_LINES_PER_RUN = 500;
 
 export const PLAYS_PER_D1_BATCH = 20;
+
+/**
+ * Consecutive batch failures tolerated before an import is abandoned. The
+ * cron trigger runs every minute, so three failures hold the queue for only
+ * a few minutes before the import gives up.
+ */
+const IMPORT_MAX_ATTEMPTS = 3;
+
+const IMPORT_GAVE_UP_ERROR = "Import failed after repeated metadata batch errors";
 
 export type ImportIngestionOptions = {
   batchLimit?: number;
@@ -160,12 +170,48 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
     album: item.row.album,
   }));
 
-  const resolvedMap = await resolveTracksWaterfall(queryItems, {
-    throttleMs: options?.throttleMs,
-    fetchBatch: options?.fetchBatch,
-  });
+  try {
+    const resolvedMap = await resolveTracksWaterfall(queryItems, {
+      throttleMs: options?.throttleMs,
+      fetchBatch: options?.fetchBatch,
+    });
 
-  await persistBatch(db, activeImport.userId, activeImport.id, validItems, resolvedMap);
+    await persistBatch(db, activeImport.userId, activeImport.id, validItems, resolvedMap);
+  } catch (error) {
+    const attemptCount = activeImport.attemptCount + 1;
+
+    logIngestionFailure(
+      INGESTION_EVENTS.importBatchFailed,
+      error instanceof Error ? error : String(error),
+    );
+
+    if (attemptCount >= IMPORT_MAX_ATTEMPTS) {
+      // The cron queue always picks the oldest active import, so a failure
+      // that never clears would wedge every other user's import behind it.
+      // Abandon the import instead of retrying it forever.
+      await updateImport(db, activeImport.id, {
+        status: "failed",
+        error: IMPORT_GAVE_UP_ERROR,
+        attemptCount,
+      });
+
+      await env.IMPORTS_BUCKET.delete(r2Key);
+
+      logIngestionFailure(INGESTION_EVENTS.importFailed, activeImport.id);
+
+      return { status: "failed", processed: 0 };
+    }
+
+    await updateImport(db, activeImport.id, { attemptCount });
+
+    return { status: "processing", processed: 0 };
+  }
+
+  logIngestionEvent({
+    event: INGESTION_EVENTS.importIngested,
+    importId: activeImport.id,
+    processed: validItems.length,
+  });
 
   const newProcessed = activeImport.processedRows + validItems.length;
   const newSkipped = activeImport.skippedRows + skippedInBatch;
@@ -177,6 +223,7 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
       processedRows: newProcessed,
       skippedRows: newSkipped,
       totalLines,
+      attemptCount: 0,
       status: "completed",
     });
 
@@ -187,6 +234,7 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
       processedRows: newProcessed,
       skippedRows: newSkipped,
       totalLines,
+      attemptCount: 0,
       status: "processing",
     });
   }
