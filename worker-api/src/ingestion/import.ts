@@ -338,9 +338,21 @@ async function withoutRecordedPlays(
 
   return items.filter((item) => {
     const playedAt = item.row.playedAt.getTime();
-    const matches = recordedTimes.get(item.normTrackKey) ?? [];
+    const candidates = recordedTimes.get(item.normTrackKey) ?? [];
 
-    return !matches.some((time) => Math.abs(time - playedAt) <= RECORDED_PLAY_WINDOW_MS);
+    const match = candidates.findIndex(
+      (time) => Math.abs(time - playedAt) <= RECORDED_PLAY_WINDOW_MS,
+    );
+
+    if (match === -1) {
+      return true;
+    }
+
+    // One recorded play accounts for one row, so a track on repeat keeps the
+    // listens that ingestion did not record.
+    candidates.splice(match, 1);
+
+    return false;
   });
 }
 

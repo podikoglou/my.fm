@@ -374,6 +374,36 @@ describe("import ingestion cron processor", () => {
     expect(row?.skippedRows).toBe(1);
   });
 
+  test("skips one row per recorded play when a track is on repeat", async () => {
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-repeat",
+      userId: "user-repeat",
+      username: "user_repeat",
+      createdAt: new Date(),
+    });
+
+    await env.IMPORTS_BUCKET.put(
+      getImportR2Key("import-repeat"),
+      "Artist;Album;Track;Date#user\n" +
+        "Anderson .Paak;Ventura;Come Home;1644436588000\n" +
+        "Anderson .Paak;Ventura;Come Home;1644436738000\n" +
+        "Anderson .Paak;Ventura;Come Home;1644436888000",
+    );
+
+    await seedRecordedPlay(db, "user-repeat", new Date(1644436588000 + 210_000));
+
+    const result = await runImportIngestion(env, {
+      batchLimit: 500,
+      throttleMs: 0,
+      fetchBatch: async () => ({ q0: null }) satisfies Record<string, GqlTrack | null>,
+    });
+
+    expect(result).toMatchObject({ status: "completed", processed: 2, skipped: 1 });
+    expect(await db.select().from(scrobbles)).toHaveLength(3);
+  });
+
   test("imports a row whose track was recorded at another time", async () => {
     const db = createDatabase(env.DB);
 
