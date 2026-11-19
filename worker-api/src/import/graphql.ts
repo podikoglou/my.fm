@@ -172,6 +172,13 @@ export async function fetchGraphQLBatch(
     throw new Error(`GraphQL response is missing the data envelope: HTTP ${response.status}`);
   }
 
+  const [firstError] = json.errors ?? [];
+
+  if (firstError) {
+    // A field that failed is null in `data`, which would read as a no-match.
+    throw new Error(`GraphQL response reported an error: ${firstError.message}`);
+  }
+
   return json.data;
 }
 

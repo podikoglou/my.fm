@@ -187,6 +187,19 @@ describe("graphql helper", () => {
     );
   });
 
+  test("fetches fail when the response reports an error beside its data", async () => {
+    // The failed field is null in the data, which would read as a no-match.
+    network.use(
+      http.post(GRAPHQL_ENDPOINT, () =>
+        Response.json({ data: { q0: null }, errors: [{ message: "upstream timed out" }] }),
+      ),
+    );
+
+    await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
+      "upstream timed out",
+    );
+  });
+
   test("fetches fail when the response envelope has no data", async () => {
     network.use(
       http.post(GRAPHQL_ENDPOINT, () => Response.json({ errors: [{ message: "boom" }] })),
