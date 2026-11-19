@@ -93,13 +93,9 @@ export default new Hono<AppEnv>()
 
     const lines = splitCsvLines(text);
 
-    if (lines.length < 2) {
-      return c.json({ error: "CSV file contains no data rows" }, 422);
-    }
+    const [firstLine] = lines;
 
-    const firstLine = lines[0];
-
-    if (!firstLine) {
+    if (lines.length < 2 || !firstLine) {
       return c.json({ error: "CSV file contains no data rows" }, 422);
     }
 

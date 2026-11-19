@@ -109,21 +109,9 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
   const lines = splitCsvLines(fileText);
   const totalLines = lines.length;
 
-  if (lines.length < 2) {
-    await updateImport(db, activeImport.id, {
-      status: "failed",
-      error: "CSV file contains no data rows",
-      totalLines,
-    });
+  const [firstLine] = lines;
 
-    await env.IMPORTS_BUCKET.delete(r2Key);
-
-    return { status: "failed", processed: 0 };
-  }
-
-  const firstLine = lines[0];
-
-  if (!firstLine) {
+  if (lines.length < 2 || !firstLine) {
     await updateImport(db, activeImport.id, {
       status: "failed",
       error: "CSV file contains no data rows",
@@ -254,26 +242,17 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
   const newSkipped = activeImport.skippedRows + skippedInBatch;
   const isFinished = endIndex >= lines.length;
 
-  if (isFinished) {
-    await updateImport(db, activeImport.id, {
-      cursor: endIndex,
-      processedRows: newProcessed,
-      skippedRows: newSkipped,
-      totalLines,
-      attemptCount: 0,
-      status: "completed",
-    });
+  await updateImport(db, activeImport.id, {
+    cursor: endIndex,
+    processedRows: newProcessed,
+    skippedRows: newSkipped,
+    totalLines,
+    attemptCount: 0,
+    status: isFinished ? "completed" : "processing",
+  });
 
+  if (isFinished) {
     await env.IMPORTS_BUCKET.delete(r2Key);
-  } else {
-    await updateImport(db, activeImport.id, {
-      cursor: endIndex,
-      processedRows: newProcessed,
-      skippedRows: newSkipped,
-      totalLines,
-      attemptCount: 0,
-      status: "processing",
-    });
   }
 
   return {
