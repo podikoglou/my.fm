@@ -15,8 +15,11 @@ import {
   toPublicUser,
   updateUserSettings,
 } from "../db/queries/users.ts";
+import { rateLimit } from "../rate-limit-middleware.ts";
 
 export default new Hono<AppEnv>()
+  .use("/byUsername", rateLimit("PUBLIC_READ_RATE_LIMIT"))
+  .use("/byId", rateLimit("PUBLIC_READ_RATE_LIMIT"))
   .use("/*", sessionMiddleware)
   .use("/me", requireSession)
   .use("/settings", requireSession)

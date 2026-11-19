@@ -4,6 +4,7 @@ import { Database as SQLite } from "bun:sqlite";
 import { readdirSync, readFileSync } from "node:fs";
 
 import type { WorkerEnv } from "../src/alchemy.ts";
+import type { RateLimiter } from "../src/rate-limits.ts";
 
 export const baseUrl = "http://app.test";
 
@@ -77,12 +78,51 @@ function asD1Database<T>(value: T): D1Database {
 }
 
 /** Create a Worker environment for a test, with a fresh migrated database. */
-export function createTestEnv(database: D1Database = createTestDatabase()): WorkerEnv {
+export function createTestEnv(options: TestEnvOptions = {}): WorkerEnv {
+  const {
+    database = createTestDatabase(),
+    authRateLimiter = createRateLimiter(),
+    publicReadRateLimiter = createRateLimiter(),
+  } = options;
+
   return {
     DB: database,
+    AUTH_RATE_LIMIT: authRateLimiter,
+    PUBLIC_READ_RATE_LIMIT: publicReadRateLimiter,
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
     SPOTIFY_CLIENT_ID: "test-client-id",
     SPOTIFY_CLIENT_SECRET: "test-client-secret",
+  };
+}
+
+type TestEnvOptions = {
+  database?: D1Database;
+  authRateLimiter?: RateLimiter;
+  publicReadRateLimiter?: RateLimiter;
+};
+
+/**
+ * An in-memory counter that stands in for the Rate Limiting binding: one count
+ * per key, and a request above `limit` is denied without counting, as the
+ * binding documents. The default budget exceeds every declared policy, so a
+ * test that does not care about throttling never trips it; a limit of `0`
+ * denies every request, which pins a route that must never consult one.
+ */
+export function createRateLimiter(limit = 1_000): RateLimiter {
+  const counts = new Map<string, number>();
+
+  return {
+    async limit({ key }) {
+      const count = counts.get(key) ?? 0;
+
+      if (count >= limit) {
+        return { success: false };
+      }
+
+      counts.set(key, count + 1);
+
+      return { success: true };
+    },
   };
 }
 

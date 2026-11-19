@@ -37,9 +37,22 @@ does not run the Worker. The cache key includes the path and query string, so
 API routes are encouraged to be made cache-friendly by having consistent query
 strings.
 
+## Rate limits
+
+The Worker declares Cloudflare Rate Limiting bindings. The budget is part of the
+Worker script, so a deploy changes it and there is no resource to destroy. The
+routes and budgets are in `worker-api/README.md`.
+
+The binding counts per Cloudflare location and approximately, so it blunts abuse
+rather than enforcing a quota. Counters are keyed by namespace id, which is
+account-scoped: a stage that declares the same id as another counts against the
+same budget.
+
 ## Free plan limits
 
-The project targets the Free Cloudflare plan.
+The project targets the Free Cloudflare plan. Cloudflare documents no plan
+requirement and no billed resource for the Rate Limiting binding; the limits
+travel in the Worker script.
 
 ## Agent Note: Before you change infrastructure
 

@@ -1,0 +1,148 @@
+import { describe, expect, test } from "bun:test";
+
+import { createApp } from "../src/app.ts";
+import { RATE_LIMITS } from "../src/rate-limits.ts";
+import { createRateLimiter, createTestEnv } from "./harness.ts";
+
+const clientIp = "203.0.113.7";
+
+/** The unauthenticated reads that the public policy covers. */
+const publicReads = [
+  "/api/feed",
+  "/api/user/byUsername?username=alex",
+  "/api/user/byId?id=V1StGXR8_Z5jdHi6B-myT",
+  "/api/scrobble/getRecent?username=alex&offset=0",
+];
+
+describe("rate limits", () => {
+  test("gives each policy its own namespace", () => {
+    const ids = Object.values(RATE_LIMITS).map(({ namespaceId }) => namespaceId);
+
+    // A shared namespace would merge two budgets into one.
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test("serves requests below the budget", async () => {
+    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(2) });
+    const app = createApp();
+    const headers = { "cf-connecting-ip": clientIp };
+
+    const responses = [
+      await app.request("/api/feed", { headers }, env),
+      await app.request("/api/feed", { headers }, env),
+    ];
+
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+    }
+  });
+
+  test("rejects the request above the budget", async () => {
+    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+    const app = createApp();
+    const headers = { "cf-connecting-ip": clientIp };
+
+    expect((await app.request("/api/feed", { headers }, env)).status).toBe(200);
+
+    const response = await app.request("/api/feed", { headers }, env);
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "Too many requests" });
+    // The window is the binding's period, which the binding does not refine.
+    expect(response.headers.get("Retry-After")).toBe("60");
+    // A cached rejection would outlive the window.
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  test("keys the budget on the client address", async () => {
+    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+    const app = createApp();
+
+    const from = (ip: string) =>
+      app.request("/api/feed", { headers: { "cf-connecting-ip": ip } }, env);
+
+    expect((await from("203.0.113.7")).status).toBe(200);
+    expect((await from("203.0.113.7")).status).toBe(429);
+    expect((await from("198.51.100.4")).status).toBe(200);
+  });
+
+  test("shares one budget when the client address is missing", async () => {
+    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+    const app = createApp();
+
+    expect((await app.request("/api/feed", undefined, env)).status).toBe(200);
+    expect((await app.request("/api/feed", undefined, env)).status).toBe(429);
+  });
+
+  test("never limits the health routes", async () => {
+    const env = createTestEnv({
+      authRateLimiter: createRateLimiter(0),
+      publicReadRateLimiter: createRateLimiter(0),
+    });
+
+    const app = createApp();
+
+    const health = await app.request("/health", undefined, env);
+    const ingestion = await app.request("/health/ingestion", undefined, env);
+
+    expect(health.status).toBe(200);
+
+    // No run has been recorded, so the route answers with its own stale report.
+    expect(ingestion.status).toBe(503);
+    expect(await ingestion.json()).toMatchObject({ status: "stale" });
+  });
+
+  test("leaves the authenticated routes out of the public budget", async () => {
+    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(0) });
+
+    const response = await createApp().request("/api/user/me", undefined, env);
+
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("auth rate limit", () => {
+  test("limits the auth mount", async () => {
+    const env = createTestEnv({ authRateLimiter: createRateLimiter(1) });
+    const app = createApp();
+
+    expect((await app.request("/api/auth/get-session", undefined, env)).status).toBe(200);
+
+    const response = await app.request("/api/auth/get-session", undefined, env);
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "Too many requests" });
+    expect(response.headers.get("Retry-After")).toBe("60");
+  });
+
+  test("limits sign-in", async () => {
+    const env = createTestEnv({ authRateLimiter: createRateLimiter(0) });
+
+    const response = await createApp().request(
+      "/api/auth/sign-in/social",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "spotify" }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(429);
+  });
+});
+
+describe("public read rate limit", () => {
+  test("limits every public read", async () => {
+    for (const path of publicReads) {
+      const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+      const app = createApp();
+
+      const first = await app.request(path, undefined, env);
+      const second = await app.request(path, undefined, env);
+
+      expect([path, first.status]).not.toEqual([path, 429]);
+      expect([path, second.status]).toEqual([path, 429]);
+    }
+  });
+});
