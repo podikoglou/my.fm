@@ -163,6 +163,9 @@ export function UserTrackList({ username }: { username: string }) {
       queryFn: () => fetchPage(page),
       staleTime: 60_000,
       retry: false,
+      // Rows read pages from the cache, so the list must re-render when a
+      // page's data arrives even though only `error` is read from the result.
+      notifyOnChangeProps: ["data", "error"] as const,
     })),
   });
 
