@@ -1,10 +1,10 @@
-import { describe, expect, test } from "bun:test";
 import { DrizzleQueryError } from "drizzle-orm/errors";
+import { describe, expect, test } from "vitest";
 
 import { describeError, getD1QuotaError } from "../src/db/errors.ts";
 
 // The exact message the D1 binding throws, kept here so the classifier and the
-// harness fixture cannot drift together.
+// test database wrappers cannot drift together.
 const WRITE_LIMIT_MESSAGE =
   "D1_ERROR: Your account has exceeded D1's free tier daily row write limit. " +
   "Upgrade to a paid plan or wait until tomorrow (midnight UTC) to continue. " +

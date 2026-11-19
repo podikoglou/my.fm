@@ -1,5 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
+import { http } from "msw";
+import { describe, expect, vi, test } from "vitest";
 
 import type { Database } from "../src/db/index.ts";
 import type { CreateSpotifyClient, SpotifyPlay } from "../src/ingestion/spotify.ts";
@@ -23,14 +25,12 @@ import { storePlays } from "../src/ingestion/plays.ts";
 import { runIngestion, shouldFetchUser } from "../src/ingestion/run.ts";
 import { SpotifyQuotaExceededError } from "../src/ingestion/spotify.ts";
 import {
-  captureLogs,
   createBatchWriteLimitDatabase,
   createFailingUpdateDatabase,
   createStatementWriteLimitDatabase,
-  createTestDatabase,
-  createTestEnv,
-  replaceFetch,
-} from "./harness.ts";
+} from "./d1.ts";
+import { captureLogs } from "./logs.ts";
+import { network } from "./network.ts";
 
 const now = new Date("2026-11-11T12:00:00.000Z");
 
@@ -131,7 +131,6 @@ describe("scrobble IDs", () => {
 
 describe("storePlays", () => {
   test("stores the whole play in one batch", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const play = makePlay("2026-11-11T12:00:00.000Z");
 
@@ -190,7 +189,6 @@ describe("storePlays", () => {
   });
 
   test("is idempotent when the same play is fetched again", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const play = makePlay("2026-11-11T12:00:00.000Z");
 
@@ -205,13 +203,8 @@ describe("storePlays", () => {
   });
 
   test("splits a large fetch into bounded batches", async () => {
-    let batches = 0;
-
-    const sqlite = createTestDatabase(() => {
-      batches += 1;
-    });
-
-    const db = createDatabase(sqlite);
+    const batch = vi.spyOn(env.DB, "batch");
+    const db = createDatabase(env.DB);
 
     const plays = Array.from({ length: 12 }, (_, index) =>
       makePlay(new Date(now.getTime() + index * 60_000).toISOString(), String(index)),
@@ -220,14 +213,13 @@ describe("storePlays", () => {
     await seedUser(db);
     await storePlays(db, "user-1", plays);
 
-    expect(batches).toBe(2);
+    expect(batch).toHaveBeenCalledTimes(2);
     expect(await db.select().from(scrobbles)).toHaveLength(12);
   });
 });
 
 describe("runIngestion", () => {
   test("fetches the initial fifty plays and advances the cursor", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const plays = [makePlay("2026-11-11T12:00:00.000Z"), makePlay("2026-11-11T12:01:00.000Z", "2")];
     const calls: FetchCall[] = [];
@@ -246,7 +238,6 @@ describe("runIngestion", () => {
   });
 
   test("requests a full page and the cursor after the first fetch", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
 
@@ -266,7 +257,6 @@ describe("runIngestion", () => {
   });
 
   test("refreshes an expired token and stores the new one", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
     let refreshBody = "";
@@ -277,25 +267,23 @@ describe("runIngestion", () => {
       refreshToken: "refresh-token",
     });
 
-    const restoreFetch = replaceFetch(async (_input, init) => {
-      refreshBody = String(init?.body ?? "");
+    network.use(
+      http.post("https://accounts.spotify.com/api/token", async ({ request }) => {
+        refreshBody = await request.text();
 
-      return Response.json({
-        access_token: "fresh-token",
-        token_type: "Bearer",
-        expires_in: 3600,
-        refresh_token: "new-refresh-token",
-      });
-    });
+        return Response.json({
+          access_token: "fresh-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "new-refresh-token",
+        });
+      }),
+    );
 
-    try {
-      await runIngestion(
-        env,
-        clientFor(calls, () => []),
-      );
-    } finally {
-      restoreFetch();
-    }
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+    );
 
     expect(calls).toEqual([{ accessToken: "fresh-token", limit: 50, options: undefined }]);
     expect(refreshBody).toContain("grant_type=refresh_token");
@@ -307,7 +295,6 @@ describe("runIngestion", () => {
   });
 
   test("leaves the cursor unchanged when the token refresh fails", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
     const cursor = new Date("2026-11-01T00:00:00.000Z");
@@ -320,7 +307,12 @@ describe("runIngestion", () => {
     });
     await db.update(users).set({ lastRecentTracksFetchTime: cursor }).where(eq(users.id, "user-1"));
 
-    const restoreFetch = replaceFetch(async () => new Response("unauthorized", { status: 401 }));
+    network.use(
+      http.post(
+        "https://accounts.spotify.com/api/token",
+        () => new Response("unauthorized", { status: 401 }),
+      ),
+    );
 
     try {
       await runIngestion(
@@ -328,7 +320,6 @@ describe("runIngestion", () => {
         clientFor(calls, () => []),
       );
     } finally {
-      restoreFetch();
       logs.restore();
     }
 
@@ -339,7 +330,6 @@ describe("runIngestion", () => {
   });
 
   test("rolls back a failed chunk and leaves the cursor unchanged", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const cursor = new Date("2026-11-01T00:00:00.000Z");
     const logs = captureLogs();
@@ -377,7 +367,6 @@ describe("runIngestion", () => {
   });
 
   test("does not duplicate a play that is fetched again", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const plays = [makePlay("2026-11-11T12:00:00.000Z")];
 
@@ -396,7 +385,6 @@ describe("runIngestion", () => {
   });
 
   test("does nothing when no Spotify accounts exist", async () => {
-    const env = createTestEnv();
     const calls: FetchCall[] = [];
 
     await runIngestion(
@@ -408,7 +396,6 @@ describe("runIngestion", () => {
   });
 
   test("continues with other accounts when one fetch fails", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const seen: string[] = [];
     const logs = captureLogs();
@@ -438,7 +425,6 @@ describe("runIngestion", () => {
   });
 
   test("stops the run when Spotify reports a quota error", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const seen: string[] = [];
     const logs = captureLogs();
@@ -482,7 +468,6 @@ describe("runIngestion", () => {
   });
 
   test("skips a run that is still inside a block", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -515,7 +500,6 @@ describe("runIngestion", () => {
   });
 
   test("leaves the cursor unchanged while Spotify blocks the account", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const cursor = new Date("2026-11-01T00:00:00.000Z");
     const logs = captureLogs();
@@ -544,7 +528,6 @@ describe("runIngestion", () => {
   });
 
   test("resumes after the stored block ends", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
 
     await seedUser(db, { userId: "user-1", accessToken: "token-1" });
@@ -564,7 +547,6 @@ describe("runIngestion", () => {
   });
 
   test("clamps a long block to one day", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -588,7 +570,6 @@ describe("runIngestion", () => {
   });
 
   test("continues with the next account when one fetch fails for another reason", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const seen: string[] = [];
     const logs = captureLogs();
@@ -613,7 +594,6 @@ describe("runIngestion", () => {
   });
 
   test("logs the retry delay from a quota error", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -636,7 +616,6 @@ describe("runIngestion", () => {
   });
 
   test("fetches a user once when a second Spotify account is linked", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
 
@@ -661,7 +640,6 @@ describe("runIngestion", () => {
   });
 
   test("logs one run-complete event per run with the stored totals", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -686,7 +664,6 @@ describe("runIngestion", () => {
   });
 
   test("counts a failed account in the run-complete event", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -712,7 +689,6 @@ describe("runIngestion", () => {
   });
 
   test("records one heartbeat per run", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const logs = captureLogs();
     const before = Date.now();
@@ -746,7 +722,6 @@ describe("runIngestion", () => {
   });
 
   test("stops the run without a heartbeat when D1 rejects the store", async () => {
-    const env = createTestEnv({ database: createBatchWriteLimitDatabase() });
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -754,7 +729,7 @@ describe("runIngestion", () => {
     try {
       await seedUser(db);
       await runIngestion(
-        env,
+        { ...env, DB: createBatchWriteLimitDatabase(env.DB) },
         clientFor(calls, () => [makePlay("2026-11-11T12:00:00.000Z")]),
       );
     } finally {
@@ -774,13 +749,12 @@ describe("runIngestion", () => {
   });
 
   test("reports the limit when the heartbeat write is the failure", async () => {
-    const env = createTestEnv({ database: createStatementWriteLimitDatabase() });
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
     try {
       await runIngestion(
-        env,
+        { ...env, DB: createStatementWriteLimitDatabase(env.DB) },
         clientFor([], () => []),
       );
     } finally {
@@ -797,17 +771,16 @@ describe("runIngestion", () => {
   });
 
   test("logs the cause message of a wrapped update failure", async () => {
-    const env = createTestEnv({
-      database: createFailingUpdateDatabase("D1_ERROR: FOREIGN KEY constraint failed"),
-    });
-
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
     try {
       await seedUser(db);
       await runIngestion(
-        env,
+        {
+          ...env,
+          DB: createFailingUpdateDatabase("D1_ERROR: FOREIGN KEY constraint failed", env.DB),
+        },
         clientFor([], () => [makePlay("2026-11-11T12:00:00.000Z")]),
       );
     } finally {
@@ -918,7 +891,6 @@ describe("shouldFetchUser", () => {
 
 describe("dynamic fetch intervals in runIngestion", () => {
   test("skips inactive user on subsequent tick within 10-minute window", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const t0 = new Date("2026-11-16T12:00:00.000Z");
     const t1 = new Date("2026-11-16T12:02:00.000Z"); // 2 min later
@@ -944,7 +916,6 @@ describe("dynamic fetch intervals in runIngestion", () => {
   });
 
   test("fetches inactive user after 10 minutes", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const t0 = new Date("2026-11-16T12:00:00.000Z");
     const t10 = new Date("2026-11-16T12:10:00.000Z"); // 10 min later
@@ -968,7 +939,6 @@ describe("dynamic fetch intervals in runIngestion", () => {
   });
 
   test("promotes user to active when recent plays are found and fetches them 3 minutes later", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const t0 = new Date("2026-11-16T12:00:00.000Z");
     const t3 = new Date("2026-11-16T12:03:00.000Z"); // 3 min later
@@ -998,7 +968,6 @@ describe("dynamic fetch intervals in runIngestion", () => {
   });
 
   test("keeps user active during 15-minute window even if fetch returns 0 plays", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const t0 = new Date("2026-11-16T12:00:00.000Z");
     const t3 = new Date("2026-11-16T12:03:00.000Z");

@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { env } from "cloudflare:workers";
+import { describe, expect, test } from "vitest";
 
 import type { WorkerEnv } from "../src/alchemy.ts";
 import type { Database } from "../src/db/index.ts";
@@ -10,14 +11,8 @@ import { albums, artists, imports, scrobbles, tracks, users } from "../src/db/sc
 import { getImportR2Key } from "../src/import/csv.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { runImportIngestion } from "../src/ingestion/import.ts";
-import {
-  captureLogs,
-  createBatchWriteLimitDatabase,
-  createStatementWriteLimitDatabase,
-  createTestDatabase,
-  createTestEnv,
-  createTestR2Bucket,
-} from "./harness.ts";
+import { createBatchWriteLimitDatabase, createStatementWriteLimitDatabase } from "./d1.ts";
+import { captureLogs } from "./logs.ts";
 
 const FAILING_CSV =
   "Artist;Album;Track;Date#user\n" +
@@ -60,7 +55,6 @@ function throwingFetchBatch() {
 
 describe("import ingestion cron processor", () => {
   test("returns idle when no active import exists", async () => {
-    const env = createTestEnv();
     const result = await runImportIngestion(env);
 
     expect(result.status).toBe("idle");
@@ -68,7 +62,6 @@ describe("import ingestion cron processor", () => {
   });
 
   test("marks import failed when R2 object is missing", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const userId = "user-missing-file";
 
@@ -102,7 +95,6 @@ describe("import ingestion cron processor", () => {
   });
 
   test("processes lines, resolves metadata, writes to D1 and deletes R2 on completion", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const userId = "user-full-test";
 
@@ -221,7 +213,6 @@ describe("import ingestion cron processor", () => {
   });
 
   test("handles track with album Spotify URI but missing track Spotify URI without foreign key failure", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const userId = "user-partial-match";
 
@@ -287,7 +278,6 @@ describe("import ingestion cron processor", () => {
   });
 
   test("keeps the import processing with an unmoved cursor when a metadata batch fails", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
 
     await seedImport(env, db, {
@@ -311,7 +301,6 @@ describe("import ingestion cron processor", () => {
   });
 
   test("marks the import failed after three consecutive batch failures", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
 
     await seedImport(env, db, {
@@ -344,7 +333,6 @@ describe("import ingestion cron processor", () => {
   });
 
   test("resets the failure counter after a successful run", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
 
     await seedImport(env, db, {
@@ -381,7 +369,6 @@ describe("import ingestion cron processor", () => {
   });
 
   test("a permanently failing import does not block another user's import", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
 
     await seedImport(env, db, {
@@ -427,7 +414,7 @@ describe("import ingestion cron processor", () => {
   });
 
   test("pauses without bookkeeping when D1 rejects the batch with its daily limit", async () => {
-    const env = createTestEnv({ database: createBatchWriteLimitDatabase() });
+    const limited = { ...env, DB: createBatchWriteLimitDatabase(env.DB) };
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -439,7 +426,7 @@ describe("import ingestion cron processor", () => {
     });
 
     try {
-      const result = await runImportIngestion(env, {
+      const result = await runImportIngestion(limited, {
         batchLimit: 500,
         throttleMs: 0,
         fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
@@ -463,7 +450,7 @@ describe("import ingestion cron processor", () => {
   });
 
   test("does not abandon the import across repeated quota pauses", async () => {
-    const env = createTestEnv({ database: createBatchWriteLimitDatabase() });
+    const limited = { ...env, DB: createBatchWriteLimitDatabase(env.DB) };
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -479,7 +466,7 @@ describe("import ingestion cron processor", () => {
 
     try {
       for (let i = 0; i < 3; i++) {
-        const result = await runImportIngestion(env, {
+        const result = await runImportIngestion(limited, {
           batchLimit: 500,
           throttleMs: 0,
           fetchBatch,
@@ -504,22 +491,19 @@ describe("import ingestion cron processor", () => {
   });
 
   test("pauses when the first status write is the failure", async () => {
-    const base = createTestDatabase();
-    const bucket = createTestR2Bucket();
-    const db = createDatabase(base);
+    const limited = { ...env, DB: createStatementWriteLimitDatabase(env.DB) };
+    const db = createDatabase(env.DB);
     const logs = captureLogs();
 
-    await seedImport(createTestEnv({ database: base, bucket }), db, {
+    await seedImport(env, db, {
       id: "import-first-write",
       userId: "user-first-write",
       username: "user_first_write",
       createdAt: new Date(),
     });
 
-    const env = createTestEnv({ database: createStatementWriteLimitDatabase(base), bucket });
-
     try {
-      const result = await runImportIngestion(env, {
+      const result = await runImportIngestion(limited, {
         batchLimit: 500,
         throttleMs: 0,
         fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
@@ -534,12 +518,11 @@ describe("import ingestion cron processor", () => {
 
     expect(row?.status).toBe("pending");
     expect(row?.attemptCount).toBe(0);
-    expect(await bucket.get(getImportR2Key("import-first-write"))).not.toBeNull();
+    expect(await env.IMPORTS_BUCKET.get(getImportR2Key("import-first-write"))).not.toBeNull();
     expect(logs.messages).toEqual([[INGESTION_EVENTS.d1WriteLimit]]);
   });
 
   test("logs the batch failure detail with its cause chain", async () => {
-    const env = createTestEnv();
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 

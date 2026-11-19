@@ -34,7 +34,7 @@ type SpotifyAccount = Awaited<ReturnType<typeof findSpotifyAccounts>>[number];
 
 /**
  * How long after the last run the schedule counts as stopped. The Cron Trigger
- * runs every five minutes, so four missed runs is an outage rather than a slow
+ * runs every minute, so twenty missed runs is an outage rather than a slow
  * start.
  */
 export const INGESTION_STALE_AFTER_MS = 20 * 60_000;
@@ -152,8 +152,8 @@ async function ingestAllAccounts(env: WorkerEnv, createClient: CreateSpotifyClie
   const previous = await findIngestionRun(db);
 
   if (previous?.blockedUntil && previous.blockedUntil > now) {
-    // The first blocked run reported the block. Repeating the error every five
-    // minutes would bury that report in its own noise.
+    // The first blocked run reported the block. Repeating the error on every
+    // run would bury that report in its own noise.
     logIngestionEvent({
       event: INGESTION_EVENTS.runSkipped,
       retryAfterSeconds: Math.ceil((previous.blockedUntil.getTime() - now.getTime()) / 1000),

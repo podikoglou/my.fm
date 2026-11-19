@@ -1,4 +1,5 @@
-import { describe, expect, it } from "bun:test";
+import { http } from "msw";
+import { describe, expect, it } from "vitest";
 
 import type { GqlTrack } from "../src/import/graphql.ts";
 
@@ -10,7 +11,7 @@ import {
   spotifyUrlToUri,
 } from "../src/import/graphql.ts";
 import { resolveTracksWaterfall } from "../src/import/resolver.ts";
-import { replaceFetch } from "./harness.ts";
+import { network } from "./network.ts";
 
 describe("graphql helper", () => {
   it("converts spotify URLs to URIs", () => {
@@ -179,26 +180,20 @@ describe("graphql helper", () => {
   });
 
   it("fetches fail on a non-OK response status", async () => {
-    const restoreFetch = replaceFetch(async () => new Response("rate limited", { status: 429 }));
+    network.use(http.post(GRAPHQL_ENDPOINT, () => new Response("rate limited", { status: 429 })));
 
-    try {
-      await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
-        "429",
-      );
-    } finally {
-      restoreFetch();
-    }
+    await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
+      "429",
+    );
   });
 
   it("fetches fail when the response envelope has no data", async () => {
-    const restoreFetch = replaceFetch(async () => Response.json({ errors: [{ message: "boom" }] }));
+    network.use(
+      http.post(GRAPHQL_ENDPOINT, () => Response.json({ errors: [{ message: "boom" }] })),
+    );
 
-    try {
-      await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
-        "missing the data envelope",
-      );
-    } finally {
-      restoreFetch();
-    }
+    await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
+      "missing the data envelope",
+    );
   });
 });

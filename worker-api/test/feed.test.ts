@@ -1,5 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
+import { describe, expect, test } from "vitest";
 import z from "zod";
 
 import { createApp } from "../src/app.ts";
@@ -13,7 +14,6 @@ import {
   tracks,
   users,
 } from "../src/db/schema.ts";
-import { createTestEnv } from "./harness.ts";
 
 const userA = "V1StGXR8_Z5jdHi6B-myT";
 const userB = "V1StGXR8_Z5jdHi6B-myU";
@@ -62,7 +62,6 @@ const feedResponse = z.object({
 });
 
 async function seed() {
-  const env = createTestEnv();
   const db = createDatabase(env.DB);
 
   await db.insert(users).values([

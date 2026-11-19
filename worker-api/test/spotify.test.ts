@@ -1,11 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { env } from "cloudflare:workers";
+import { http } from "msw";
+import { describe, expect, test } from "vitest";
 
 import {
   createSpotifyClient,
   getSpotifyQuotaError,
   SpotifyQuotaExceededError,
 } from "../src/ingestion/spotify.ts";
-import { createTestEnv, replaceFetch } from "./harness.ts";
+import { network } from "./network.ts";
 
 /** The body that Spotify returns for a quota error. */
 const quotaBody = {
@@ -34,39 +36,37 @@ describe("getSpotifyQuotaError", () => {
 
 describe("createSpotifyClient", () => {
   test("turns a 429 into a quota error with the retry delay", async () => {
-    const restoreFetch = replaceFetch(async () =>
-      Response.json(quotaBody, { status: 429, headers: { "retry-after": "66362" } }),
+    network.use(
+      http.get("https://api.spotify.com/v1/me/player/recently-played", async () =>
+        Response.json(quotaBody, { status: 429, headers: { "retry-after": "66362" } }),
+      ),
     );
 
-    try {
-      const client = createSpotifyClient(createTestEnv(), "token-1");
+    const client = createSpotifyClient(env, "token-1");
 
-      const quota = await client.getRecentlyPlayedTracks(50).then(
-        () => null,
-        (error: Error) => getSpotifyQuotaError(error),
-      );
+    const quota = await client.getRecentlyPlayedTracks(50).then(
+      () => null,
+      (error: Error) => getSpotifyQuotaError(error),
+    );
 
-      expect(quota).toEqual({ retryAfterSeconds: 66_362 });
-    } finally {
-      restoreFetch();
-    }
+    expect(quota).toEqual({ retryAfterSeconds: 66_362 });
   });
 
   test("keeps the quota classification when the response has no retry delay", async () => {
-    const restoreFetch = replaceFetch(async () => Response.json(quotaBody, { status: 429 }));
+    network.use(
+      http.get("https://api.spotify.com/v1/me/player/recently-played", async () =>
+        Response.json(quotaBody, { status: 429 }),
+      ),
+    );
 
-    try {
-      const client = createSpotifyClient(createTestEnv(), "token-1");
+    const client = createSpotifyClient(env, "token-1");
 
-      const quota = await client.getRecentlyPlayedTracks(50).then(
-        () => null,
-        (error: Error) => getSpotifyQuotaError(error),
-      );
+    const quota = await client.getRecentlyPlayedTracks(50).then(
+      () => null,
+      (error: Error) => getSpotifyQuotaError(error),
+    );
 
-      expect(quota).toEqual({ retryAfterSeconds: null });
-    } finally {
-      restoreFetch();
-    }
+    expect(quota).toEqual({ retryAfterSeconds: null });
   });
 
   test("accepts only a whole, non-negative retry delay", async () => {
@@ -81,22 +81,20 @@ describe("createSpotifyClient", () => {
     ];
 
     for (const { header, expected } of cases) {
-      const restoreFetch = replaceFetch(async () =>
-        Response.json(quotaBody, { status: 429, headers: { "retry-after": header } }),
+      network.use(
+        http.get("https://api.spotify.com/v1/me/player/recently-played", async () =>
+          Response.json(quotaBody, { status: 429, headers: { "retry-after": header } }),
+        ),
       );
 
-      try {
-        const client = createSpotifyClient(createTestEnv(), "token-1");
+      const client = createSpotifyClient(env, "token-1");
 
-        const quota = await client.getRecentlyPlayedTracks(50).then(
-          () => null,
-          (error: Error) => getSpotifyQuotaError(error),
-        );
+      const quota = await client.getRecentlyPlayedTracks(50).then(
+        () => null,
+        (error: Error) => getSpotifyQuotaError(error),
+      );
 
-        expect(quota).toEqual({ retryAfterSeconds: expected });
-      } finally {
-        restoreFetch();
-      }
+      expect(quota).toEqual({ retryAfterSeconds: expected });
     }
   });
 });
