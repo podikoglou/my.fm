@@ -1,7 +1,7 @@
 import type { WorkerEnv } from "../alchemy.ts";
 import type { Auth } from "../auth.ts";
 import type { Database } from "../db/index.ts";
-import type { CreateSpotifyClient } from "./spotify.ts";
+import type { CreateSpotifyClient, SpotifyPlayback } from "./spotify.ts";
 
 import { createAuth } from "../auth.ts";
 import { describeError, getD1QuotaError } from "../db/errors.ts";
@@ -75,12 +75,20 @@ export const INGESTION_CONFIG = {
 
 export type IngestionConfig = typeof INGESTION_CONFIG;
 
+type UserFetchState = {
+  lastFetchedAt?: Date | null;
+  lastActiveAt?: Date | null;
+  lastRecentTracksFetchTime?: Date | null;
+};
+
+function isActiveUser(user: UserFetchState, now: Date, config: IngestionConfig) {
+  return (
+    user.lastActiveAt != null && now.getTime() - user.lastActiveAt.getTime() < config.activeWindowMs
+  );
+}
+
 export function shouldFetchUser(
-  user: {
-    lastFetchedAt?: Date | null;
-    lastActiveAt?: Date | null;
-    lastRecentTracksFetchTime?: Date | null;
-  },
+  user: UserFetchState,
   now: Date,
   config: IngestionConfig = INGESTION_CONFIG,
 ): boolean {
@@ -90,13 +98,40 @@ export function shouldFetchUser(
 
   const timeSinceLastFetch = now.getTime() - user.lastFetchedAt.getTime();
 
-  const isActive =
-    user.lastActiveAt != null &&
-    now.getTime() - user.lastActiveAt.getTime() < config.activeWindowMs;
-
-  const intervalMs = isActive ? config.activeIntervalMs : config.inactiveIntervalMs;
+  const intervalMs = isActiveUser(user, now, config)
+    ? config.activeIntervalMs
+    : config.inactiveIntervalMs;
 
   return timeSinceLastFetch >= intervalMs;
+}
+
+/**
+ * Whether the history can hold a play that is not stored yet.
+ *
+ * While the track that played at the last fetch still plays, no track has ended
+ * since, so the history has nothing new. This holds if Spotify adds a play when
+ * its track ends, which Spotify does not document. The inactive interval bounds
+ * the wait if it does not, and after a seek, which makes a track look older
+ * than it is.
+ *
+ * Without a playing track the intervals decide alone.
+ */
+export function shouldFetchHistory(
+  user: UserFetchState,
+  playback: SpotifyPlayback | null,
+  now: Date,
+  config: IngestionConfig = INGESTION_CONFIG,
+): boolean {
+  if (!playback || !user.lastFetchedAt || !user.lastRecentTracksFetchTime) {
+    return shouldFetchUser(user, now, config);
+  }
+
+  const trackStartedAt = now.getTime() - playback.progressMs;
+  const lastFetchedAt = user.lastFetchedAt.getTime();
+
+  return (
+    trackStartedAt > lastFetchedAt || now.getTime() - lastFetchedAt >= config.inactiveIntervalMs
+  );
 }
 
 type AccountResult = {
@@ -277,7 +312,9 @@ async function ingestAccount(
     return { plays: 0, ok: false };
   }
 
-  if (!shouldFetchUser(queueData, now)) {
+  const isActive = isActiveUser(queueData, now, INGESTION_CONFIG);
+
+  if (!isActive && !shouldFetchUser(queueData, now)) {
     return { plays: 0, ok: true, skipped: true };
   }
 
@@ -294,6 +331,14 @@ async function ingestAccount(
 
   const { lastRecentTracksFetchTime } = queueData;
   const client = createClient(token.accessToken);
+
+  // Only an active user is worth a request on every run. An inactive user is
+  // found by the history fetch, as before.
+  const playback = isActive ? await client.getCurrentlyPlaying() : null;
+
+  if (!shouldFetchHistory(queueData, playback, now)) {
+    return { plays: 0, ok: true, skipped: true };
+  }
 
   const page = lastRecentTracksFetchTime
     ? await client.getRecentlyPlayedTracks(FETCH_LIMIT, {

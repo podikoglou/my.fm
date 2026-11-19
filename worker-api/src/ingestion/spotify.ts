@@ -1,4 +1,5 @@
 import { SpotifyApi } from "@spotify/web-api-ts-sdk";
+import z from "zod";
 
 import type { WorkerEnv } from "../alchemy.ts";
 
@@ -40,6 +41,23 @@ export type RecentlyPlayedPage = {
   items: SpotifyPlay[];
 };
 
+/** The track that plays at the moment of the request. */
+export type SpotifyPlayback = {
+  /** How far into the track the playback is (ms). */
+  progressMs: number;
+};
+
+/**
+ * The part of a now-playing answer that ingestion uses. A paused track, a
+ * podcast episode and an advert do not match, and neither does the empty
+ * answer (HTTP 204) that Spotify sends when nothing plays.
+ */
+const playbackSchema = z.object({
+  is_playing: z.literal(true),
+  currently_playing_type: z.literal("track"),
+  progress_ms: z.number(),
+});
+
 /** Spotify caps the page size at 50. */
 export type RecentTracksLimit = 50;
 
@@ -48,6 +66,12 @@ export type SpotifyClient = {
     limit: RecentTracksLimit,
     options?: { type: "after"; timestamp: number },
   ): Promise<RecentlyPlayedPage>;
+  /**
+   * The track that plays right now. Null when no track plays, and when Spotify
+   * refuses the token: a user who signed in before sign-in asked for the
+   * `user-read-currently-playing` scope has not granted it.
+   */
+  getCurrentlyPlaying(): Promise<SpotifyPlayback | null>;
 };
 
 export type CreateSpotifyClient = (accessToken: string) => SpotifyClient;
@@ -116,6 +140,7 @@ export function getSpotifyQuotaError(error: Error): SpotifyQuotaFailure | null {
 export function createSpotifyClient(env: WorkerEnv, accessToken: string): SpotifyClient {
   let quotaResponse = false;
   let quotaRetryAfterSeconds: number | null = null;
+  let tokenRefused = false;
 
   const api = SpotifyApi.withAccessToken(
     env.SPOTIFY_CLIENT_ID,
@@ -130,6 +155,7 @@ export function createSpotifyClient(env: WorkerEnv, accessToken: string): Spotif
       // and the retry window here. The thrown error carries neither.
       afterRequest: (_url, _options, response) => {
         quotaResponse = response.status === 429;
+        tokenRefused = response.status === 401 || response.status === 403;
         quotaRetryAfterSeconds = quotaResponse
           ? parseRetryAfterSeconds(response.headers.get("retry-after"))
           : null;
@@ -137,20 +163,41 @@ export function createSpotifyClient(env: WorkerEnv, accessToken: string): Spotif
     },
   );
 
+  /** Send one request and turn an HTTP 429 into an error that keeps the retry window. */
+  async function send<Body>(request: () => Promise<Body>) {
+    quotaResponse = false;
+    quotaRetryAfterSeconds = null;
+    tokenRefused = false;
+
+    try {
+      return await request();
+    } catch (error) {
+      // The status is the first signal. The message match is a fallback, in
+      // case an error arrives without passing through `afterRequest`.
+      const isQuota = quotaResponse || (error instanceof Error && isSdkQuotaError(error));
+
+      if (isQuota) {
+        throw new SpotifyQuotaExceededError(quotaRetryAfterSeconds);
+      }
+
+      throw error;
+    }
+  }
+
   return {
     async getRecentlyPlayedTracks(limit, options) {
-      quotaResponse = false;
-      quotaRetryAfterSeconds = null;
+      return await send(() => api.player.getRecentlyPlayedTracks(limit, options));
+    },
 
+    async getCurrentlyPlaying() {
       try {
-        return await api.player.getRecentlyPlayedTracks(limit, options);
-      } catch (error) {
-        // The status is the first signal. The message match is a fallback, in
-        // case an error arrives without passing through `afterRequest`.
-        const isQuota = quotaResponse || (error instanceof Error && isSdkQuotaError(error));
+        const body = await send(() => api.player.getCurrentlyPlayingTrack());
+        const playback = playbackSchema.safeParse(body);
 
-        if (isQuota) {
-          throw new SpotifyQuotaExceededError(quotaRetryAfterSeconds);
+        return playback.success ? { progressMs: playback.data.progress_ms } : null;
+      } catch (error) {
+        if (tokenRefused) {
+          return null;
         }
 
         throw error;

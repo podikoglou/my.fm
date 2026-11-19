@@ -34,6 +34,8 @@ export const Worker = Cloudflare.Worker("Worker", {
   // Runs every minute. Ingestion dynamically adjusts per-user fetch intervals
   // (every 3 minutes for active listeners, every 10 minutes for inactive users)
   // to stay well within Spotify's quota while delivering near real-time updates.
+  // An active listener is also asked every minute which track plays, and the
+  // history fetch is skipped while that track has not ended.
   crons: ["* * * * *"],
   cache: { enabled: true },
   // Workers Logs is on by default. Issues groups the errors that ingestion

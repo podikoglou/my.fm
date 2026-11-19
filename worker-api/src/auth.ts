@@ -25,7 +25,12 @@ export function createAuth(env: WorkerEnv) {
       spotify: {
         clientId: env.SPOTIFY_CLIENT_ID,
         clientSecret: env.SPOTIFY_CLIENT_SECRET,
-        scope: ["user-read-private", "user-read-email", "user-read-recently-played"],
+        scope: [
+          "user-read-private",
+          "user-read-email",
+          "user-read-recently-played",
+          "user-read-currently-playing",
+        ],
       },
     },
     user: {

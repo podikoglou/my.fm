@@ -4,7 +4,11 @@ import { http } from "msw";
 import { describe, expect, vi, test } from "vitest";
 
 import type { Database } from "../src/db/index.ts";
-import type { CreateSpotifyClient, SpotifyPlay } from "../src/ingestion/spotify.ts";
+import type {
+  CreateSpotifyClient,
+  SpotifyPlay,
+  SpotifyPlayback,
+} from "../src/ingestion/spotify.ts";
 
 import { createDatabase } from "../src/db/index.ts";
 import { findIngestionRun, recordIngestionRun } from "../src/db/queries/ingestionRuns.ts";
@@ -22,7 +26,7 @@ import {
 } from "../src/db/schema.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { storePlays } from "../src/ingestion/plays.ts";
-import { runIngestion, shouldFetchUser } from "../src/ingestion/run.ts";
+import { runIngestion, shouldFetchHistory, shouldFetchUser } from "../src/ingestion/run.ts";
 import { SpotifyQuotaExceededError } from "../src/ingestion/spotify.ts";
 import {
   createBatchWriteLimitDatabase,
@@ -107,8 +111,10 @@ type FetchCall = {
 function clientFor(
   calls: FetchCall[],
   getPlays: (call: FetchCall) => SpotifyPlay[],
+  getPlayback: () => SpotifyPlayback | null = () => null,
 ): CreateSpotifyClient {
   return (accessToken) => ({
+    getCurrentlyPlaying: async () => getPlayback(),
     getRecentlyPlayedTracks: async (limit, options) => {
       const call = { accessToken, limit, options };
       calls.push(call);
@@ -405,6 +411,7 @@ describe("runIngestion", () => {
 
     try {
       await runIngestion(env, (accessToken) => ({
+        getCurrentlyPlaying: async () => null,
         getRecentlyPlayedTracks: async () => {
           seen.push(accessToken);
 
@@ -434,6 +441,7 @@ describe("runIngestion", () => {
       await seedUser(db, { userId: "user-2", accessToken: "token-2" });
 
       await runIngestion(env, (accessToken) => ({
+        getCurrentlyPlaying: async () => null,
         getRecentlyPlayedTracks: async () => {
           seen.push(accessToken);
 
@@ -505,6 +513,7 @@ describe("runIngestion", () => {
     const logs = captureLogs();
 
     const blocked: CreateSpotifyClient = () => ({
+      getCurrentlyPlaying: async () => null,
       getRecentlyPlayedTracks: async () => {
         throw new Error("The app has exceeded its rate limits.");
       },
@@ -554,6 +563,7 @@ describe("runIngestion", () => {
       await seedUser(db, { userId: "user-1", accessToken: "token-1" });
 
       await runIngestion(env, () => ({
+        getCurrentlyPlaying: async () => null,
         getRecentlyPlayedTracks: async () => {
           throw new SpotifyQuotaExceededError(10 * 24 * 60 * 60);
         },
@@ -579,6 +589,7 @@ describe("runIngestion", () => {
       await seedUser(db, { userId: "user-2", accessToken: "token-2" });
 
       await runIngestion(env, (accessToken) => ({
+        getCurrentlyPlaying: async () => null,
         getRecentlyPlayedTracks: async () => {
           seen.push(accessToken);
 
@@ -601,6 +612,7 @@ describe("runIngestion", () => {
       await seedUser(db, { userId: "user-1", accessToken: "token-1" });
 
       await runIngestion(env, () => ({
+        getCurrentlyPlaying: async () => null,
         getRecentlyPlayedTracks: async () => {
           throw new SpotifyQuotaExceededError(66_362);
         },
@@ -670,6 +682,7 @@ describe("runIngestion", () => {
     try {
       await seedUser(db);
       await runIngestion(env, () => ({
+        getCurrentlyPlaying: async () => null,
         getRecentlyPlayedTracks: async () => {
           throw new Error("Spotify unavailable");
         },
@@ -697,6 +710,7 @@ describe("runIngestion", () => {
 
     try {
       await runIngestion(env, () => ({
+        getCurrentlyPlaying: async () => null,
         getRecentlyPlayedTracks: async () => {
           throw new Error("Spotify unavailable");
         },
@@ -1000,5 +1014,139 @@ describe("dynamic fetch intervals in runIngestion", () => {
       t6,
     );
     expect(calls).toHaveLength(3);
+  });
+});
+
+describe("now-playing polls in runIngestion", () => {
+  const t0 = new Date("2026-11-16T12:00:00.000Z");
+  const minutesAfter = (minutes: number) => new Date(t0.getTime() + minutes * 60_000);
+
+  /** Run once at `t0` with a recent play, which makes the user active. */
+  async function seedActiveUser(calls: FetchCall[]) {
+    await seedUser(createDatabase(env.DB));
+
+    await runIngestion(
+      env,
+      clientFor(calls, () => [makePlay("2026-11-16T11:58:00.000Z")]),
+      t0,
+    );
+  }
+
+  test("skips the history while the track of the last fetch still plays", async () => {
+    const calls: FetchCall[] = [];
+    let polls = 0;
+
+    await seedActiveUser(calls);
+
+    // The track began one minute before `t0`. The interval of an active user
+    // alone would fetch the history at the fourth minute.
+    for (const minutes of [1, 2, 3, 4]) {
+      const playback = () => {
+        polls += 1;
+
+        return { progressMs: (minutes + 1) * 60_000 };
+      };
+
+      await runIngestion(
+        env,
+        clientFor(calls, () => [], playback),
+        minutesAfter(minutes),
+      );
+    }
+
+    expect(polls).toBe(4);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("fetches the history when another track began after the last fetch", async () => {
+    const calls: FetchCall[] = [];
+
+    await seedActiveUser(calls);
+
+    await runIngestion(
+      env,
+      clientFor(
+        calls,
+        () => [],
+        () => ({ progressMs: 20_000 }),
+      ),
+      minutesAfter(1),
+    );
+
+    expect(calls).toHaveLength(2);
+  });
+
+  test("leaves the intervals in charge when nothing plays", async () => {
+    const calls: FetchCall[] = [];
+
+    await seedActiveUser(calls);
+
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      minutesAfter(1),
+    );
+    expect(calls).toHaveLength(1);
+
+    await runIngestion(
+      env,
+      clientFor(calls, () => []),
+      minutesAfter(3),
+    );
+    expect(calls).toHaveLength(2);
+  });
+
+  test("does not ask an inactive user what plays", async () => {
+    const calls: FetchCall[] = [];
+    let polls = 0;
+
+    const playback = () => {
+      polls += 1;
+
+      return null;
+    };
+
+    await seedUser(createDatabase(env.DB));
+
+    for (const minutes of [0, 1, 10]) {
+      await runIngestion(
+        env,
+        clientFor(calls, () => [], playback),
+        minutesAfter(minutes),
+      );
+    }
+
+    expect(polls).toBe(0);
+    expect(calls).toHaveLength(2);
+  });
+});
+
+describe("shouldFetchHistory", () => {
+  const now = new Date("2026-11-16T12:00:00.000Z");
+  const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000);
+
+  const user = {
+    lastFetchedAt: minutesAgo(4),
+    lastActiveAt: minutesAgo(4),
+    lastRecentTracksFetchTime: minutesAgo(6),
+  };
+
+  test("skips the fetch while the track of the last fetch still plays", () => {
+    expect(shouldFetchHistory(user, { progressMs: 5 * 60_000 }, now)).toBe(false);
+  });
+
+  test("fetches when the track began after the last fetch", () => {
+    expect(shouldFetchHistory(user, { progressMs: 60_000 }, now)).toBe(true);
+  });
+
+  test("fetches a long track once the inactive interval has passed", () => {
+    const stale = { ...user, lastFetchedAt: minutesAgo(10) };
+
+    expect(shouldFetchHistory(stale, { progressMs: 30 * 60_000 }, now)).toBe(true);
+  });
+
+  test("follows the intervals when nothing plays", () => {
+    expect(shouldFetchHistory(user, null, now)).toBe(true);
+    expect(shouldFetchHistory({ ...user, lastFetchedAt: minutesAgo(2) }, null, now)).toBe(false);
   });
 });
