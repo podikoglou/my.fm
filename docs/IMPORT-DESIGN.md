@@ -7,7 +7,7 @@ How CSV exports of listening history are ingested and resolved.
 Imports use an R2 bucket and a cursor to avoid D1 write bursts:
 
 ```
-+-------------+  POST CSV (< 10 MB)   +----------------+  Stream to R2  +--------------------+
++-------------+  POST CSV (< 10 MB)   +----------------+  Store in R2   +--------------------+
 | User Client | --------------------> | worker-api     | -------------> | R2: imports/<id>   |
 +-------------+                       +----------------+                +--------------------+
        ^                                      |
@@ -19,7 +19,7 @@ Imports use an R2 bucket and a cursor to avoid D1 write bursts:
                                       | status: 'pending'  |
                                       +--------------------+
                                                 ^
-                                                | 5-min Cron Trigger
+                                                | 1-min Cron Trigger
                                                 v
                                       +--------------------+
                                       | worker cron        |
@@ -41,21 +41,21 @@ Imports use an R2 bucket and a cursor to avoid D1 write bursts:
 ```
 
 1. The client uploads a CSV file up to 10 MB.
-2. The upload route streams the file directly to R2 and writes one row to `imports` with `status: 'pending'` and `cursor: 0`.
-3. The 5-minute cron job loads the file from R2, slices 500 lines starting at `cursor`, resolves metadata via GraphQL, writes plays to D1, and advances `cursor`.
+2. The upload route checks the headers and the first rows, stores the file in R2 and writes one row to `imports` with `status: 'pending'` and `cursor: 0`.
+3. The cron job, which runs every minute, loads the file from R2, slices 500 lines starting at `cursor`, resolves metadata via GraphQL, writes plays to D1, and advances `cursor`.
 4. When `cursor` reaches the end of the file, the import is marked `'completed'` and the R2 object is removed.
 
 ## Accepted CSV format
 
 The importer accepts listening history CSV exports:
 
-| Column | Header | Required | Behavior |
-| --- | --- | --- | --- |
-| Artist | `Artist` | yes | Empty skips row |
-| Album | `Album` | header only | Empty allowed |
-| AlbumId | `AlbumId` | header only | Ignored |
-| Track | `Track` | yes | Empty skips row |
-| Date | `Date*` | yes | Epoch milliseconds or seconds |
+| Column  | Header             | Required    | Behavior                      |
+| ------- | ------------------ | ----------- | ----------------------------- |
+| Artist  | `Artist`           | yes         | Empty skips row               |
+| Album   | `Album`            | header only | Empty allowed                 |
+| AlbumId | `AlbumId`          | header only | Ignored                       |
+| Track   | `Track`            | yes         | Empty skips row               |
+| Date    | `Date` or `Date#…` | yes         | Epoch milliseconds or seconds |
 
 - Encoding: UTF-8. Strips leading BOM (`\uFEFF`); rejects invalid UTF-8 with `422`.
 - Delimiter: `;`, RFC 4180 quoting (`""` literal quote; `;` and newlines allowed in quotes).

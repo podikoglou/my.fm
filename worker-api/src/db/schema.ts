@@ -135,7 +135,9 @@ export const scrobbles = sqliteTable(
     scrobbleDate: integer({ mode: "timestamp" }),
     importId: text().references(() => imports.id, { onDelete: "cascade" }),
   },
-  // Keyset pagination and lookup indexes
+  // The public feed reads every user's scrobbles in play-time order. The ID
+  // breaks ties inside one second, so the keyset cursor is exact. A profile
+  // reads one user's scrobbles in the same order.
   (table) => [
     index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id),
     index("scrobbles_user_id_scrobble_date_idx").on(table.userId, table.scrobbleDate),
