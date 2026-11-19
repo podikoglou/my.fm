@@ -277,6 +277,29 @@ describe("import ingestion cron processor", () => {
     expect(storedScrobbles[0]?.albumSpotifyUri).toBeNull();
   });
 
+  test("keeps the album name from the file on a play that stays unresolved", async () => {
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-unresolved",
+      userId: "user-unresolved",
+      username: "user_unresolved",
+      createdAt: new Date(),
+    });
+
+    const result = await runImportIngestion(env, {
+      batchLimit: 500,
+      throttleMs: 0,
+      fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
+    });
+
+    expect(result.status).toBe("completed");
+
+    const stored = await db.select().from(scrobbles);
+
+    expect(stored.map((scrobble) => scrobble.albumName).sort()).toEqual(["EVERYTHING", "Ventura"]);
+  });
+
   test("keeps the import processing with an unmoved cursor when a metadata batch fails", async () => {
     const db = createDatabase(env.DB);
 

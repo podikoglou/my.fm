@@ -363,7 +363,9 @@ async function persistBatch(
           albumSpotifyUri: effectiveAlbumSpotifyUri,
           coverArtUrl: metadata.coverArtUrl,
           artistName: metadata.artistName,
-          albumName: metadata.albumName,
+          // Plays that share a track key share one lookup, and the retry
+          // without the album drops it, so the row's own album is the fallback.
+          albumName: metadata.albumName ?? item.row.album,
           trackName: metadata.trackName,
           normArtistKey: item.normArtistKey,
           normTrackKey: item.normTrackKey,
