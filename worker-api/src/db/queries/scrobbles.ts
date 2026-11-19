@@ -1,7 +1,8 @@
-import { sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, max, min, sql } from "drizzle-orm";
 
 import type { Database } from "../index.ts";
 
+import { monthsBetween } from "../../time-zone.ts";
 import { scrobbles, type ScrobbleInsert, type User } from "../schema.ts";
 
 /**
@@ -70,11 +71,11 @@ export async function findRecordedPlaysBetween(
 export async function findRecentScrobblesByUserId(
   db: Database,
   userId: User["id"],
-  { offset, limit }: { offset: number; limit: number },
+  { before, offset, limit }: { before?: Date; offset: number; limit: number },
 ) {
   return await db.query.scrobbles.findMany({
-    where: { userId },
-    orderBy: { scrobbleDate: "desc" },
+    where: before ? { userId, scrobbleDate: { lt: before } } : { userId },
+    orderBy: { scrobbleDate: "desc", id: "desc" },
     offset,
     limit,
     with: {
@@ -176,3 +177,47 @@ export async function findPublicFeed(
 }
 
 export type FeedRow = Awaited<ReturnType<typeof findPublicFeed>>[number];
+
+/**
+ * Count one user's scrobbles per calendar month in the viewer's time zone,
+ * newest month first. Months with no plays are left out.
+ *
+ * Month boundaries are local midnights computed per month, so a play just after
+ * midnight on the 1st counts toward the new month in summer and winter alike.
+ */
+export async function countScrobblesByMonth(
+  db: Database,
+  userId: User["id"],
+  { timeZone }: { timeZone: string },
+) {
+  const where = and(eq(scrobbles.userId, userId), isNotNull(scrobbles.scrobbleDate));
+
+  const [range] = await db
+    .select({ first: min(scrobbles.scrobbleDate), last: max(scrobbles.scrobbleDate) })
+    .from(scrobbles)
+    .where(where);
+
+  if (!range?.first || !range.last) return [];
+
+  const months = monthsBetween(range.first, range.last, timeZone);
+
+  // D1 caps bound parameters at 100 per query, so the boundaries are inlined.
+  // Every inlined value is an integer or a "YYYY-MM" string built from integers.
+  const month = sql<string>`CASE ${sql.join(
+    months.map(
+      ({ month, start }) =>
+        sql`WHEN ${scrobbles.scrobbleDate} >= ${sql.raw(String(start))} THEN ${sql.raw(`'${month}'`)}`,
+    ),
+    sql` `,
+  )} END`;
+
+  const counts = await db
+    .select({ month, count: count() })
+    .from(scrobbles)
+    .where(where)
+    // By position, so the statement holds the CASE once and stays under D1's
+    // statement size limit for twice as long a history.
+    .groupBy(sql`1`);
+
+  return months.flatMap(({ month }) => counts.filter((row) => row.month === month));
+}

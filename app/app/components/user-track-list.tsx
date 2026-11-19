@@ -1,95 +1,25 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
-import { parseResponse } from "hono/client";
 import { ListMusic } from "lucide-react";
-import { useEffect, useRef } from "react";
 
-import { apiClient } from "~/lib/api";
+import { useScrobbleMonths } from "~/hooks/use-scrobble-months";
 
-import { ErrorCard } from "./error-card";
-import { Track } from "./track-card";
-
-function formatTimeAgo(date: Date) {
-  return formatDistanceToNow(date, { addSuffix: true });
-}
+import { HistoryTimeline } from "./history-timeline";
+import { ScrobblesError } from "./scrobbles-error";
 
 export function UserTrackList({ username }: { username: string }) {
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const { data: months, error } = useScrobbleMonths(username);
 
-  const { data, error, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ["scrobbles", username],
-    queryFn: ({ pageParam = 0 }) =>
-      parseResponse(
-        apiClient.scrobble.getRecent.$get({
-          query: { username, limit: "8", offset: pageParam.toString() },
-        }),
-      ),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.length < 8) return undefined;
+  if (error) return <ScrobblesError />;
 
-      return allPages.length * 8;
-    },
-    retry: false,
-  });
+  if (!months) return <></>;
 
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      },
-      { threshold: 0.1 },
-    );
-
-    observerRef.current.observe(sentinelRef.current);
-
-    return () => {
-      if (observerRef.current && sentinelRef.current) {
-        observerRef.current.unobserve(sentinelRef.current);
-      }
-    };
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  if (error) {
+  if (months.length === 0) {
     return (
-      <ErrorCard
-        Icon={ListMusic}
-        title={<>Couldn't Find Scrobbles</>}
-        description={<>We're not sure why</>}
-      />
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+        <ListMusic className="h-10 w-10 text-muted-foreground opacity-50" />
+        <p className="text-sm text-muted-foreground">No scrobbles yet.</p>
+      </div>
     );
   }
 
-  if (!data) return <></>;
-
-  const allScrobbles = data.pages.flat();
-
-  return (
-    <>
-      <div className="h-full space-y-1 overflow-y-auto pr-1">
-        {allScrobbles.map((scrobble) => (
-          <Track
-            key={scrobble.id}
-            artists={scrobble.track.artists}
-            title={scrobble.track.name}
-            imageUrl={scrobble.album.imageUrl}
-            albumSpotifyUri={scrobble.album.spotifyUri}
-            albumTitle={scrobble.album.name}
-            trackSpotifyUri={scrobble.track.spotifyUri}
-            extra={
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {scrobble.scrobbleDate ? formatTimeAgo(new Date(scrobble.scrobbleDate)) : null}
-              </span>
-            }
-          />
-        ))}
-        <div ref={sentinelRef} className="h-1" />
-      </div>
-    </>
-  );
+  return <HistoryTimeline username={username} months={months} />;
 }
