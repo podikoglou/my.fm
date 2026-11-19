@@ -135,7 +135,9 @@ export function UserTrackList({ username }: { username: string }) {
       }),
     );
 
-  const pageKey = ({ month, page }: Page) => ["scrobbles", username, month.key, page];
+  // The count is part of the key, so a month that gains plays refetches its
+  // pages instead of pairing the new count with rows cached before it.
+  const pageKey = ({ month, page }: Page) => ["scrobbles", username, month.key, month.count, page];
 
   const rowsInView = (top: number) => ({
     first: Math.max(0, Math.floor(top / ROW_HEIGHT) - OVERSCAN),
