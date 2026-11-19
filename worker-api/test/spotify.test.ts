@@ -98,3 +98,55 @@ describe("createSpotifyClient", () => {
     }
   });
 });
+
+describe("getCurrentlyPlaying", () => {
+  const url = "https://api.spotify.com/v1/me/player/currently-playing";
+  const playing = { is_playing: true, currently_playing_type: "track", progress_ms: 42_000 };
+
+  test("returns the position of the track that plays", async () => {
+    network.use(http.get(url, async () => Response.json(playing)));
+
+    expect(await createSpotifyClient(env, "token-1").getCurrentlyPlaying()).toEqual({
+      progressMs: 42_000,
+    });
+  });
+
+  test("returns null when no track plays", async () => {
+    const answers = [
+      new Response(null, { status: 204 }),
+      Response.json({ ...playing, is_playing: false }),
+      Response.json({ ...playing, currently_playing_type: "episode" }),
+    ];
+
+    for (const answer of answers) {
+      network.use(http.get(url, async () => answer));
+
+      expect(await createSpotifyClient(env, "token-1").getCurrentlyPlaying()).toBeNull();
+    }
+  });
+
+  test("returns null when Spotify refuses the token or fails", async () => {
+    for (const status of [401, 403, 500]) {
+      network.use(http.get(url, async () => Response.json({ error: { status } }, { status })));
+
+      expect(await createSpotifyClient(env, "token-1").getCurrentlyPlaying()).toBeNull();
+    }
+  });
+
+  test("turns a 429 into a quota error with the retry delay", async () => {
+    network.use(
+      http.get(url, async () =>
+        Response.json(quotaBody, { status: 429, headers: { "retry-after": "120" } }),
+      ),
+    );
+
+    const quota = await createSpotifyClient(env, "token-1")
+      .getCurrentlyPlaying()
+      .then(
+        () => null,
+        (error: Error) => getSpotifyQuotaError(error),
+      );
+
+    expect(quota).toEqual({ retryAfterSeconds: 120 });
+  });
+});
