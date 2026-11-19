@@ -78,10 +78,14 @@ function pagesBetween(months: Month[], first: number, last: number) {
   return [...pages.values()];
 }
 
-function formatScrobbleDate(date: Date) {
+// The heading names the month at the top of the list, so a row from that month
+// leaves it out. A row from an older month further down still names its own.
+function formatScrobbleDate(date: Date, withMonth: boolean) {
   const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
-  return isToday(date) ? `Today, ${time}` : `${format(date, "EEE d")}, ${time}`;
+  if (isToday(date)) return `Today, ${time}`;
+
+  return `${format(date, withMonth ? "EEE d MMM" : "EEE d")}, ${time}`;
 }
 
 function TrackPlaceholder() {
@@ -256,7 +260,7 @@ export function UserTrackList({ username }: { username: string }) {
                   title={format(playedAt, "PPPp")}
                   className="shrink-0 text-xs text-muted-foreground tabular-nums"
                 >
-                  {formatScrobbleDate(playedAt)}
+                  {formatScrobbleDate(playedAt, month.key !== currentMonth.key)}
                 </time>
               ) : null
             }
