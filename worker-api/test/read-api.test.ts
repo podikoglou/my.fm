@@ -205,6 +205,36 @@ describe("scrobble queries", () => {
       { month: "2026-10", count: 1 },
     ]);
   });
+
+  test("starts a month after a DST gap that skips its midnight", async () => {
+    const { db } = await seed();
+
+    // Havana skipped 1 April 2012 00:00-01:00, so April starts at 01:00 CDT
+    // (05:00 UTC) and 00:30 UTC-5 is still the end of March.
+    await db.insert(scrobbles).values([
+      {
+        id: "scrobble-march",
+        userId,
+        trackSpotifyUri: "spotify:track:1",
+        albumSpotifyUri: "spotify:album:1",
+        scrobbleDate: new Date("2012-04-01T04:30:00.000Z"),
+      },
+      {
+        id: "scrobble-april",
+        userId,
+        trackSpotifyUri: "spotify:track:1",
+        albumSpotifyUri: "spotify:album:1",
+        scrobbleDate: new Date("2012-04-01T05:30:00.000Z"),
+      },
+    ]);
+
+    const months = await countScrobblesByMonth(db, userId, { timeZone: "America/Havana" });
+
+    expect(months.slice(-2)).toEqual([
+      { month: "2012-04", count: 1 },
+      { month: "2012-03", count: 1 },
+    ]);
+  });
 });
 
 describe("anonymous reads", () => {

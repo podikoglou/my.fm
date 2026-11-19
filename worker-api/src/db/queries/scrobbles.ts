@@ -162,11 +162,26 @@ function utcOffsetMs(instant: number, timeZone: string) {
   );
 }
 
+const HOUR_MS = 3_600_000;
+
+/**
+ * The instant local midnight starts the month, resolved the way `new Date(year,
+ * monthIndex, 1)` resolves it in the browser: a midnight that occurs twice
+ * takes the first, and one skipped by a DST gap moves forward past the gap.
+ */
 function startOfMonthIn(year: number, monthIndex: number, timeZone: string) {
   const wallClock = Date.UTC(year, monthIndex, 1);
-  const guess = wallClock - utcOffsetMs(wallClock, timeZone);
 
-  return wallClock - utcOffsetMs(guess, timeZone);
+  // Every zone's offset lies within UTC-12 and UTC+14, so these two samples
+  // bracket the boundary with at most one transition between them.
+  const offsetBefore = utcOffsetMs(wallClock - 14 * HOUR_MS, timeZone);
+  const offsetAfter = utcOffsetMs(wallClock + 14 * HOUR_MS, timeZone);
+
+  const candidates = [wallClock - offsetBefore, wallClock - offsetAfter].filter(
+    (instant) => instant === wallClock - utcOffsetMs(instant, timeZone),
+  );
+
+  return candidates.length > 0 ? Math.min(...candidates) : wallClock - offsetBefore;
 }
 
 /**
