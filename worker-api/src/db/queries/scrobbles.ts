@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import type { Database } from "../index.ts";
 
@@ -33,11 +33,11 @@ export function insertScrobble(db: Database, values: ScrobbleValues) {
 export async function findRecentScrobblesByUserId(
   db: Database,
   userId: User["id"],
-  { offset, limit }: { offset: number; limit: number },
+  { before, offset, limit }: { before?: Date; offset: number; limit: number },
 ) {
   return await db.query.scrobbles.findMany({
-    where: { userId },
-    orderBy: { scrobbleDate: "desc" },
+    where: before ? { userId, scrobbleDate: { lt: before } } : { userId },
+    orderBy: { scrobbleDate: "desc", id: "desc" },
     offset,
     limit,
     with: {
@@ -133,3 +133,24 @@ export async function findPublicFeed(
 }
 
 export type FeedRow = Awaited<ReturnType<typeof findPublicFeed>>[number];
+
+/**
+ * Count one user's scrobbles per calendar month, newest month first.
+ *
+ * `utcOffsetMinutes` moves the month boundaries to the viewer's time zone, so a
+ * play just after local midnight on the 1st counts toward the new month.
+ */
+export async function countScrobblesByMonth(
+  db: Database,
+  userId: User["id"],
+  { utcOffsetMinutes }: { utcOffsetMinutes: number },
+) {
+  const month = sql<string>`strftime('%Y-%m', ${scrobbles.scrobbleDate}, 'unixepoch', ${`${utcOffsetMinutes} minutes`})`;
+
+  return await db
+    .select({ month, count: count() })
+    .from(scrobbles)
+    .where(and(eq(scrobbles.userId, userId), isNotNull(scrobbles.scrobbleDate)))
+    .groupBy(month)
+    .orderBy(desc(month));
+}

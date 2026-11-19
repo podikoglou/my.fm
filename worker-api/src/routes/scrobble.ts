@@ -6,12 +6,13 @@ import type { AppEnv } from "../types.ts";
 
 import { sessionMiddleware } from "../auth-middleware.ts";
 import { createDatabase } from "../db/index.ts";
-import { findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
+import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { canViewProfile, findUserByUsernamePublic } from "../db/queries/users.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
 
 export default new Hono<AppEnv>()
   .use("/getRecent", rateLimit("PUBLIC_READ_RATE_LIMIT"))
+  .use("/getMonths", rateLimit("PUBLIC_READ_RATE_LIMIT"))
   .use("/*", sessionMiddleware)
   .get(
     "/getRecent",
@@ -23,10 +24,13 @@ export default new Hono<AppEnv>()
         // we *could* make offset optional but it's just better for the user to remember that this exists
         offset: z.coerce.number(),
         limit: z.coerce.number().max(8).default(8),
+
+        // unix seconds; only scrobbles played before this are returned
+        before: z.coerce.number().int().optional(),
       }),
     ),
     async (c) => {
-      const { username, offset, limit } = c.req.valid("query");
+      const { username, offset, limit, before } = c.req.valid("query");
       const db = createDatabase(c.env.DB);
 
       const user = await findUserByUsernamePublic(db, username);
@@ -40,6 +44,7 @@ export default new Hono<AppEnv>()
       }
 
       const scrobbles = await findRecentScrobblesByUserId(db, user.id, {
+        before: before === undefined ? undefined : new Date(before * 1000),
         offset,
         limit,
       });
@@ -81,5 +86,35 @@ export default new Hono<AppEnv>()
         }),
         200,
       );
+    },
+  )
+  .get(
+    "/getMonths",
+    zValidator(
+      "query",
+      z.object({
+        username: z.string(),
+
+        // minutes east of UTC, so months start at the viewer's local midnight
+        utcOffset: z.coerce.number().int().min(-840).max(840).default(0),
+      }),
+    ),
+    async (c) => {
+      const { username, utcOffset } = c.req.valid("query");
+      const db = createDatabase(c.env.DB);
+
+      const user = await findUserByUsernamePublic(db, username);
+
+      if (!user) {
+        return c.json({ error: "User not found" }, 404);
+      }
+
+      if (!canViewProfile(user, c.get("user")?.id)) {
+        return c.json({ error: "Profile is private" }, 403);
+      }
+
+      const months = await countScrobblesByMonth(db, user.id, { utcOffsetMinutes: utcOffset });
+
+      return c.json(months, 200);
     },
   );

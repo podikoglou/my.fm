@@ -131,9 +131,13 @@ export const scrobbles = sqliteTable(
 
     scrobbleDate: integer({ mode: "timestamp" }),
   },
-  // The public feed reads every user's scrobbles in play-time order. The ID
-  // breaks ties inside one second, so the keyset cursor is exact.
-  (table) => [index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id)],
+  // The public feed reads every user's scrobbles in play-time order, and a
+  // profile reads one user's. The ID breaks ties inside one second, so the
+  // keyset cursor and the offset inside a month are exact.
+  (table) => [
+    index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id),
+    index("scrobbles_user_id_scrobble_date_id_idx").on(table.userId, table.scrobbleDate, table.id),
+  ],
 );
 
 export type ScrobbleInsert = typeof scrobbles.$inferInsert;

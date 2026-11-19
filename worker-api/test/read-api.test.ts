@@ -6,7 +6,7 @@ import z from "zod";
 
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
-import { findRecentScrobblesByUserId } from "../src/db/queries/scrobbles.ts";
+import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../src/db/queries/scrobbles.ts";
 import {
   findUserById,
   findUserByIdPublic,
@@ -161,6 +161,38 @@ describe("scrobble queries", () => {
 
     expect(recent.map((scrobble) => scrobble.id)).toEqual(["scrobble-old"]);
   });
+
+  test("returns only scrobbles played before the given time", async () => {
+    const { db } = await seed();
+
+    const recent = await findRecentScrobblesByUserId(db, userId, {
+      before: new Date("2026-11-11T00:00:00.000Z"),
+      offset: 0,
+      limit: 8,
+    });
+
+    expect(recent.map((scrobble) => scrobble.id)).toEqual(["scrobble-old"]);
+  });
+
+  test("counts scrobbles per month in the viewer's time zone", async () => {
+    const { db } = await seed();
+
+    await db.insert(scrobbles).values({
+      id: "scrobble-october",
+      userId,
+      trackSpotifyUri: "spotify:track:1",
+      albumSpotifyUri: "spotify:album:1",
+      scrobbleDate: new Date("2026-10-31T23:30:00.000Z"),
+    });
+
+    expect(await countScrobblesByMonth(db, userId, { utcOffsetMinutes: 0 })).toEqual([
+      { month: "2026-11", count: 2 },
+      { month: "2026-10", count: 1 },
+    ]);
+    expect(await countScrobblesByMonth(db, userId, { utcOffsetMinutes: 120 })).toEqual([
+      { month: "2026-11", count: 3 },
+    ]);
+  });
 });
 
 describe("anonymous reads", () => {
@@ -183,6 +215,19 @@ describe("anonymous reads", () => {
 
     expect(await byUsername.json()).toEqual(profile);
     expect(await byId.json()).toEqual(profile);
+  });
+
+  test("serves the monthly scrobble counts of a public profile", async () => {
+    const { env } = await seed();
+
+    const response = await createApp().request(
+      "/api/scrobble/getMonths?username=alex&utcOffset=120",
+      undefined,
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([{ month: "2026-11", count: 2 }]);
   });
 
   test("serves the scrobbles of a public profile without a session", async () => {

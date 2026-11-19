@@ -1,0 +1,1 @@
+CREATE INDEX `scrobbles_user_id_scrobble_date_id_idx` ON `scrobbles` (`userId`,`scrobbleDate`,`id`);
