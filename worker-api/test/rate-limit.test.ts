@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 import { createApp } from "../src/app.ts";
 import { RATE_LIMITS } from "../src/rate-limits.ts";

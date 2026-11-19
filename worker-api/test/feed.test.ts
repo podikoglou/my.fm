@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
+import { describe, expect, test } from "vitest";
 import z from "zod";
 
 import { createApp } from "../src/app.ts";

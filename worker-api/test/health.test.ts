@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
