@@ -139,8 +139,6 @@ export const scrobbles = sqliteTable(
   (table) => [
     index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id),
     index("scrobbles_user_id_scrobble_date_idx").on(table.userId, table.scrobbleDate),
-    index("scrobbles_norm_track_key_idx").on(table.normTrackKey),
-    index("scrobbles_import_id_idx").on(table.importId),
   ],
 );
 
