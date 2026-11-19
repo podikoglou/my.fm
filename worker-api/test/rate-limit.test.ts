@@ -1,10 +1,26 @@
-import { describe, expect, test } from "vitest";
+import { env } from "cloudflare:workers";
+import { beforeEach, describe, expect, test } from "vitest";
 
 import { createApp } from "../src/app.ts";
-import { RATE_LIMITS } from "../src/rate-limits.ts";
-import { createRateLimiter, createTestEnv } from "./harness.ts";
+import { RATE_LIMITS, type RateLimitBindingName } from "../src/rate-limits.ts";
 
 const clientIp = "203.0.113.7";
+
+beforeEach(async () => {
+  const periodMs = RATE_LIMITS.PUBLIC_READ_RATE_LIMIT.period * 1_000;
+  const remainingMs = periodMs - (Date.now() % periodMs);
+
+  // Miniflare's wall-clock windows must leave the full five-second test timeout.
+  if (remainingMs < 5_000) {
+    await new Promise<void>((resolve) => setTimeout(resolve, remainingMs));
+  }
+});
+
+async function spendBudget(name: RateLimitBindingName, remaining = 0, key = "unknown") {
+  for (let count = 0; count < RATE_LIMITS[name].limit - remaining; count += 1) {
+    expect(await env[name].limit({ key })).toEqual({ success: true });
+  }
+}
 
 /** The unauthenticated reads that the public policy covers. */
 const publicReads = [
@@ -23,7 +39,7 @@ describe("rate limits", () => {
   });
 
   test("serves requests below the budget", async () => {
-    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(2) });
+    await spendBudget("PUBLIC_READ_RATE_LIMIT", 2, clientIp);
     const app = createApp();
     const headers = { "cf-connecting-ip": clientIp };
 
@@ -38,7 +54,7 @@ describe("rate limits", () => {
   });
 
   test("rejects the request above the budget", async () => {
-    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+    await spendBudget("PUBLIC_READ_RATE_LIMIT", 1, clientIp);
     const app = createApp();
     const headers = { "cf-connecting-ip": clientIp };
 
@@ -55,7 +71,7 @@ describe("rate limits", () => {
   });
 
   test("keys the budget on the client address", async () => {
-    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+    await spendBudget("PUBLIC_READ_RATE_LIMIT", 1, clientIp);
     const app = createApp();
 
     const from = (ip: string) =>
@@ -67,7 +83,7 @@ describe("rate limits", () => {
   });
 
   test("shares one budget when the client address is missing", async () => {
-    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+    await spendBudget("PUBLIC_READ_RATE_LIMIT", 1);
     const app = createApp();
 
     expect((await app.request("/api/feed", undefined, env)).status).toBe(200);
@@ -75,10 +91,8 @@ describe("rate limits", () => {
   });
 
   test("never limits the health routes", async () => {
-    const env = createTestEnv({
-      authRateLimiter: createRateLimiter(0),
-      publicReadRateLimiter: createRateLimiter(0),
-    });
+    await spendBudget("AUTH_RATE_LIMIT");
+    await spendBudget("PUBLIC_READ_RATE_LIMIT");
 
     const app = createApp();
 
@@ -93,7 +107,7 @@ describe("rate limits", () => {
   });
 
   test("leaves the authenticated routes out of the public budget", async () => {
-    const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(0) });
+    await spendBudget("PUBLIC_READ_RATE_LIMIT");
 
     const response = await createApp().request("/api/user/me", undefined, env);
 
@@ -103,7 +117,7 @@ describe("rate limits", () => {
 
 describe("auth rate limit", () => {
   test("limits the auth mount", async () => {
-    const env = createTestEnv({ authRateLimiter: createRateLimiter(1) });
+    await spendBudget("AUTH_RATE_LIMIT", 1);
     const app = createApp();
 
     expect((await app.request("/api/auth/get-session", undefined, env)).status).toBe(200);
@@ -116,7 +130,7 @@ describe("auth rate limit", () => {
   });
 
   test("limits sign-in", async () => {
-    const env = createTestEnv({ authRateLimiter: createRateLimiter(0) });
+    await spendBudget("AUTH_RATE_LIMIT");
 
     const response = await createApp().request(
       "/api/auth/sign-in/social",
@@ -134,12 +148,13 @@ describe("auth rate limit", () => {
 
 describe("public read rate limit", () => {
   test("limits every public read", async () => {
-    for (const path of publicReads) {
-      const env = createTestEnv({ publicReadRateLimiter: createRateLimiter(1) });
+    for (const [index, path] of publicReads.entries()) {
+      const headers = { "cf-connecting-ip": `203.0.113.${index + 1}` };
+      await spendBudget("PUBLIC_READ_RATE_LIMIT", 1, headers["cf-connecting-ip"]);
       const app = createApp();
 
-      const first = await app.request(path, undefined, env);
-      const second = await app.request(path, undefined, env);
+      const first = await app.request(path, { headers }, env);
+      const second = await app.request(path, { headers }, env);
 
       expect([path, first.status]).not.toEqual([path, 429]);
       expect([path, second.status]).toEqual([path, 429]);
