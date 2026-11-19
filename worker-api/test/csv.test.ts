@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, test } from "vitest";
 
 import {
   parseCsvHeaders,
@@ -9,14 +9,14 @@ import {
 } from "../src/import/csv.ts";
 
 describe("csv parsing", () => {
-  it("strips UTF-8 BOM", () => {
+  test("strips UTF-8 BOM", () => {
     const withBom = "\uFEFFArtist;Album;Track;Date#user";
 
     expect(stripBom(withBom)).toBe("Artist;Album;Track;Date#user");
     expect(stripBom("Artist;Album")).toBe("Artist;Album");
   });
 
-  it("parses CSV lines according to RFC 4180 with semicolon delimiter", () => {
+  test("parses CSV lines according to RFC 4180 with semicolon delimiter", () => {
     const simple = "Witt Lowry;I Could Not Plan This;Track 1;1644436279000";
 
     expect(parseCsvLine(simple)).toEqual([
@@ -45,7 +45,7 @@ describe("csv parsing", () => {
     ]);
   });
 
-  it("parses CSV headers and finds required column indices", () => {
+  test("parses CSV headers and finds required column indices", () => {
     const validHeader = "Artist;Album;AlbumId;Track;Date#user";
     const indices = parseCsvHeaders(validHeader);
 
@@ -79,7 +79,7 @@ describe("csv parsing", () => {
     expect(parseCsvHeaders(missingDate)).toBeNull();
   });
 
-  it("parses valid scrobble rows with epoch ms and epoch seconds", () => {
+  test("parses valid scrobble rows with epoch ms and epoch seconds", () => {
     const indices = {
       artistIdx: 0,
       albumIdx: 1,
@@ -103,7 +103,7 @@ describe("csv parsing", () => {
     expect(parsedSec?.playedAt.getTime()).toBe(1644436588000);
   });
 
-  it("handles missing album or empty fields gracefully", () => {
+  test("handles missing album or empty fields gracefully", () => {
     const indices = {
       artistIdx: 0,
       albumIdx: 1,
@@ -134,7 +134,7 @@ describe("csv parsing", () => {
     expect(parseScrobbleRow(rowInvalidDate, indices)).toBeNull();
   });
 
-  it("skips rows exceeding length limits", () => {
+  test("skips rows exceeding length limits", () => {
     const indices = {
       artistIdx: 0,
       albumIdx: 1,
@@ -151,7 +151,7 @@ describe("csv parsing", () => {
     expect(parseScrobbleRow(oversizedLine, indices)).toBeNull();
   });
 
-  it("splits lines with CRLF or LF", () => {
+  test("splits lines with CRLF or LF", () => {
     const crlf = "line1\r\nline2\r\nline3";
 
     expect(splitCsvLines(crlf)).toEqual(["line1", "line2", "line3"]);
@@ -161,21 +161,21 @@ describe("csv parsing", () => {
     expect(splitCsvLines(lf)).toEqual(["line1", "line2"]);
   });
 
-  it("keeps a quoted LF newline inside one line", () => {
+  test("keeps a quoted LF newline inside one line", () => {
     const content = 'Artist;"Live\nVol. 2";Track;1644436279000';
 
     expect(splitCsvLines(content)).toEqual([content]);
     expect(parseCsvLine(content)).toEqual(["Artist", "Live\nVol. 2", "Track", "1644436279000"]);
   });
 
-  it("keeps a quoted CRLF newline inside one line", () => {
+  test("keeps a quoted CRLF newline inside one line", () => {
     const content = 'Artist;"Live\r\nVol. 2";Track;1644436279000';
 
     expect(splitCsvLines(content)).toEqual([content]);
     expect(parseCsvLine(content)).toEqual(["Artist", "Live\r\nVol. 2", "Track", "1644436279000"]);
   });
 
-  it("joins physical lines broken by a quoted newline into one logical row", () => {
+  test("joins physical lines broken by a quoted newline into one logical row", () => {
     const content = 'Artist;"Live\nVol. 2";Track;1644436279000\nNext;Album;Track;1644436280000';
 
     expect(splitCsvLines(content)).toEqual([
@@ -184,7 +184,7 @@ describe("csv parsing", () => {
     ]);
   });
 
-  it("splits rows after a quoted field ending in an escaped quote", () => {
+  test("splits rows after a quoted field ending in an escaped quote", () => {
     const content = '"He said ""hi""";Album;Track;1644436279000\nNext;Album;Track;1644436280000';
 
     expect(splitCsvLines(content)).toEqual([
@@ -193,7 +193,7 @@ describe("csv parsing", () => {
     ]);
   });
 
-  it("terminates a trailing row containing a quoted newline", () => {
+  test("terminates a trailing row containing a quoted newline", () => {
     const noTrailingNewline =
       'First;Album;Track;1644436279000\nArtist;"Live\nVol. 2";Track;1644436280000';
 

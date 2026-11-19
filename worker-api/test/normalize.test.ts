@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, test } from "vitest";
 
 import {
   computeImportScrobbleId,
@@ -8,22 +8,22 @@ import {
 } from "../src/import/normalize.ts";
 
 describe("normalization", () => {
-  it("normalizes text with NFKD and strips diacritics", () => {
+  test("normalizes text with NFKD and strips diacritics", () => {
     expect(normalizeText("Café")).toBe("cafe");
     expect(normalizeText("Beyoncé")).toBe("beyonce");
   });
 
-  it("handles homoglyphs", () => {
+  test("handles homoglyphs", () => {
     // Greek capital Kappa in "Κako"
     expect(normalizeText("\u039Aako")).toBe("kako");
   });
 
-  it("replaces & with and and removes apostrophes", () => {
+  test("replaces & with and and removes apostrophes", () => {
     expect(normalizeText("Fish & Chips")).toBe("fish and chips");
     expect(normalizeText("Don't Stop")).toBe("dont stop");
   });
 
-  it("cuts artist collaborations at feat, ft, with, vs, and slash", () => {
+  test("cuts artist collaborations at feat, ft, with, vs, and slash", () => {
     expect(normalizeArtist("Kanye West feat. Rihanna")).toBe("kanye west");
     expect(normalizeArtist("Drake ft. Future")).toBe("drake");
     expect(normalizeArtist("Artist 1 / Artist 2")).toBe("artist 1");
@@ -31,7 +31,7 @@ describe("normalization", () => {
     expect(normalizeArtist("David Guetta vs. Morten")).toBe("david guetta");
   });
 
-  it("generates deterministic 32-hex keys", async () => {
+  test("generates deterministic 32-hex keys", async () => {
     const keys = await computeNormKeys("Kanye West feat. Rihanna", "Famous");
     expect(keys.normArtistKey).toMatch(/^[0-9a-f]{32}$/);
     expect(keys.normTrackKey).toMatch(/^[0-9a-f]{32}$/);
@@ -41,7 +41,7 @@ describe("normalization", () => {
     expect(keys2.normTrackKey).toBe(keys.normTrackKey);
   });
 
-  it("generates deterministic scrobble id from user, timestamp, and normTrackKey", async () => {
+  test("generates deterministic scrobble id from user, timestamp, and normTrackKey", async () => {
     const keys = await computeNormKeys("Malcolm Todd", "Earrings");
 
     const id = await computeImportScrobbleId(

@@ -1,5 +1,5 @@
 import { http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, test } from "vitest";
 
 import type { GqlTrack } from "../src/import/graphql.ts";
 
@@ -14,7 +14,7 @@ import { resolveTracksWaterfall } from "../src/import/resolver.ts";
 import { network } from "./network.ts";
 
 describe("graphql helper", () => {
-  it("converts spotify URLs to URIs", () => {
+  test("converts spotify URLs to URIs", () => {
     expect(spotifyUrlToUri("https://open.spotify.com/track/2vGPGyQiCuuSZ47k4d2ZFT")).toBe(
       "spotify:track:2vGPGyQiCuuSZ47k4d2ZFT",
     );
@@ -35,7 +35,7 @@ describe("graphql helper", () => {
     expect(spotifyUrlToUri(null)).toBeNull();
   });
 
-  it("builds batched GraphQL query", () => {
+  test("builds batched GraphQL query", () => {
     const query = buildBatchQuery([
       {
         key: "key1",
@@ -58,7 +58,7 @@ describe("graphql helper", () => {
     expect(query).toContain('\\"Live\\"');
   });
 
-  it("extracts resolved metadata from GraphQL track object", () => {
+  test("extracts resolved metadata from GraphQL track object", () => {
     const track: GqlTrack = {
       title: "Come Home",
       spotifyUrl: "https://open.spotify.com/track/123",
@@ -87,7 +87,7 @@ describe("graphql helper", () => {
     expect(resolved.albumName).toBe("Ventura");
   });
 
-  it("extracts fallback metadata when track is null", () => {
+  test("extracts fallback metadata when track is null", () => {
     const fallback = extractResolvedMetadata("Raw Artist", "Raw Title", "Raw Album", null);
 
     expect(fallback.trackSpotifyUri).toBeNull();
@@ -99,7 +99,7 @@ describe("graphql helper", () => {
     expect(fallback.albumName).toBe("Raw Album");
   });
 
-  it("resolves tracks via waterfall Pass 1 and Pass 2", async () => {
+  test("resolves tracks via waterfall Pass 1 and Pass 2", async () => {
     const mockDb = {
       pass1_match: {
         title: "Matched In Pass 1",
@@ -153,7 +153,7 @@ describe("graphql helper", () => {
     expect(res2?.trackSpotifyUri).toBe("spotify:track:p2");
   });
 
-  it("propagates fetch errors instead of filling fallback metadata", async () => {
+  test("propagates fetch errors instead of filling fallback metadata", async () => {
     const fetchBatch = async () => {
       throw new Error("GraphQL request failed: 503 Service Unavailable");
     };
@@ -168,7 +168,7 @@ describe("graphql helper", () => {
     );
   });
 
-  it("fails when the response is missing an expected alias", async () => {
+  test("fails when the response is missing an expected alias", async () => {
     // An empty data object would otherwise read as a universal no-match.
     const fetchBatch = async (): Promise<Record<string, GqlTrack | null>> => ({});
 
@@ -179,7 +179,7 @@ describe("graphql helper", () => {
     );
   });
 
-  it("fetches fail on a non-OK response status", async () => {
+  test("fetches fail on a non-OK response status", async () => {
     network.use(http.post(GRAPHQL_ENDPOINT, () => new Response("rate limited", { status: 429 })));
 
     await expect(fetchGraphQLBatch(GRAPHQL_ENDPOINT, "{ q0: track { title } }")).rejects.toThrow(
@@ -187,7 +187,7 @@ describe("graphql helper", () => {
     );
   });
 
-  it("fetches fail when the response envelope has no data", async () => {
+  test("fetches fail when the response envelope has no data", async () => {
     network.use(
       http.post(GRAPHQL_ENDPOINT, () => Response.json({ errors: [{ message: "boom" }] })),
     );
