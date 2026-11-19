@@ -1,3 +1,5 @@
+import type { D1RowLimit, ErrorDescription } from "../db/errors.ts";
+
 /**
  * Event names for ingestion telemetry.
  *
@@ -21,6 +23,16 @@ export const INGESTION_EVENTS = {
   runComplete: "ingestion run complete",
   /** The run did no work because a Spotify block is still active. */
   runSkipped: "ingestion run skipped",
+  /** One import batch resolved and stored without error. */
+  importIngested: "ingestion import ingested",
+  /** An import batch failed; the next cron run retries it. */
+  importBatchFailed: "ingestion import batch failed",
+  /** An import was abandoned after repeated consecutive batch failures. */
+  importFailed: "ingestion import failed",
+  /** The run stopped because D1 refused writes until midnight UTC. */
+  d1WriteLimit: "ingestion d1 write limit reached",
+  /** The run stopped because D1 refused queries until midnight UTC. */
+  d1ReadLimit: "ingestion d1 read limit reached",
 } as const;
 
 export type IngestionEventName = (typeof INGESTION_EVENTS)[keyof typeof INGESTION_EVENTS];
@@ -28,15 +40,30 @@ export type IngestionEventName = (typeof INGESTION_EVENTS)[keyof typeof INGESTIO
 /** How the run ended. `quota` means Spotify blocked the whole application. */
 export type IngestionStatus = "ok" | "partial" | "quota";
 
-/** What a failure line adds after the event name: the cause, or the subject. */
-export type IngestionFailureDetail = string | Error;
+/**
+ * The stable failure name for the D1 daily limit that stopped a run. Both
+ * runs log the same name per limit, so one Workers Issues group holds the
+ * whole pause.
+ */
+export function d1QuotaEventName(limit: D1RowLimit): IngestionEventName {
+  return limit === "row-write" ? INGESTION_EVENTS.d1WriteLimit : INGESTION_EVENTS.d1ReadLimit;
+}
+
+/**
+ * What a failure line adds after the event name: the cause, or the subject.
+ * An `ErrorDescription` keeps the cause chain, which Workers Logs drops when
+ * the argument is an `Error`.
+ */
+export type IngestionFailureDetail = string | Error | ErrorDescription;
 
 export type IngestionEventFields = {
   event: IngestionEventName;
   userId?: string;
+  importId?: string;
   retryAfterSeconds?: number | null;
   accounts?: number;
   plays?: number;
+  processed?: number;
   failures?: number;
   status?: IngestionStatus;
 };

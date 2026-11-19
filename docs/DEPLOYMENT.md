@@ -50,9 +50,13 @@ same budget.
 
 ## Free plan limits
 
-The project targets the Free Cloudflare plan. Cloudflare documents no plan
-requirement and no billed resource for the Rate Limiting binding; the limits
-travel in the Worker script.
+Everything runs on the Free plan. D1's cap of 100,000 rows written per day is
+account-wide, and an imported play bills ~6 rows, so a large import pauses the
+account's writes until midnight UTC and resumes by itself. Workers Paid
+($5/mo), which has no daily cap, is advised while importing.
+
+Cloudflare documents no plan requirement and no billed resource for the Rate
+Limiting binding; the limits travel in the Worker script.
 
 ## Agent Note: Before you change infrastructure
 
