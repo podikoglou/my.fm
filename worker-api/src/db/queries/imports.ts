@@ -92,3 +92,32 @@ export async function updateImport(
     })
     .where(eq(imports.id, id));
 }
+
+/**
+ * Update an import only while it is active and its cursor is where the caller
+ * read it. Cron runs can overlap, and a run that finishes late must not write
+ * over the progress of a run that finished first. Returns whether the update
+ * applied.
+ */
+export async function updateImportAtCursor(
+  db: Database,
+  { id, cursor }: Pick<Import, "id" | "cursor">,
+  values: UpdateImportValues,
+): Promise<boolean> {
+  const updated = await db
+    .update(imports)
+    .set({
+      ...values,
+      updatedAt: values.updatedAt ?? new Date(),
+    })
+    .where(
+      and(
+        eq(imports.id, id),
+        eq(imports.cursor, cursor),
+        inArray(imports.status, ["pending", "processing"]),
+      ),
+    )
+    .returning({ id: imports.id });
+
+  return updated.length > 0;
+}

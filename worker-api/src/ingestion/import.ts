@@ -9,7 +9,11 @@ import { createDatabase } from "../db/index.ts";
 import { insertAlbumArtist } from "../db/queries/albumArtists.ts";
 import { insertAlbum } from "../db/queries/albums.ts";
 import { insertArtist } from "../db/queries/artists.ts";
-import { findActiveImportForCron, updateImport } from "../db/queries/imports.ts";
+import {
+  findActiveImportForCron,
+  updateImport,
+  updateImportAtCursor,
+} from "../db/queries/imports.ts";
 import { insertScrobble } from "../db/queries/scrobbles.ts";
 import { insertTrackArtist } from "../db/queries/trackArtists.ts";
 import { insertTrack } from "../db/queries/tracks.ts";
@@ -42,6 +46,14 @@ export const PLAYS_PER_D1_BATCH = 20;
 const IMPORT_MAX_ATTEMPTS = 3;
 
 const IMPORT_GAVE_UP_ERROR = "Import failed after repeated metadata batch errors";
+
+/**
+ * The outcome of a run whose import moved on while it worked. A run that
+ * outlasts the cron interval overlaps the next one, and both read the same
+ * cursor; the plays are idempotent, so the late run only drops its
+ * bookkeeping.
+ */
+const SUPERSEDED = { status: "superseded", processed: 0 };
 
 export type ImportIngestionOptions = {
   batchLimit?: number;
@@ -214,11 +226,15 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
       // The cron queue always picks the oldest active import, so a failure
       // that never clears would wedge every other user's import behind it.
       // Abandon the import instead of retrying it forever.
-      await updateImport(db, activeImport.id, {
+      const abandoned = await updateImportAtCursor(db, activeImport, {
         status: "failed",
         error: IMPORT_GAVE_UP_ERROR,
         attemptCount,
       });
+
+      if (!abandoned) {
+        return SUPERSEDED;
+      }
 
       await env.IMPORTS_BUCKET.delete(r2Key);
 
@@ -227,7 +243,7 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
       return { status: "failed", processed: 0 };
     }
 
-    await updateImport(db, activeImport.id, { attemptCount });
+    await updateImportAtCursor(db, activeImport, { attemptCount });
 
     return { status: "processing", processed: 0 };
   }
@@ -242,7 +258,7 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
   const newSkipped = activeImport.skippedRows + skippedInBatch;
   const isFinished = endIndex >= lines.length;
 
-  await updateImport(db, activeImport.id, {
+  const advanced = await updateImportAtCursor(db, activeImport, {
     cursor: endIndex,
     processedRows: newProcessed,
     skippedRows: newSkipped,
@@ -250,6 +266,10 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
     attemptCount: 0,
     status: isFinished ? "completed" : "processing",
   });
+
+  if (!advanced) {
+    return SUPERSEDED;
+  }
 
   if (isFinished) {
     await env.IMPORTS_BUCKET.delete(r2Key);

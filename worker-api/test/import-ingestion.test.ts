@@ -436,6 +436,56 @@ describe("import ingestion cron processor", () => {
     expect(next?.processedRows).toBe(2);
   });
 
+  test("a run that finishes late does not write over a newer run's progress", async () => {
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-overlap",
+      userId: "user-overlap",
+      username: "user_overlap",
+      createdAt: new Date(),
+    });
+
+    const noMatch = async () => ({ q0: null }) satisfies Record<string, GqlTrack | null>;
+    let overlapped = false;
+
+    // The first run is still waiting on its lookup when two later runs start
+    // from the same cursor and finish the import.
+    const slowBatch = async () => {
+      if (!overlapped) {
+        overlapped = true;
+
+        await runImportIngestion(env, { batchLimit: 1, throttleMs: 0, fetchBatch: noMatch });
+        await runImportIngestion(env, { batchLimit: 1, throttleMs: 0, fetchBatch: noMatch });
+      }
+
+      return noMatch();
+    };
+
+    const late = await runImportIngestion(env, {
+      batchLimit: 1,
+      throttleMs: 0,
+      fetchBatch: slowBatch,
+    });
+
+    expect(late).toEqual({ status: "superseded", processed: 0 });
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.status).toBe("completed");
+    expect(row?.cursor).toBe(3);
+    expect(row?.processedRows).toBe(2);
+    expect(await db.select().from(scrobbles)).toHaveLength(2);
+
+    const next = await runImportIngestion(env, {
+      batchLimit: 1,
+      throttleMs: 0,
+      fetchBatch: noMatch,
+    });
+
+    expect(next.status).toBe("idle");
+  });
+
   test("pauses without bookkeeping when D1 rejects the batch with its daily limit", async () => {
     const limited = { ...env, DB: createBatchWriteLimitDatabase(env.DB) };
     const db = createDatabase(env.DB);
