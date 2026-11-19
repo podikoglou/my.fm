@@ -17,6 +17,10 @@ export const users = sqliteTable("users", {
 
   lastRecentTracksFetchTime: integer({ mode: "timestamp" }),
 
+  lastFetchedAt: integer({ mode: "timestamp_ms" }),
+
+  lastActiveAt: integer({ mode: "timestamp_ms" }),
+
   onboarded: integer({ mode: "boolean" }),
 
   isPrivate: integer({ mode: "boolean" }).default(false).notNull(),

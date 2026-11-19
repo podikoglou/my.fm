@@ -9,7 +9,7 @@ export default {
   fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext) {
     return app.fetch(request, env, ctx);
   },
-  async scheduled(_controller: ScheduledController, env: WorkerEnv, _ctx: ExecutionContext) {
-    await runIngestion(env);
+  async scheduled(controller: ScheduledController, env: WorkerEnv, _ctx: ExecutionContext) {
+    await runIngestion(env, undefined, new Date(controller.scheduledTime));
   },
 } satisfies ExportedHandler<WorkerEnv>;
