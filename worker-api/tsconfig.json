@@ -24,7 +24,7 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
 
-    "types": ["bun", "@cloudflare/workers-types"]
+    "types": ["bun", "@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", ".alchemy"]

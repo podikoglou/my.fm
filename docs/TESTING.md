@@ -1,13 +1,53 @@
 # Testing
 
-## The database is real
+## Run the suites
 
-The harness builds an in-memory SQLite database, applies the checked-in
-migrations, and wraps it in a `D1Database` shim with `PRAGMA foreign_keys` on, as
-D1 has. A passing test therefore runs the SQL that production runs.
+Install dependencies with `bun install` and hooks with `bunx lefthook install`.
+Use Node.js 22.12+ (or 24+) for the Vitest CLI and Bun for workspace commands:
 
-The harness returns a Worker environment. A test that calls Spotify swaps the
-global `fetch` for a fixture, so no test reaches the network.
+```sh
+bun run test
+bun run typecheck
+bun run lint
+bun run fmt:check
+```
+
+Turbo runs each package's `vitest run` script. For watch mode, use
+`bun run --cwd worker-api vitest --watch` or `bun run --cwd app vitest --watch`.
+
+## The Workers runtime is real
+
+The API suite runs in workerd through Cloudflare's official
+`@cloudflare/vitest-plugin` and its `cloudflareTest()` configuration plugin.
+Vitest is pinned to 4.1.x. This package replaces the deprecated
+`@cloudflare/vitest-pool-workers`; see the [official integration docs](https://developers.cloudflare.com/workers/testing/vitest-integration/).
+
+`worker-api/vitest.config.ts` declares local Miniflare D1 and Rate Limiting
+bindings and test-only secrets. Rate limits use the production policies from
+`src/rate-limits.ts`. Tests import `env` from `cloudflare:workers` and call the
+Hono app or Worker handlers, not a SQLite shim or an in-memory rate counter.
+
+The config reads checked-in `drizzle/<timestamp>/migration.sql` files on the
+Node side using `readD1Migrations`, sorts them by name, and passes them through
+the `TEST_MIGRATIONS` binding. The setup file applies them with
+`applyD1Migrations`. A passing test runs production SQL against real D1,
+including foreign-key checks and transactional batches.
+
+The current plugin isolates storage per test file, not per individual test.
+Before each test, `cloudflare:test`'s `reset()` clears binding storage, then the
+setup file reapplies migrations. Keep tests within a file sequential: a
+concurrent test could reset another test's database or rate-limit budget.
+Rate-limit tests spend the real binding's budget before asserting routing
+behaviour; no test-only counter or modified production limit is needed.
+
+## Spotify fixtures
+
+`test/network.ts` uses `setupNetwork()` from `@msw/cloudflare` with MSW 3.
+The setup file enables interception, installs a fail-closed catch-all handler,
+and resets handlers and spies after each test. Register fixtures with
+`network.use(http.get(...))` or `http.post(...)`; newer handlers take precedence.
+Unexpected outbound requests fail instead of reaching Spotify. No test swaps
+the global `fetch` function.
 
 Module mocking is banned by the lint. A mock proves that your mock was called,
 not that the query is right. Dependencies arrive as parameters from the
@@ -23,7 +63,9 @@ for cookies and for the OAuth callback.
 
 ## The app package
 
-Those tests import the route table and the modules under test. They pin the
+Those tests use plain Vitest in Node and import the route table and the modules
+under test. The website handler tests are pure request-routing unit tests;
+they do not exercise Workers runtime APIs. They pin the
 places where two files must agree, such as a registered path and the file behind
 it, or an error code and its message. There is no DOM renderer; do not add one
 for a question that a table or a pure function can answer.
