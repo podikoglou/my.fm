@@ -12,13 +12,8 @@ import {
   findUserRecentImport,
   insertImport,
 } from "../db/queries/imports.ts";
-import {
-  getImportR2Key,
-  MAX_FILE_SIZE_BYTES,
-  parseCsvHeaders,
-  parseScrobbleRow,
-  splitCsvLines,
-} from "../import/csv.ts";
+import { getImportR2Key, MAX_FILE_SIZE_BYTES } from "../import/csv.ts";
+import { hasValidRow, readImportFile } from "../import/file.ts";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
@@ -118,31 +113,13 @@ export default new Hono<AppEnv>()
       return c.json({ error: "Invalid UTF-8 encoding" }, 422);
     }
 
-    const lines = splitCsvLines(text);
+    const read = readImportFile(text);
 
-    const [firstLine] = lines;
-
-    if (lines.length < 2 || !firstLine) {
-      return c.json({ error: "CSV file contains no data rows" }, 422);
+    if (!read.ok) {
+      return c.json({ error: read.error }, 422);
     }
 
-    const indices = parseCsvHeaders(firstLine);
-
-    if (!indices) {
-      return c.json({ error: "Invalid CSV headers: missing required columns" }, 422);
-    }
-
-    let validRowCount = 0;
-
-    for (let i = 1; i < Math.min(lines.length, 50); i++) {
-      const line = lines[i];
-
-      if (line && parseScrobbleRow(line, indices)) {
-        validRowCount++;
-      }
-    }
-
-    if (validRowCount === 0) {
+    if (!hasValidRow(read.file)) {
       return c.json({ error: "CSV file contains no valid rows" }, 422);
     }
 
@@ -161,7 +138,7 @@ export default new Hono<AppEnv>()
       filename: file.name || "listening-history.csv",
       status: "pending",
       cursor: 0,
-      totalLines: lines.length,
+      totalLines: read.file.lines.length,
       processedRows: 0,
       skippedRows: 0,
       createdAt: now,

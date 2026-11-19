@@ -1,31 +1,16 @@
-import type { BatchItem } from "drizzle-orm/batch";
-
 import type { WorkerEnv } from "../alchemy.ts";
-import type { Database } from "../db/index.ts";
-import type { GqlTrack, QueryItem, ResolvedTrackMetadata } from "../import/graphql.ts";
+import type { GqlTrack, QueryItem } from "../import/graphql.ts";
 
 import { describeError, getD1QuotaError } from "../db/errors.ts";
 import { createDatabase } from "../db/index.ts";
-import { insertAlbumArtist } from "../db/queries/albumArtists.ts";
-import { insertAlbum } from "../db/queries/albums.ts";
-import { insertArtist } from "../db/queries/artists.ts";
 import {
   findActiveImportForCron,
   updateImport,
   updateImportAtCursor,
 } from "../db/queries/imports.ts";
-import { findRecordedPlaysBetween, insertScrobble } from "../db/queries/scrobbles.ts";
-import { insertTrackArtist } from "../db/queries/trackArtists.ts";
-import { insertTrack } from "../db/queries/tracks.ts";
-import {
-  getImportR2Key,
-  parseCsvHeaders,
-  parseScrobbleRow,
-  splitCsvLines,
-  type ParsedScrobbleRow,
-} from "../import/csv.ts";
-import { extractResolvedMetadata } from "../import/graphql.ts";
-import { computeImportScrobbleId, computeNormKeys } from "../import/normalize.ts";
+import { getImportR2Key } from "../import/csv.ts";
+import { readImportFile } from "../import/file.ts";
+import { readImportedPlays, storeImportedPlays, withoutRecordedPlays } from "../import/plays.ts";
 import { resolveTracksWaterfall } from "../import/resolver.ts";
 import {
   INGESTION_EVENTS,
@@ -34,9 +19,7 @@ import {
   logIngestionFailure,
 } from "./events.ts";
 
-export const IMPORT_LINES_PER_RUN = 500;
-
-export const PLAYS_PER_D1_BATCH = 20;
+const IMPORT_LINES_PER_RUN = 500;
 
 /**
  * Consecutive batch failures tolerated before an import is abandoned. The
@@ -46,14 +29,6 @@ export const PLAYS_PER_D1_BATCH = 20;
 const IMPORT_MAX_ATTEMPTS = 3;
 
 const IMPORT_GAVE_UP_ERROR = "Import failed after repeated metadata batch errors";
-
-/**
- * How far apart an imported play and a recorded play of the same track may be
- * and still count as one listen. An export stamps the start of a play
- * and a recorded play can carry its end, so the two differ by up to the
- * track's length.
- */
-const RECORDED_PLAY_WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * The outcome of a run whose import moved on while it worked. A run that
@@ -67,13 +42,6 @@ export type ImportIngestionOptions = {
   batchLimit?: number;
   throttleMs?: number;
   fetchBatch?: (endpoint: string, query: string) => Promise<Record<string, GqlTrack | null>>;
-};
-
-type ValidRowItem = {
-  row: ParsedScrobbleRow;
-  scrobbleId: string;
-  normArtistKey: string;
-  normTrackKey: string;
 };
 
 /**
@@ -125,37 +93,18 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
     return { status: "failed", processed: 0 };
   }
 
-  const fileText = await r2Object.text();
-  const lines = splitCsvLines(fileText);
+  const read = readImportFile(await r2Object.text());
+
+  if (!read.ok) {
+    await updateImport(db, activeImport.id, { status: "failed", error: read.error });
+
+    await env.IMPORTS_BUCKET.delete(r2Key);
+
+    return { status: "failed", processed: 0 };
+  }
+
+  const { lines, headers } = read.file;
   const totalLines = lines.length;
-
-  const [firstLine] = lines;
-
-  if (lines.length < 2 || !firstLine) {
-    await updateImport(db, activeImport.id, {
-      status: "failed",
-      error: "CSV file contains no data rows",
-      totalLines,
-    });
-
-    await env.IMPORTS_BUCKET.delete(r2Key);
-
-    return { status: "failed", processed: 0 };
-  }
-
-  const headerIndices = parseCsvHeaders(firstLine);
-
-  if (!headerIndices) {
-    await updateImport(db, activeImport.id, {
-      status: "failed",
-      error: "Missing required CSV headers",
-      totalLines,
-    });
-
-    await env.IMPORTS_BUCKET.delete(r2Key);
-
-    return { status: "failed", processed: 0 };
-  }
 
   const batchLimit = options?.batchLimit ?? IMPORT_LINES_PER_RUN;
   const startIndex = Math.max(1, activeImport.cursor === 0 ? 1 : activeImport.cursor);
@@ -175,38 +124,17 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
   const endIndex = Math.min(startIndex + batchLimit, lines.length);
   const batchLines = lines.slice(startIndex, endIndex);
 
-  const parsedItems: ValidRowItem[] = [];
-  let skippedInBatch = 0;
+  const plays = await withoutRecordedPlays(
+    db,
+    activeImport.userId,
+    await readImportedPlays(activeImport.userId, batchLines, headers),
+  );
 
-  for (const line of batchLines) {
-    const row = parseScrobbleRow(line, headerIndices);
+  // A line that holds no play and a play that ingestion already recorded
+  // both count as skipped.
+  const skippedInBatch = batchLines.length - plays.length;
 
-    if (!row) {
-      skippedInBatch++;
-      continue;
-    }
-
-    const { normArtistKey, normTrackKey } = await computeNormKeys(row.artist, row.track);
-
-    const scrobbleId = await computeImportScrobbleId(
-      activeImport.userId,
-      row.playedAt.toISOString(),
-      normTrackKey,
-    );
-
-    parsedItems.push({
-      row,
-      scrobbleId,
-      normArtistKey,
-      normTrackKey,
-    });
-  }
-
-  const validItems = await withoutRecordedPlays(db, activeImport.userId, parsedItems);
-
-  skippedInBatch += parsedItems.length - validItems.length;
-
-  const queryItems: QueryItem[] = validItems.map((item) => ({
+  const queryItems: QueryItem[] = plays.map((item) => ({
     key: item.normTrackKey,
     artist: item.row.artist,
     title: item.row.track,
@@ -219,7 +147,7 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
       fetchBatch: options?.fetchBatch,
     });
 
-    await persistBatch(db, activeImport.userId, activeImport.id, validItems, resolvedMap);
+    await storeImportedPlays(db, activeImport, plays, resolvedMap);
   } catch (error) {
     if (error instanceof Error && getD1QuotaError(error)) {
       // The envelope reports the pause once and skips every bookkeeping
@@ -263,10 +191,10 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
   logIngestionEvent({
     event: INGESTION_EVENTS.importIngested,
     importId: activeImport.id,
-    processed: validItems.length,
+    processed: plays.length,
   });
 
-  const newProcessed = activeImport.processedRows + validItems.length;
+  const newProcessed = activeImport.processedRows + plays.length;
   const newSkipped = activeImport.skippedRows + skippedInBatch;
   const isFinished = endIndex >= lines.length;
 
@@ -289,169 +217,7 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
 
   return {
     status: isFinished ? "completed" : "processing",
-    processed: validItems.length,
+    processed: plays.length,
     skipped: skippedInBatch,
   };
-}
-
-/**
- * Drop the rows that ingestion already recorded from Spotify, so an import
- * that overlaps the recorded history does not store those plays twice.
- *
- * The two sources share no ID and no exact time, so a row matches a recorded
- * play of the same normalized artist and title within the window.
- */
-async function withoutRecordedPlays(
-  db: Database,
-  userId: string,
-  items: ValidRowItem[],
-): Promise<ValidRowItem[]> {
-  if (items.length === 0) {
-    return items;
-  }
-
-  const times = items.map((item) => item.row.playedAt.getTime());
-
-  const recorded = await findRecordedPlaysBetween(
-    db,
-    userId,
-    new Date(Math.min(...times) - RECORDED_PLAY_WINDOW_MS),
-    new Date(Math.max(...times) + RECORDED_PLAY_WINDOW_MS),
-  );
-
-  const recordedTimes = new Map<string, number[]>();
-
-  for (const { scrobbleDate, track } of recorded) {
-    const [first] = track?.trackArtists.toSorted((a, b) => a.position - b.position) ?? [];
-
-    if (!scrobbleDate || !track || !first) {
-      continue;
-    }
-
-    const { normTrackKey } = await computeNormKeys(first.artist.name, track.name);
-
-    recordedTimes.set(normTrackKey, [
-      ...(recordedTimes.get(normTrackKey) ?? []),
-      scrobbleDate.getTime(),
-    ]);
-  }
-
-  return items.filter((item) => {
-    const playedAt = item.row.playedAt.getTime();
-    const candidates = recordedTimes.get(item.normTrackKey) ?? [];
-
-    const match = candidates.findIndex(
-      (time) => Math.abs(time - playedAt) <= RECORDED_PLAY_WINDOW_MS,
-    );
-
-    if (match === -1) {
-      return true;
-    }
-
-    // One recorded play accounts for one row, so a track on repeat keeps the
-    // listens that ingestion did not record.
-    candidates.splice(match, 1);
-
-    return false;
-  });
-}
-
-async function persistBatch(
-  db: Database,
-  userId: string,
-  importId: string,
-  items: ValidRowItem[],
-  resolvedMap: Map<string, ResolvedTrackMetadata>,
-): Promise<void> {
-  for (let i = 0; i < items.length; i += PLAYS_PER_D1_BATCH) {
-    const chunk = items.slice(i, i + PLAYS_PER_D1_BATCH);
-    const statements: BatchItem<"sqlite">[] = [];
-
-    for (const item of chunk) {
-      const metadata =
-        resolvedMap.get(item.normTrackKey) ??
-        extractResolvedMetadata(item.row.artist, item.row.track, item.row.album, null);
-
-      let effectiveTrackSpotifyUri: string | null = null;
-      let effectiveAlbumSpotifyUri: string | null = null;
-
-      if (metadata.trackSpotifyUri) {
-        effectiveTrackSpotifyUri = metadata.trackSpotifyUri;
-
-        if (metadata.artistSpotifyUri) {
-          statements.push(
-            insertArtist(db, {
-              spotifyUri: metadata.artistSpotifyUri,
-              name: metadata.artistName,
-              imageUrl: metadata.artistImageUrl,
-            }),
-          );
-        }
-
-        if (metadata.albumSpotifyUri) {
-          effectiveAlbumSpotifyUri = metadata.albumSpotifyUri;
-
-          statements.push(
-            insertAlbum(db, {
-              spotifyUri: metadata.albumSpotifyUri,
-              name: metadata.albumName ?? "Unknown Album",
-              releaseDate: metadata.albumReleaseDate,
-              totalTracks: 1,
-              albumType: metadata.albumType,
-              imageUrl: metadata.coverArtUrl ?? "",
-            }),
-          );
-
-          if (metadata.artistSpotifyUri) {
-            statements.push(
-              insertAlbumArtist(db, metadata.albumSpotifyUri, metadata.artistSpotifyUri, 0),
-            );
-          }
-        }
-
-        statements.push(
-          insertTrack(db, {
-            spotifyUri: metadata.trackSpotifyUri,
-            name: metadata.trackName,
-            trackNumber: 1,
-            releaseDate: metadata.albumReleaseDate,
-            imageUrl: metadata.coverArtUrl ?? "",
-            explicit: false,
-            duration: 0,
-          }),
-        );
-
-        if (metadata.artistSpotifyUri) {
-          statements.push(
-            insertTrackArtist(db, metadata.trackSpotifyUri, metadata.artistSpotifyUri, 0),
-          );
-        }
-      }
-
-      statements.push(
-        insertScrobble(db, {
-          id: item.scrobbleId,
-          userId,
-          trackSpotifyUri: effectiveTrackSpotifyUri,
-          albumSpotifyUri: effectiveAlbumSpotifyUri,
-          coverArtUrl: metadata.coverArtUrl,
-          artistName: metadata.artistName,
-          // Plays that share a track key share one lookup, and the retry
-          // without the album drops it, so the row's own album is the fallback.
-          albumName: metadata.albumName ?? item.row.album,
-          trackName: metadata.trackName,
-          normArtistKey: item.normArtistKey,
-          normTrackKey: item.normTrackKey,
-          scrobbleDate: item.row.playedAt,
-          importId,
-        }),
-      );
-    }
-
-    const [first, ...rest] = statements;
-
-    if (first) {
-      await db.batch([first, ...rest]);
-    }
-  }
 }
