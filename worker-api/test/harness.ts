@@ -1,7 +1,7 @@
-import type { SQLQueryBindings } from "bun:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 
-import { Database as SQLite } from "bun:sqlite";
 import { readdirSync, readFileSync } from "node:fs";
+import { DatabaseSync as SQLite } from "node:sqlite";
 
 import type { WorkerEnv } from "../src/alchemy.ts";
 import type { RateLimiter } from "../src/rate-limits.ts";
@@ -34,15 +34,19 @@ export function createTestDatabase(onBatch?: () => void): D1Database {
 
   return asD1Database({
     prepare(sql: string) {
-      const statement = sqlite.query(sql);
+      const statement = sqlite.prepare(sql);
 
-      const prepareWithParams = (params: SQLQueryBindings[]) => ({
-        bind(...values: SQLQueryBindings[]) {
+      const prepareWithParams = (params: SQLInputValue[]) => ({
+        bind(...values: SQLInputValue[]) {
           return prepareWithParams(values);
         },
         all: async () => ({ results: statement.all(...params) }),
         first: async () => statement.get(...params),
-        raw: async () => statement.values(...params),
+        raw: async () => {
+          statement.setReturnArrays(true);
+
+          return statement.all(...params);
+        },
         run: async () => statement.run(...params),
         execute: () => statement.all(...params),
       });
@@ -55,14 +59,21 @@ export function createTestDatabase(onBatch?: () => void): D1Database {
     batch(statements: Array<{ execute: () => unknown[] }>) {
       onBatch?.();
 
-      const execute = sqlite.transaction(() =>
-        statements.map((statement) => ({
+      sqlite.exec("BEGIN");
+
+      try {
+        const results = statements.map((statement) => ({
           success: true,
           results: statement.execute(),
-        })),
-      );
+        }));
 
-      return Promise.resolve(execute());
+        sqlite.exec("COMMIT");
+
+        return Promise.resolve(results);
+      } catch (error) {
+        sqlite.exec("ROLLBACK");
+        throw error;
+      }
     },
   });
 }

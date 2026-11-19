@@ -1,6 +1,6 @@
-import { expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { expect, test } from "vitest";
 
 import { AUTH_ERROR_PATH, AUTH_ERROR_ROUTE } from "../app/lib/auth-paths.ts";
 import routes from "../app/routes.ts";
@@ -46,7 +46,7 @@ test("the OAuth error page is registered where Better Auth redirects", () => {
 
   expect(node).toBeDefined();
   expect(`/${node!.path}`).toBe(AUTH_ERROR_PATH);
-  expect(existsSync(join(import.meta.dir, "../app", node!.file!))).toBe(true);
+  expect(existsSync(join(import.meta.dirname, "../app", node!.file!))).toBe(true);
 });
 
 test("the profile is a page at /user/:username and not below /app", () => {

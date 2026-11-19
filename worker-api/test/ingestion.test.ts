@@ -1,5 +1,5 @@
-import { describe, expect, spyOn, test } from "bun:test";
 import { eq } from "drizzle-orm";
+import { describe, expect, vi, test } from "vitest";
 
 import type { Database } from "../src/db/index.ts";
 import type { IngestionEventFields } from "../src/ingestion/events.ts";
@@ -130,9 +130,9 @@ function captureLogs() {
   };
 
   const spies = [
-    spyOn(console, "log").mockImplementation(recordEvent),
-    spyOn(console, "warn").mockImplementation(recordMessage),
-    spyOn(console, "error").mockImplementation(recordMessage),
+    vi.spyOn(console, "log").mockImplementation(recordEvent),
+    vi.spyOn(console, "warn").mockImplementation(recordMessage),
+    vi.spyOn(console, "error").mockImplementation(recordMessage),
   ];
 
   return {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import z from "zod";
 
 import { createApp } from "../src/app.ts";
@@ -96,7 +96,7 @@ describe("auth routes", () => {
         .bind()
         .first<{ username: string }>();
 
-      expect(row?.username).toBeString();
+      expect(row?.username).toBeTypeOf("string");
       expect(row?.username.length).toBeGreaterThan(0);
     } finally {
       restoreFetch();

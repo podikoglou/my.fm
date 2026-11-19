@@ -13,7 +13,7 @@
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "test": "bun test",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260423.1",
     "alchemy": "2.0.0-beta.85",
     "drizzle-kit": "1.0.0-rc.5",
-    "effect": "^4.1.4"
+    "effect": "^4.1.4",
+    "vitest": "4.1.12"
   }
 }

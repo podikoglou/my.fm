@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 
 import { API_RUN_WORKER_FIRST } from "../api-paths.ts";
 import worker from "../worker.ts";
