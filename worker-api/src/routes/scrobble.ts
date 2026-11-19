@@ -9,6 +9,7 @@ import { createDatabase } from "../db/index.ts";
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { canViewProfile, findUserByUsernamePublic } from "../db/queries/users.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
+import { isTimeZone } from "../time-zone.ts";
 
 export default new Hono<AppEnv>()
   .use("/getRecent", rateLimit("PUBLIC_READ_RATE_LIMIT"))
@@ -96,18 +97,7 @@ export default new Hono<AppEnv>()
         username: z.string(),
 
         // IANA name, so months start at the viewer's local midnight
-        timeZone: z
-          .string()
-          .default("UTC")
-          .refine((timeZone) => {
-            try {
-              new Intl.DateTimeFormat("en-US", { timeZone });
-
-              return true;
-            } catch {
-              return false;
-            }
-          }, "Unknown time zone"),
+        timeZone: z.string().default("UTC").refine(isTimeZone, "Unknown time zone"),
       }),
     ),
     async (c) => {
