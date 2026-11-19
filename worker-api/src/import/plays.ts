@@ -111,17 +111,17 @@ export async function withoutRecordedPlays(
     const playedAt = play.row.playedAt.getTime();
     const candidates = recordedTimes.get(play.normTrackKey) ?? [];
 
-    const match = candidates.findIndex(
-      (time) => Math.abs(time - playedAt) <= RECORDED_PLAY_WINDOW_MS,
-    );
+    const distances = candidates.map((time) => Math.abs(time - playedAt));
+    const nearest = Math.min(...distances);
 
-    if (match === -1) {
+    if (nearest > RECORDED_PLAY_WINDOW_MS) {
       return true;
     }
 
     // One recorded play accounts for one row, so a track on repeat keeps the
-    // listens that ingestion did not record.
-    candidates.splice(match, 1);
+    // listens that ingestion did not record. The nearest one is taken, which
+    // leaves the recorded play of a neighbouring listen for its own row.
+    candidates.splice(distances.indexOf(nearest), 1);
 
     return false;
   });

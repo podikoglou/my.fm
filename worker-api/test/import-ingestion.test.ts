@@ -404,6 +404,38 @@ describe("import ingestion cron processor", () => {
     expect(await db.select().from(scrobbles)).toHaveLength(3);
   });
 
+  test("matches each row to its nearest recorded play", async () => {
+    const db = createDatabase(env.DB);
+    const firstStart = 1644436588000;
+    const secondStart = firstStart + 8 * 60_000;
+
+    await seedImport(env, db, {
+      id: "import-nearest",
+      userId: "user-nearest",
+      username: "user_nearest",
+      createdAt: new Date(),
+    });
+
+    await env.IMPORTS_BUCKET.put(
+      getImportR2Key("import-nearest"),
+      "Artist;Album;Track;Date#user\n" +
+        `Anderson .Paak;Ventura;Come Home;${secondStart}\n` +
+        `Anderson .Paak;Ventura;Come Home;${firstStart}`,
+    );
+
+    await seedRecordedPlay(db, "user-nearest", new Date(firstStart + 3 * 60_000));
+    await seedRecordedPlay(db, "user-nearest", new Date(secondStart + 3 * 60_000));
+
+    const result = await runImportIngestion(env, {
+      batchLimit: 500,
+      throttleMs: 0,
+      fetchBatch: async () => ({ q0: null }) satisfies Record<string, GqlTrack | null>,
+    });
+
+    expect(result).toMatchObject({ status: "completed", processed: 0, skipped: 2 });
+    expect(await db.select().from(scrobbles)).toHaveLength(2);
+  });
+
   test("imports a row whose track was recorded at another time", async () => {
     const db = createDatabase(env.DB);
 
