@@ -68,8 +68,10 @@ export type SpotifyClient = {
   ): Promise<RecentlyPlayedPage>;
   /**
    * The track that plays right now. Null when no track plays, and when Spotify
-   * refuses the token: a user who signed in before sign-in asked for the
-   * `user-read-currently-playing` scope has not granted it.
+   * gives no answer. The caller then falls back to the intervals, so only a
+   * quota error throws. A refused token is the common case: a user who signed
+   * in before sign-in asked for the `user-read-currently-playing` scope has
+   * not granted it.
    */
   getCurrentlyPlaying(): Promise<SpotifyPlayback | null>;
 };
@@ -140,7 +142,6 @@ export function getSpotifyQuotaError(error: Error): SpotifyQuotaFailure | null {
 export function createSpotifyClient(env: WorkerEnv, accessToken: string): SpotifyClient {
   let quotaResponse = false;
   let quotaRetryAfterSeconds: number | null = null;
-  let tokenRefused = false;
 
   const api = SpotifyApi.withAccessToken(
     env.SPOTIFY_CLIENT_ID,
@@ -155,7 +156,6 @@ export function createSpotifyClient(env: WorkerEnv, accessToken: string): Spotif
       // and the retry window here. The thrown error carries neither.
       afterRequest: (_url, _options, response) => {
         quotaResponse = response.status === 429;
-        tokenRefused = response.status === 401 || response.status === 403;
         quotaRetryAfterSeconds = quotaResponse
           ? parseRetryAfterSeconds(response.headers.get("retry-after"))
           : null;
@@ -167,7 +167,6 @@ export function createSpotifyClient(env: WorkerEnv, accessToken: string): Spotif
   async function send<Body>(request: () => Promise<Body>) {
     quotaResponse = false;
     quotaRetryAfterSeconds = null;
-    tokenRefused = false;
 
     try {
       return await request();
@@ -196,11 +195,11 @@ export function createSpotifyClient(env: WorkerEnv, accessToken: string): Spotif
 
         return playback.success ? { progressMs: playback.data.progress_ms } : null;
       } catch (error) {
-        if (tokenRefused) {
-          return null;
+        if (error instanceof SpotifyQuotaExceededError) {
+          throw error;
         }
 
-        throw error;
+        return null;
       }
     },
   };

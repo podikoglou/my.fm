@@ -125,8 +125,8 @@ describe("getCurrentlyPlaying", () => {
     }
   });
 
-  test("returns null when the token lacks the scope", async () => {
-    for (const status of [401, 403]) {
+  test("returns null when Spotify refuses the token or fails", async () => {
+    for (const status of [401, 403, 500]) {
       network.use(http.get(url, async () => Response.json({ error: { status } }, { status })));
 
       expect(await createSpotifyClient(env, "token-1").getCurrentlyPlaying()).toBeNull();
@@ -148,11 +148,5 @@ describe("getCurrentlyPlaying", () => {
       );
 
     expect(quota).toEqual({ retryAfterSeconds: 120 });
-  });
-
-  test("throws for a server error", async () => {
-    network.use(http.get(url, async () => Response.json({}, { status: 500 })));
-
-    await expect(createSpotifyClient(env, "token-1").getCurrentlyPlaying()).rejects.toThrow();
   });
 });
