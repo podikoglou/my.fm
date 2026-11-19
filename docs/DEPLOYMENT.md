@@ -39,7 +39,10 @@ strings.
 
 ## Free plan limits
 
-The project targets the Free Cloudflare plan.
+Everything runs on the Free plan. D1's cap of 100,000 rows written per day is
+account-wide, and an imported play bills ~6 rows, so a large import pauses the
+account's writes until midnight UTC and resumes by itself. Workers Paid
+($5/mo), which has no daily cap, is advised while importing.
 
 ## Agent Note: Before you change infrastructure
 
