@@ -38,6 +38,7 @@ describe("auth routes", () => {
     expect(url.searchParams.get("client_id")).toBe("test-client-id");
     expect(url.searchParams.get("redirect_uri")).toBe(`${baseUrl}/api/auth/callback/spotify`);
     expect(url.searchParams.get("scope")).toContain("user-read-recently-played");
+    expect(url.searchParams.get("scope")).toContain("user-read-currently-playing");
   });
 
   test("creates a user with a generated username on the first Spotify callback", async () => {
