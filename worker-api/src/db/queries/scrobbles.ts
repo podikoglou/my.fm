@@ -215,7 +215,9 @@ export async function countScrobblesByMonth(
     .select({ month, count: count() })
     .from(scrobbles)
     .where(where)
-    .groupBy(month);
+    // By position, so the statement holds the CASE once and stays under D1's
+    // statement size limit for twice as long a history.
+    .groupBy(sql`1`);
 
   return months.flatMap(({ month }) => counts.filter((row) => row.month === month));
 }

@@ -9,8 +9,10 @@ export function isTimeZone(timeZone: string) {
   }
 }
 
-function utcOffsetMs(instant: number, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
+// Building a formatter costs far more than using one, so one is shared by
+// every offset lookup of a request.
+function wallClockFormatter(timeZone: string) {
+  return new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",
     year: "numeric",
@@ -19,7 +21,11 @@ function utcOffsetMs(instant: number, timeZone: string) {
     hour: "numeric",
     minute: "numeric",
     second: "numeric",
-  }).formatToParts(instant);
+  });
+}
+
+function utcOffsetMs(instant: number, formatter: Intl.DateTimeFormat) {
+  const parts = formatter.formatToParts(instant);
 
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((candidate) => candidate.type === type)?.value);
@@ -44,16 +50,16 @@ const HOUR_MS = 3_600_000;
  * monthIndex, 1)` resolves it in the browser: a midnight that occurs twice
  * takes the first, and one skipped by a DST gap moves forward past the gap.
  */
-function startOfMonthIn(year: number, monthIndex: number, timeZone: string) {
+function startOfMonthIn(year: number, monthIndex: number, formatter: Intl.DateTimeFormat) {
   const wallClock = Date.UTC(year, monthIndex, 1);
 
   // Every zone's offset lies within UTC-12 and UTC+14, so these two samples
   // bracket the boundary with at most one transition between them.
-  const offsetBefore = utcOffsetMs(wallClock - 14 * HOUR_MS, timeZone);
-  const offsetAfter = utcOffsetMs(wallClock + 14 * HOUR_MS, timeZone);
+  const offsetBefore = utcOffsetMs(wallClock - 14 * HOUR_MS, formatter);
+  const offsetAfter = utcOffsetMs(wallClock + 14 * HOUR_MS, formatter);
 
   const candidates = [wallClock - offsetBefore, wallClock - offsetAfter].filter(
-    (instant) => instant === wallClock - utcOffsetMs(instant, timeZone),
+    (instant) => instant === wallClock - utcOffsetMs(instant, formatter),
   );
 
   return candidates.length > 0 ? Math.min(...candidates) : wallClock - offsetBefore;
@@ -64,7 +70,8 @@ function startOfMonthIn(year: number, monthIndex: number, timeZone: string) {
  * with the instant it starts.
  */
 export function monthsBetween(first: Date, last: Date, timeZone: string) {
-  const local = (date: Date) => new Date(date.getTime() + utcOffsetMs(date.getTime(), timeZone));
+  const formatter = wallClockFormatter(timeZone);
+  const local = (date: Date) => new Date(date.getTime() + utcOffsetMs(date.getTime(), formatter));
   const from = local(first);
   const to = local(last);
   const months = [];
@@ -77,7 +84,7 @@ export function monthsBetween(first: Date, last: Date, timeZone: string) {
   ) {
     months.push({
       month: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
-      start: Math.floor(startOfMonthIn(year, monthIndex, timeZone) / 1000),
+      start: Math.floor(startOfMonthIn(year, monthIndex, formatter) / 1000),
     });
   }
 
