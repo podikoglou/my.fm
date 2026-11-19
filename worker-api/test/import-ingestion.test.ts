@@ -7,7 +7,15 @@ import type { GqlTrack } from "../src/import/graphql.ts";
 
 import { createDatabase } from "../src/db/index.ts";
 import { findActiveImportForCron, insertImport } from "../src/db/queries/imports.ts";
-import { albums, artists, imports, scrobbles, tracks, users } from "../src/db/schema.ts";
+import {
+  albums,
+  artists,
+  imports,
+  scrobbles,
+  trackArtists,
+  tracks,
+  users,
+} from "../src/db/schema.ts";
 import { getImportR2Key } from "../src/import/csv.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { runImportIngestion } from "../src/ingestion/import.ts";
@@ -44,6 +52,40 @@ async function seedImport(
     skippedRows: 0,
     createdAt: values.createdAt,
     updatedAt: values.createdAt,
+  });
+}
+
+/** Store a play of "Come Home" the way Spotify ingestion records one. */
+async function seedRecordedPlay(db: Database, userId: string, playedAt: Date) {
+  await db
+    .insert(artists)
+    .values({ spotifyUri: "spotify:artist:paak", name: "Anderson .Paak" })
+    .onConflictDoNothing();
+
+  await db
+    .insert(tracks)
+    .values({
+      spotifyUri: "spotify:track:come-home",
+      name: "Come Home",
+      releaseDate: "2019",
+      imageUrl: "https://example.com/ventura.jpg",
+    })
+    .onConflictDoNothing();
+
+  await db
+    .insert(trackArtists)
+    .values({
+      trackSpotifyUri: "spotify:track:come-home",
+      artistSpotifyUri: "spotify:artist:paak",
+      position: 0,
+    })
+    .onConflictDoNothing();
+
+  await db.insert(scrobbles).values({
+    id: `recorded-${playedAt.getTime()}`,
+    userId,
+    trackSpotifyUri: "spotify:track:come-home",
+    scrobbleDate: playedAt,
   });
 }
 
@@ -298,6 +340,60 @@ describe("import ingestion cron processor", () => {
     const stored = await db.select().from(scrobbles);
 
     expect(stored.map((scrobble) => scrobble.albumName).sort()).toEqual(["EVERYTHING", "Ventura"]);
+  });
+
+  test("skips a row that ingestion recorded from Spotify minutes apart", async () => {
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-overlapping",
+      userId: "user-overlapping",
+      username: "user_overlapping",
+      createdAt: new Date(),
+    });
+
+    // The file stamps the start of the play; the recorded play is later by
+    // about the track's length.
+    await seedRecordedPlay(db, "user-overlapping", new Date(1644436588000 + 210_000));
+
+    const result = await runImportIngestion(env, {
+      batchLimit: 500,
+      throttleMs: 0,
+      fetchBatch: async () => ({ q0: null }) satisfies Record<string, GqlTrack | null>,
+    });
+
+    expect(result).toMatchObject({ status: "completed", processed: 1, skipped: 1 });
+
+    const stored = await db.select().from(scrobbles);
+
+    expect(stored.map((scrobble) => scrobble.trackName).sort()).toEqual(["Summerhouse", null]);
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.processedRows).toBe(1);
+    expect(row?.skippedRows).toBe(1);
+  });
+
+  test("imports a row whose track was recorded at another time", async () => {
+    const db = createDatabase(env.DB);
+
+    await seedImport(env, db, {
+      id: "import-replayed",
+      userId: "user-replayed",
+      username: "user_replayed",
+      createdAt: new Date(),
+    });
+
+    await seedRecordedPlay(db, "user-replayed", new Date(1644436588000 - 24 * 60 * 60 * 1000));
+
+    const result = await runImportIngestion(env, {
+      batchLimit: 500,
+      throttleMs: 0,
+      fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
+    });
+
+    expect(result).toMatchObject({ status: "completed", processed: 2, skipped: 0 });
+    expect(await db.select().from(scrobbles)).toHaveLength(3);
   });
 
   test("keeps the import processing with an unmoved cursor when a metadata batch fails", async () => {

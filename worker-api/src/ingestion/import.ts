@@ -14,7 +14,7 @@ import {
   updateImport,
   updateImportAtCursor,
 } from "../db/queries/imports.ts";
-import { insertScrobble } from "../db/queries/scrobbles.ts";
+import { findRecordedPlaysBetween, insertScrobble } from "../db/queries/scrobbles.ts";
 import { insertTrackArtist } from "../db/queries/trackArtists.ts";
 import { insertTrack } from "../db/queries/tracks.ts";
 import {
@@ -46,6 +46,14 @@ export const PLAYS_PER_D1_BATCH = 20;
 const IMPORT_MAX_ATTEMPTS = 3;
 
 const IMPORT_GAVE_UP_ERROR = "Import failed after repeated metadata batch errors";
+
+/**
+ * How far apart an imported play and a recorded play of the same track may be
+ * and still count as one listen. An export stamps the start of a play
+ * and a recorded play can carry its end, so the two differ by up to the
+ * track's length.
+ */
+const RECORDED_PLAY_WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * The outcome of a run whose import moved on while it worked. A run that
@@ -167,7 +175,7 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
   const endIndex = Math.min(startIndex + batchLimit, lines.length);
   const batchLines = lines.slice(startIndex, endIndex);
 
-  const validItems: ValidRowItem[] = [];
+  const parsedItems: ValidRowItem[] = [];
   let skippedInBatch = 0;
 
   for (const line of batchLines) {
@@ -186,13 +194,17 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
       normTrackKey,
     );
 
-    validItems.push({
+    parsedItems.push({
       row,
       scrobbleId,
       normArtistKey,
       normTrackKey,
     });
   }
+
+  const validItems = await withoutRecordedPlays(db, activeImport.userId, parsedItems);
+
+  skippedInBatch += parsedItems.length - validItems.length;
 
   const queryItems: QueryItem[] = validItems.map((item) => ({
     key: item.normTrackKey,
@@ -280,6 +292,56 @@ async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOpti
     processed: validItems.length,
     skipped: skippedInBatch,
   };
+}
+
+/**
+ * Drop the rows that ingestion already recorded from Spotify, so an import
+ * that overlaps the recorded history does not store those plays twice.
+ *
+ * The two sources share no ID and no exact time, so a row matches a recorded
+ * play of the same normalized artist and title within the window.
+ */
+async function withoutRecordedPlays(
+  db: Database,
+  userId: string,
+  items: ValidRowItem[],
+): Promise<ValidRowItem[]> {
+  if (items.length === 0) {
+    return items;
+  }
+
+  const times = items.map((item) => item.row.playedAt.getTime());
+
+  const recorded = await findRecordedPlaysBetween(
+    db,
+    userId,
+    new Date(Math.min(...times) - RECORDED_PLAY_WINDOW_MS),
+    new Date(Math.max(...times) + RECORDED_PLAY_WINDOW_MS),
+  );
+
+  const recordedTimes = new Map<string, number[]>();
+
+  for (const { scrobbleDate, track } of recorded) {
+    const [first] = track?.trackArtists.toSorted((a, b) => a.position - b.position) ?? [];
+
+    if (!scrobbleDate || !track || !first) {
+      continue;
+    }
+
+    const { normTrackKey } = await computeNormKeys(first.artist.name, track.name);
+
+    recordedTimes.set(normTrackKey, [
+      ...(recordedTimes.get(normTrackKey) ?? []),
+      scrobbleDate.getTime(),
+    ]);
+  }
+
+  return items.filter((item) => {
+    const playedAt = item.row.playedAt.getTime();
+    const matches = recordedTimes.get(item.normTrackKey) ?? [];
+
+    return !matches.some((time) => Math.abs(time - playedAt) <= RECORDED_PLAY_WINDOW_MS);
+  });
 }
 
 async function persistBatch(

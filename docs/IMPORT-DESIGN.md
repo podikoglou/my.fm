@@ -69,3 +69,11 @@ The importer accepts listening history CSV exports:
 - Plays appear in `scrobbles` with source strings (`artistName`, `albumName`, `trackName`) and nullable `trackSpotifyUri`, `albumSpotifyUri`, and `coverArtUrl`.
 - When metadata resolves, canonical entities are upserted into `tracks`, `albums`, and `artists`, and the matching `scrobbles` rows link to them.
 - Plays that remain unresolved continue to display using their stored source text and cover art fallback.
+
+## Plays that are already recorded
+
+An export can cover a period that Spotify ingestion already recorded. The two
+sources share no ID and no exact time: an export stamps the start of a
+play, in whole seconds. So each run reads the user's recorded plays around its
+rows and skips a row when a recorded play of the same normalized artist and
+title lies within 10 minutes of it. A skipped row counts in `skippedRows`.
