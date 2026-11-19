@@ -4,6 +4,7 @@ import type { WorkerEnv } from "../alchemy.ts";
 import type { Database } from "../db/index.ts";
 import type { GqlTrack, QueryItem, ResolvedTrackMetadata } from "../import/graphql.ts";
 
+import { describeError, getD1QuotaError } from "../db/errors.ts";
 import { createDatabase } from "../db/index.ts";
 import { insertAlbumArtist } from "../db/queries/albumArtists.ts";
 import { insertAlbum } from "../db/queries/albums.ts";
@@ -22,7 +23,12 @@ import {
 import { extractResolvedMetadata } from "../import/graphql.ts";
 import { computeImportScrobbleId, computeNormKeys } from "../import/normalize.ts";
 import { resolveTracksWaterfall } from "../import/resolver.ts";
-import { INGESTION_EVENTS, logIngestionEvent, logIngestionFailure } from "./events.ts";
+import {
+  INGESTION_EVENTS,
+  d1QuotaEventName,
+  logIngestionEvent,
+  logIngestionFailure,
+} from "./events.ts";
 
 export const IMPORT_LINES_PER_RUN = 500;
 
@@ -50,7 +56,32 @@ type ValidRowItem = {
   normTrackKey: string;
 };
 
+/**
+ * Process the oldest active import for one cron tick.
+ *
+ * A D1 daily-limit error stops the tick without touching the database
+ * again: nothing can be written until midnight UTC, so the import stays
+ * exactly as it was and the next tick retries. The status `paused` marks
+ * that outcome; every other status is the result of real progress.
+ */
 export async function runImportIngestion(env: WorkerEnv, options?: ImportIngestionOptions) {
+  try {
+    return await processActiveImport(env, options);
+  } catch (error) {
+    const quota = error instanceof Error ? getD1QuotaError(error) : null;
+
+    if (!quota) {
+      throw error;
+    }
+
+    logIngestionFailure(d1QuotaEventName(quota.limit));
+
+    return { status: "paused", processed: 0 };
+  }
+}
+
+/** One cron tick of import processing, without the D1-limit envelope. */
+async function processActiveImport(env: WorkerEnv, options?: ImportIngestionOptions) {
   const db = createDatabase(env.DB);
   const activeImport = await findActiveImportForCron(db);
 
@@ -178,11 +209,17 @@ export async function runImportIngestion(env: WorkerEnv, options?: ImportIngesti
 
     await persistBatch(db, activeImport.userId, activeImport.id, validItems, resolvedMap);
   } catch (error) {
+    if (error instanceof Error && getD1QuotaError(error)) {
+      // The envelope reports the pause once and skips every bookkeeping
+      // write below: each one would fail with the same error.
+      throw error;
+    }
+
     const attemptCount = activeImport.attemptCount + 1;
 
     logIngestionFailure(
       INGESTION_EVENTS.importBatchFailed,
-      error instanceof Error ? error : String(error),
+      error instanceof Error ? describeError(error) : String(error),
     );
 
     if (attemptCount >= IMPORT_MAX_ATTEMPTS) {

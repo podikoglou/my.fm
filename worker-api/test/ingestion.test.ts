@@ -1,8 +1,7 @@
-import { describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import type { Database } from "../src/db/index.ts";
-import type { IngestionEventFields } from "../src/ingestion/events.ts";
 import type { CreateSpotifyClient, SpotifyPlay } from "../src/ingestion/spotify.ts";
 
 import { createDatabase } from "../src/db/index.ts";
@@ -23,7 +22,15 @@ import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { storePlays } from "../src/ingestion/plays.ts";
 import { runIngestion, shouldFetchUser } from "../src/ingestion/run.ts";
 import { SpotifyQuotaExceededError } from "../src/ingestion/spotify.ts";
-import { createTestDatabase, createTestEnv, replaceFetch } from "./harness.ts";
+import {
+  captureLogs,
+  createBatchWriteLimitDatabase,
+  createFailingUpdateDatabase,
+  createStatementWriteLimitDatabase,
+  createTestDatabase,
+  createTestEnv,
+  replaceFetch,
+} from "./harness.ts";
 
 const now = new Date("2026-11-11T12:00:00.000Z");
 
@@ -109,42 +116,6 @@ function clientFor(
       return { items: getPlays(call) };
     },
   });
-}
-
-/**
- * Capture the ingestion log output and keep it out of the test output.
- *
- * Normal events are one object; failures are an event name followed by an
- * optional detail.
- */
-function captureLogs() {
-  const events: IngestionEventFields[] = [];
-  const messages: unknown[][] = [];
-
-  const recordEvent = (fields: IngestionEventFields) => {
-    events.push(fields);
-  };
-
-  const recordMessage = (...args: unknown[]) => {
-    messages.push(args);
-  };
-
-  const spies = [
-    spyOn(console, "log").mockImplementation(recordEvent),
-    spyOn(console, "warn").mockImplementation(recordMessage),
-    spyOn(console, "error").mockImplementation(recordMessage),
-  ];
-
-  return {
-    events,
-    messages,
-    named: (event: string) => events.filter((entry) => entry.event === event),
-    restore: () => {
-      for (const spy of spies) {
-        spy.mockRestore();
-      }
-    },
-  };
 }
 
 describe("scrobble IDs", () => {
@@ -734,7 +705,7 @@ describe("runIngestion", () => {
       ([message]) => message === INGESTION_EVENTS.accountFailed,
     );
 
-    expect(failure?.[1]).toBeInstanceOf(Error);
+    expect(failure?.[1]).toEqual({ name: "Error", message: "Spotify unavailable", causes: [] });
     expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
       expect.objectContaining({ status: "partial", accounts: 1, plays: 0, failures: 1 }),
     ]);
@@ -772,6 +743,88 @@ describe("runIngestion", () => {
 
     expect(updated?.status).toBe("ok");
     expect(await db.select().from(ingestionRuns)).toHaveLength(1);
+  });
+
+  test("stops the run without a heartbeat when D1 rejects the store", async () => {
+    const env = createTestEnv(createBatchWriteLimitDatabase());
+    const db = createDatabase(env.DB);
+    const calls: FetchCall[] = [];
+    const logs = captureLogs();
+
+    try {
+      await seedUser(db);
+      await runIngestion(
+        env,
+        clientFor(calls, () => [makePlay("2026-11-11T12:00:00.000Z")]),
+      );
+    } finally {
+      logs.restore();
+    }
+
+    expect(calls).toHaveLength(1);
+    expect(
+      logs.messages.filter(([message]) => message === INGESTION_EVENTS.d1WriteLimit),
+    ).toHaveLength(1);
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([]);
+    expect(await db.select().from(ingestionRuns)).toHaveLength(0);
+    expect(await db.select().from(scrobbles)).toHaveLength(0);
+
+    const user = await db.query.users.findFirst({ where: { id: "user-1" } });
+    expect(user?.lastRecentTracksFetchTime).toBeNull();
+  });
+
+  test("reports the limit when the heartbeat write is the failure", async () => {
+    const env = createTestEnv(createStatementWriteLimitDatabase());
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    try {
+      await runIngestion(
+        env,
+        clientFor([], () => []),
+      );
+    } finally {
+      logs.restore();
+    }
+
+    expect(
+      logs.messages.filter(([message]) => message === INGESTION_EVENTS.d1WriteLimit),
+    ).toHaveLength(1);
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
+      expect.objectContaining({ status: "ok", accounts: 0, plays: 0, failures: 0 }),
+    ]);
+    expect(await db.select().from(ingestionRuns)).toHaveLength(0);
+  });
+
+  test("logs the cause message of a wrapped update failure", async () => {
+    const env = createTestEnv(
+      createFailingUpdateDatabase("D1_ERROR: FOREIGN KEY constraint failed"),
+    );
+
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    try {
+      await seedUser(db);
+      await runIngestion(
+        env,
+        clientFor([], () => [makePlay("2026-11-11T12:00:00.000Z")]),
+      );
+    } finally {
+      logs.restore();
+    }
+
+    const [failure] = logs.messages.filter(
+      ([message]) => message === INGESTION_EVENTS.accountFailed,
+    );
+
+    expect(failure?.[1]).toMatchObject({
+      name: "DrizzleQueryError",
+      causes: ["D1_ERROR: FOREIGN KEY constraint failed"],
+    });
+    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
+      expect.objectContaining({ status: "partial", accounts: 1, plays: 0, failures: 1 }),
+    ]);
   });
 });
 
