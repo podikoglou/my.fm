@@ -4,6 +4,7 @@ import type { Database } from "../db/index.ts";
 import type { CreateSpotifyClient } from "./spotify.ts";
 
 import { createAuth } from "../auth.ts";
+import { describeError, getD1QuotaError } from "../db/errors.ts";
 import { createDatabase } from "../db/index.ts";
 import { findIngestionRun, recordIngestionRun } from "../db/queries/ingestionRuns.ts";
 import {
@@ -14,6 +15,7 @@ import {
 } from "../db/queries/users.ts";
 import {
   INGESTION_EVENTS,
+  d1QuotaEventName,
   logIngestionEvent,
   logIngestionFailure,
   logIngestionWarning,
@@ -119,12 +121,33 @@ type AccountResult = {
  *
  * Each run logs one `runComplete` event and one event per account, because the
  * invocation outcome stays `ok` for every error that this function catches.
+ *
+ * A D1 daily-limit error stops the run the same way but leaves no heartbeat:
+ * every write fails until midnight UTC, so the run reports one stable event
+ * and waits for the next cron trigger.
  */
 export async function runIngestion(
   env: WorkerEnv,
   createClient: CreateSpotifyClient = (accessToken) => createSpotifyClient(env, accessToken),
   now: Date = new Date(),
 ) {
+  try {
+    await ingestAllAccounts(env, createClient, now);
+  } catch (error) {
+    const quota = error instanceof Error ? getD1QuotaError(error) : null;
+
+    if (!quota) {
+      throw error;
+    }
+
+    // No heartbeat follows: the write would fail with the same error. The
+    // next cron run retries, and midnight UTC ends the limit by itself.
+    logIngestionFailure(d1QuotaEventName(quota.limit));
+  }
+}
+
+/** One cron tick of ingestion, without the D1-limit envelope. */
+async function ingestAllAccounts(env: WorkerEnv, createClient: CreateSpotifyClient, now: Date) {
   const db = createDatabase(env.DB);
   const previous = await findIngestionRun(db);
 
@@ -175,6 +198,16 @@ export async function runIngestion(
         failures += 1;
       }
     } catch (error) {
+      const d1Quota = error instanceof Error ? getD1QuotaError(error) : null;
+
+      if (d1Quota) {
+        // The limit is account-wide, so the next account would fail the same
+        // way, and the heartbeat write at the end would fail with it.
+        logIngestionFailure(d1QuotaEventName(d1Quota.limit));
+
+        return;
+      }
+
       attemptedAccounts += 1;
       const quota = error instanceof Error ? getSpotifyQuotaError(error) : null;
 
@@ -203,7 +236,7 @@ export async function runIngestion(
 
       logIngestionFailure(
         INGESTION_EVENTS.accountFailed,
-        error instanceof Error ? error : String(error),
+        error instanceof Error ? describeError(error) : String(error),
       );
     }
   }

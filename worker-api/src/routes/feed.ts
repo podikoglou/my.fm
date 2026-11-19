@@ -6,6 +6,7 @@ import type { AppEnv } from "../types.ts";
 
 import { createDatabase } from "../db/index.ts";
 import { findPublicFeed, type FeedRow } from "../db/queries/scrobbles.ts";
+import { unlinkedAlbum, unlinkedTrack } from "../import/unlinked.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
 
 /**
@@ -45,6 +46,20 @@ function decodeCursor(value: string) {
 }
 
 function toFeedItem(row: FeedRow) {
+  const track = row.track
+    ? {
+        name: row.track.name,
+        imageUrl: row.track.imageUrl,
+        spotifyUri: row.track.spotifyUri,
+        artists: row.track.trackArtists.map(({ artist }) => ({
+          name: artist.name,
+          spotifyUri: artist.spotifyUri,
+        })),
+      }
+    : unlinkedTrack(row);
+
+  const { name, spotifyUri } = row.album ?? unlinkedAlbum(row);
+
   return {
     id: row.id,
     scrobbleDate: row.scrobbleDate,
@@ -53,19 +68,8 @@ function toFeedItem(row: FeedRow) {
       name: row.user.name,
       avatarUrl: row.user.avatarUrl,
     },
-    track: {
-      name: row.track.name,
-      imageUrl: row.track.imageUrl,
-      spotifyUri: row.track.spotifyUri,
-      artists: row.track.trackArtists.map(({ artist }) => ({
-        name: artist.name,
-        spotifyUri: artist.spotifyUri,
-      })),
-    },
-    album: {
-      name: row.album.name,
-      spotifyUri: row.album.spotifyUri,
-    },
+    track,
+    album: { name, spotifyUri },
   };
 }
 

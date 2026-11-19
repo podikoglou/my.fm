@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "6c32fa18-d2f4-4d2d-87c2-e0a0f70faf6c",
-  "prevIds": ["0e0f32ff-a04d-488a-a4f8-3700782e44e5"],
+  "id": "846462d6-4575-47ea-bf7c-d91353e8140b",
+  "prevIds": ["0ae79d0e-9906-420e-984f-5eac04a40cc1"],
   "ddl": [
     {
       "name": "accounts",
@@ -18,6 +18,10 @@
     },
     {
       "name": "artists",
+      "entityType": "tables"
+    },
+    {
+      "name": "imports",
       "entityType": "tables"
     },
     {
@@ -319,6 +323,126 @@
       "entityType": "columns"
     },
     {
+      "table": "imports",
+      "name": "id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "userId",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "filename",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "status",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "cursor",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "totalLines",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "processedRows",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "skippedRows",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "attemptCount",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "error",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "createdAt",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "imports",
+      "name": "updatedAt",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
       "table": "ingestion_runs",
       "name": "id",
       "type": "integer",
@@ -392,7 +516,7 @@
       "table": "scrobbles",
       "name": "trackSpotifyUri",
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -402,7 +526,67 @@
       "table": "scrobbles",
       "name": "albumSpotifyUri",
       "type": "text",
-      "notNull": true,
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "scrobbles",
+      "name": "coverArtUrl",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "scrobbles",
+      "name": "artistName",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "scrobbles",
+      "name": "albumName",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "scrobbles",
+      "name": "trackName",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "scrobbles",
+      "name": "normArtistKey",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "scrobbles",
+      "name": "normTrackKey",
+      "type": "text",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -412,6 +596,16 @@
       "table": "scrobbles",
       "name": "scrobbleDate",
       "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "scrobbles",
+      "name": "importId",
+      "type": "text",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -813,6 +1007,38 @@
       "entityType": "indexes"
     },
     {
+      "table": "imports",
+      "name": "imports_status_created_at_idx",
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "createdAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "imports",
+      "name": "imports_user_id_idx",
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
       "table": "scrobbles",
       "name": "scrobbles_scrobble_date_id_idx",
       "columns": [
@@ -832,7 +1058,7 @@
     },
     {
       "table": "scrobbles",
-      "name": "scrobbles_user_id_scrobble_date_id_idx",
+      "name": "scrobbles_user_id_scrobble_date_idx",
       "columns": [
         {
           "value": "userId",
@@ -840,10 +1066,6 @@
         },
         {
           "value": "scrobbleDate",
-          "isExpression": false
-        },
-        {
-          "value": "id",
           "isExpression": false
         }
       ],
@@ -914,13 +1136,24 @@
       "entityType": "fks"
     },
     {
+      "table": "imports",
+      "name": "fk_imports_userId_users_id_fk",
+      "columns": ["userId"],
+      "tableTo": "users",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
       "table": "scrobbles",
       "name": "fk_scrobbles_userId_users_id_fk",
       "columns": ["userId"],
       "tableTo": "users",
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "nameExplicit": false,
       "entityType": "fks"
     },
@@ -943,6 +1176,17 @@
       "columnsTo": ["spotifyUri"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
+      "table": "scrobbles",
+      "name": "fk_scrobbles_importId_imports_id_fk",
+      "columns": ["importId"],
+      "tableTo": "imports",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
       "nameExplicit": false,
       "entityType": "fks"
     },
@@ -1011,6 +1255,13 @@
       "table": "artists",
       "name": "artists_pk",
       "columns": ["spotifyUri"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "imports",
+      "name": "imports_pk",
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },

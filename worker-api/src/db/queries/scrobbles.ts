@@ -23,11 +23,48 @@ export async function createScrobbleId(userId: User["id"], scrobbleDate: Date) {
 
 export type ScrobbleValues = Pick<
   ScrobbleInsert,
-  "userId" | "trackSpotifyUri" | "albumSpotifyUri" | "scrobbleDate"
+  | "userId"
+  | "trackSpotifyUri"
+  | "albumSpotifyUri"
+  | "coverArtUrl"
+  | "artistName"
+  | "albumName"
+  | "trackName"
+  | "normArtistKey"
+  | "normTrackKey"
+  | "scrobbleDate"
+  | "importId"
 > & { id: string };
 
 export function insertScrobble(db: Database, values: ScrobbleValues) {
   return db.insert(scrobbles).values(values).onConflictDoNothing().returning();
+}
+
+/**
+ * The plays that ingestion recorded for a user between two times, with each
+ * track's name and artists. Imported plays are left out.
+ */
+export async function findRecordedPlaysBetween(
+  db: Database,
+  userId: User["id"],
+  from: Date,
+  to: Date,
+) {
+  return await db.query.scrobbles.findMany({
+    where: { userId, importId: { isNull: true }, scrobbleDate: { gte: from, lte: to } },
+    columns: { scrobbleDate: true },
+    with: {
+      track: {
+        columns: { name: true },
+        with: {
+          trackArtists: {
+            columns: { position: true },
+            with: { artist: { columns: { name: true } } },
+          },
+        },
+      },
+    },
+  });
 }
 
 /** `offset` pages backwards from the newest scrobble. */
@@ -96,6 +133,12 @@ export async function findPublicFeed(
     columns: {
       id: true,
       scrobbleDate: true,
+      artistName: true,
+      albumName: true,
+      trackName: true,
+      coverArtUrl: true,
+      trackSpotifyUri: true,
+      albumSpotifyUri: true,
     },
     with: {
       user: {

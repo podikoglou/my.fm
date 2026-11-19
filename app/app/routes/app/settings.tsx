@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
+import { DetailedError, parseResponse } from "hono/client";
 import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router";
 import { z } from "zod";
@@ -9,6 +10,7 @@ import { z } from "zod";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Form, FormField, FormItem } from "~/components/ui/form";
+import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { UserAvatar } from "~/components/user-avatar";
@@ -21,11 +23,36 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const errorResponseSchema = z.object({
+  error: z.string().optional(),
+});
+
+function importErrorMessage(error: Error): string {
+  if (error instanceof DetailedError) {
+    const parsed = errorResponseSchema.safeParse(error.detail?.data);
+    const serverError = parsed.success ? parsed.data.error : undefined;
+
+    return serverError ?? "Import failed. Please try again.";
+  }
+
+  return "Network error during upload.";
+}
+
 async function fetchCurrentUser() {
   return parseResponse(apiClient.user.me.$get());
 }
 
 type CurrentUser = Awaited<ReturnType<typeof fetchCurrentUser>>;
+
+async function fetchLatestImport() {
+  return parseResponse(apiClient.import.latest.$get());
+}
+
+const IMPORT_POLL_INTERVAL_MS = 15 * 1000;
+
+function isImportActive(status?: string) {
+  return status === "pending" || status === "processing";
+}
 
 export default function SettingsPage() {
   const { data } = useQuery({ queryKey: ["user", "me"], queryFn: fetchCurrentUser });
@@ -46,6 +73,35 @@ export default function SettingsPage() {
       form.reset({ isPrivate: settings.isPrivate });
     },
   });
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const { data: latestImportData } = useQuery({
+    queryKey: ["import", "latest"],
+    queryFn: fetchLatestImport,
+    // The cron works through an import in the background, so the status is
+    // polled until it settles.
+    refetchInterval: (query) =>
+      isImportActive(query.state.data?.import?.status) ? IMPORT_POLL_INTERVAL_MS : false,
+  });
+
+  const latestImport = latestImportData?.import;
+
+  const uploadImport = useMutation({
+    mutationFn: (file: File) => parseResponse(apiClient.import.$post({ form: { file } })),
+    onSuccess: () => {
+      setSelectedFile(null);
+      queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
+    },
+  });
+
+  const handleImportSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (selectedFile) {
+      uploadImport.mutate(selectedFile);
+    }
+  };
 
   if (!data) return <></>;
 
@@ -124,6 +180,57 @@ export default function SettingsPage() {
             </Button>
           </form>
         </Form>
+
+        <div className="flex flex-col gap-4 rounded-lg border p-4">
+          <div className="space-y-1">
+            <Label htmlFor="history-file">Import listening history</Label>
+            <p className="text-sm text-muted-foreground">
+              Upload a listening history CSV export (up to 10 MB).
+            </p>
+          </div>
+
+          <form onSubmit={handleImportSubmit} className="flex flex-col gap-3">
+            <Input
+              id="history-file"
+              type="file"
+              accept=".csv"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+              disabled={uploadImport.isPending}
+            />
+
+            {latestImport && (
+              <p className="text-xs text-muted-foreground">
+                Status: {latestImport.status}
+                {latestImport.processedRows > 0 &&
+                  ` (${latestImport.processedRows} plays processed)`}
+              </p>
+            )}
+
+            {latestImport?.status === "failed" && (
+              <p className="text-sm text-destructive">
+                {latestImport.error ?? "Import failed. Please try again."}
+              </p>
+            )}
+
+            {uploadImport.isSuccess && (
+              <p className="text-sm text-muted-foreground">
+                File accepted. Ingestion will process in the background.
+              </p>
+            )}
+
+            {uploadImport.error && (
+              <p className="text-sm text-destructive">{importErrorMessage(uploadImport.error)}</p>
+            )}
+
+            <Button
+              type="submit"
+              disabled={!selectedFile || uploadImport.isPending}
+              className="self-start"
+            >
+              {uploadImport.isPending ? "Uploading..." : "Import"}
+            </Button>
+          </form>
+        </div>
       </CardContent>
     </>
   );

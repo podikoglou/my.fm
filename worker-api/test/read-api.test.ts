@@ -144,14 +144,14 @@ describe("scrobble queries", () => {
     expect(recent.map((scrobble) => scrobble.id)).toEqual(["scrobble-new", "scrobble-old"]);
 
     const [scrobble] = recent;
-    expect(scrobble?.track.name).toBe("A Track");
-    expect(scrobble?.track.trackArtists).toHaveLength(2);
-    expect(scrobble?.track.trackArtists.map(({ artist }) => artist.name)).toEqual([
+    expect(scrobble?.track?.name).toBe("A Track");
+    expect(scrobble?.track?.trackArtists).toHaveLength(2);
+    expect(scrobble?.track?.trackArtists.map(({ artist }) => artist.name)).toEqual([
       "First Artist",
       "Second Artist",
     ]);
-    expect(scrobble?.album.name).toBe("An Album");
-    expect(scrobble?.album.albumArtists[0]?.artist.name).toBe("First Artist");
+    expect(scrobble?.album?.name).toBe("An Album");
+    expect(scrobble?.album?.albumArtists[0]?.artist.name).toBe("First Artist");
   });
 
   test("applies the offset and limit", async () => {

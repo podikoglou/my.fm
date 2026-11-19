@@ -8,6 +8,8 @@ import { RATE_LIMITS, type RateLimitBindingName } from "./rate-limits.ts";
 
 export { Database } from "./database.ts";
 
+export const ImportsBucket = Cloudflare.R2.Bucket("ImportsBucket");
+
 /**
  * Minted once and kept in stack state. A new value would invalidate every
  * session that Better Auth has issued.
@@ -39,6 +41,7 @@ export const Worker = Cloudflare.Worker("Worker", {
   observability: { enabled: true, issues: { enabled: true } },
   env: {
     DB: Database,
+    IMPORTS_BUCKET: ImportsBucket,
     AUTH_RATE_LIMIT: rateLimitBinding("AUTH_RATE_LIMIT"),
     PUBLIC_READ_RATE_LIMIT: rateLimitBinding("PUBLIC_READ_RATE_LIMIT"),
     BETTER_AUTH_SECRET: BetterAuthSecret,

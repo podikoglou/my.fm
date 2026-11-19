@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `imports_user_id_active_idx` ON `imports` (`userId`) WHERE status in ('pending', 'processing');

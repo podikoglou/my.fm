@@ -16,6 +16,7 @@ export default defineConfig({
       miniflare: {
         compatibilityDate: "2026-11-02",
         d1Databases: ["DB"],
+        r2Buckets: ["IMPORTS_BUCKET"],
         ratelimits: Object.fromEntries(
           Object.entries(RATE_LIMITS).map(([name, { namespaceId, limit, period }]) => [
             name,
