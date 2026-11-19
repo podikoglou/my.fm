@@ -18,7 +18,7 @@ export function ScrollMonthLabel({
     <Badge
       aria-hidden
       variant="outline"
-      className="pointer-events-none absolute right-3 z-20 rounded-full bg-card px-2.5 transition-opacity duration-150 motion-reduce:transition-none"
+      className="pointer-events-none absolute right-3 z-20 h-6 rounded-full bg-card px-2.5 transition-opacity duration-150 motion-reduce:transition-none"
       style={{
         top: progress * Math.max(0, viewportHeight - LABEL_HEIGHT),
         opacity: visible ? 1 : 0,
