@@ -8,6 +8,7 @@ import { sessionMiddleware } from "../auth-middleware.ts";
 import { createDatabase } from "../db/index.ts";
 import { findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { canViewProfile, findUserByUsernamePublic } from "../db/queries/users.ts";
+import { unlinkedAlbum, unlinkedTrack } from "../import/unlinked.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
 
 export default new Hono<AppEnv>()
@@ -45,67 +46,44 @@ export default new Hono<AppEnv>()
       });
 
       return c.json(
-        scrobbles.map(
-          ({
+        scrobbles.map((scrobble) => {
+          const { id, track, album, scrobbleDate } = scrobble;
+
+          const resolvedTrack = track
+            ? {
+                ...track,
+                trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
+                artists: track.trackArtists
+                  .map((artist) => ({
+                    ...artist.artist,
+                    position: artist.position,
+                  }))
+                  .sort((a, b) => a.position - b.position)
+                  .map(({ position: _, ...rest }) => rest),
+              }
+            : unlinkedTrack(scrobble);
+
+          const resolvedAlbum = album
+            ? {
+                ...album,
+                albumArtists: undefined,
+                artists: album.albumArtists
+                  .map((artist) => ({
+                    ...artist.artist,
+                    position: artist.position,
+                  }))
+                  .sort((a, b) => a.position - b.position)
+                  .map(({ position: _, ...rest }) => rest),
+              }
+            : unlinkedAlbum(scrobble);
+
+          return {
             id,
-            track,
-            album,
+            track: resolvedTrack,
+            album: resolvedAlbum,
             scrobbleDate,
-            artistName,
-            albumName,
-            trackName,
-            coverArtUrl,
-            trackSpotifyUri,
-            albumSpotifyUri,
-          }) => {
-            const resolvedTrack = track
-              ? {
-                  ...track,
-                  trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
-                  artists: track.trackArtists
-                    .map((artist) => ({
-                      ...artist.artist,
-                      position: artist.position,
-                    }))
-                    .sort((a, b) => a.position - b.position)
-                    .map(({ position: _, ...rest }) => rest),
-                }
-              : {
-                  spotifyUri: trackSpotifyUri ?? undefined,
-                  name: trackName ?? "Unknown Track",
-                  imageUrl: coverArtUrl ?? "",
-                  artists: artistName
-                    ? [{ name: artistName, spotifyUri: undefined, imageUrl: null }]
-                    : [],
-                };
-
-            const resolvedAlbum = album
-              ? {
-                  ...album,
-                  albumArtists: undefined,
-                  artists: album.albumArtists
-                    .map((artist) => ({
-                      ...artist.artist,
-                      position: artist.position,
-                    }))
-                    .sort((a, b) => a.position - b.position)
-                    .map(({ position: _, ...rest }) => rest),
-                }
-              : {
-                  spotifyUri: albumSpotifyUri ?? undefined,
-                  name: albumName ?? "",
-                  imageUrl: coverArtUrl ?? "",
-                  artists: [],
-                };
-
-            return {
-              id,
-              track: resolvedTrack,
-              album: resolvedAlbum,
-              scrobbleDate,
-            };
-          },
-        ),
+          };
+        }),
         200,
       );
     },

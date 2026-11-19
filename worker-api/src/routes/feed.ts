@@ -6,6 +6,7 @@ import type { AppEnv } from "../types.ts";
 
 import { createDatabase } from "../db/index.ts";
 import { findPublicFeed, type FeedRow } from "../db/queries/scrobbles.ts";
+import { unlinkedAlbum, unlinkedTrack } from "../import/unlinked.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
 
 /**
@@ -55,22 +56,9 @@ function toFeedItem(row: FeedRow) {
           spotifyUri: artist.spotifyUri,
         })),
       }
-    : {
-        name: row.trackName ?? "Unknown Track",
-        imageUrl: row.coverArtUrl ?? "",
-        spotifyUri: row.trackSpotifyUri ?? undefined,
-        artists: row.artistName ? [{ name: row.artistName, spotifyUri: undefined }] : [],
-      };
+    : unlinkedTrack(row);
 
-  const album = row.album
-    ? {
-        name: row.album.name,
-        spotifyUri: row.album.spotifyUri,
-      }
-    : {
-        name: row.albumName ?? undefined,
-        spotifyUri: row.albumSpotifyUri ?? undefined,
-      };
+  const { name, spotifyUri } = row.album ?? unlinkedAlbum(row);
 
   return {
     id: row.id,
@@ -81,7 +69,7 @@ function toFeedItem(row: FeedRow) {
       avatarUrl: row.user.avatarUrl,
     },
     track,
-    album,
+    album: { name, spotifyUri },
   };
 }
 
