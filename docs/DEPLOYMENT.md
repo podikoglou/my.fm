@@ -44,6 +44,9 @@ account-wide, and an imported play bills ~6 rows, so a large import pauses the
 account's writes until midnight UTC and resumes by itself. Workers Paid
 ($5/mo), which has no daily cap, is advised while importing.
 
+The Rate Limiting binding adds no plan requirement and no billed resource: the
+limits travel in the Worker script.
+
 ## Agent Note: Before you change infrastructure
 
 Read <https://alchemy.run/llms-full.txt>. Use the `cf` CLI to confirm a

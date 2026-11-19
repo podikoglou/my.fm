@@ -427,7 +427,7 @@ describe("import ingestion cron processor", () => {
   });
 
   test("pauses without bookkeeping when D1 rejects the batch with its daily limit", async () => {
-    const env = createTestEnv(createBatchWriteLimitDatabase());
+    const env = createTestEnv({ database: createBatchWriteLimitDatabase() });
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -463,7 +463,7 @@ describe("import ingestion cron processor", () => {
   });
 
   test("does not abandon the import across repeated quota pauses", async () => {
-    const env = createTestEnv(createBatchWriteLimitDatabase());
+    const env = createTestEnv({ database: createBatchWriteLimitDatabase() });
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -509,14 +509,14 @@ describe("import ingestion cron processor", () => {
     const db = createDatabase(base);
     const logs = captureLogs();
 
-    await seedImport(createTestEnv(base, bucket), db, {
+    await seedImport(createTestEnv({ database: base, bucket }), db, {
       id: "import-first-write",
       userId: "user-first-write",
       username: "user_first_write",
       createdAt: new Date(),
     });
 
-    const env = createTestEnv(createStatementWriteLimitDatabase(base), bucket);
+    const env = createTestEnv({ database: createStatementWriteLimitDatabase(base), bucket });
 
     try {
       const result = await runImportIngestion(env, {

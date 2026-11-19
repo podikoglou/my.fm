@@ -6,6 +6,7 @@ import type { AppEnv } from "../types.ts";
 
 import { createDatabase } from "../db/index.ts";
 import { findPublicFeed, type FeedRow } from "../db/queries/scrobbles.ts";
+import { rateLimit } from "../rate-limit-middleware.ts";
 
 /**
  * A cursor page never changes when a new scrobble arrives, because new rows
@@ -84,7 +85,7 @@ function toFeedItem(row: FeedRow) {
   };
 }
 
-export default new Hono<AppEnv>().get(
+export default new Hono<AppEnv>().use("*", rateLimit("PUBLIC_READ_RATE_LIMIT")).get(
   "/",
   zValidator(
     "query",
