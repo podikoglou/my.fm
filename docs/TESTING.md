@@ -39,6 +39,8 @@ setup file reapplies migrations. Keep tests within a file sequential: a
 concurrent test could reset another test's database or rate-limit budget.
 Rate-limit tests spend the real binding's budget before asserting routing
 behaviour; no test-only counter or modified production limit is needed.
+The rate-limit suite waits for the next wall-clock window when fewer than five
+seconds remain, so the budget does not reset during a test's timeout.
 
 ## Spotify fixtures
 
