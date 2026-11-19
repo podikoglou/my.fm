@@ -5,6 +5,7 @@ import type { HistoryScrobble } from "~/hooks/use-history-pages";
 import { formatScrobbleDate, ROW_HEIGHT } from "~/lib/history-timeline";
 
 import { Track } from "./track-card";
+import { Skeleton } from "./ui/skeleton";
 
 function ScrobbleTime({ date, withMonth }: { date: Date; withMonth: boolean }) {
   return (
@@ -21,10 +22,10 @@ function ScrobbleTime({ date, withMonth }: { date: Date; withMonth: boolean }) {
 function TrackPlaceholder() {
   return (
     <div className="flex items-center gap-3 p-2" aria-hidden>
-      <div className="h-9 w-9 shrink-0 rounded-md bg-muted" />
+      <Skeleton className="h-9 w-9 shrink-0" />
       <div className="flex-1 space-y-1.5">
-        <div className="h-3 w-2/5 rounded bg-muted" />
-        <div className="h-2.5 w-1/4 rounded bg-muted" />
+        <Skeleton className="h-3 w-2/5" />
+        <Skeleton className="h-2.5 w-1/4" />
       </div>
     </div>
   );
