@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 
+import type { Database } from "../db/index.ts";
+import type { ImportInsert } from "../db/schema.ts";
 import type { AppEnv } from "../types.ts";
 
 import { requireSession, sessionMiddleware } from "../auth-middleware.ts";
@@ -19,6 +21,31 @@ import {
 } from "../import/csv.ts";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+const ACTIVE_IMPORT_ERROR = "An import is already in progress";
+
+/**
+ * Record an upload whose file is already in storage.
+ *
+ * The cron finds a file only through its row, so the file is removed again
+ * when no row is recorded: the insert failed, or a concurrent upload from the
+ * same user took the active slot first.
+ */
+async function recordUpload(bucket: R2Bucket, db: Database, values: ImportInsert) {
+  try {
+    const row = await insertImport(db, values);
+
+    if (!row) {
+      await bucket.delete(getImportR2Key(values.id));
+    }
+
+    return row;
+  } catch (error) {
+    await bucket.delete(getImportR2Key(values.id));
+
+    throw error;
+  }
+}
 
 export default new Hono<AppEnv>()
   .use("/*", sessionMiddleware)
@@ -47,7 +74,7 @@ export default new Hono<AppEnv>()
     const active = await findUserActiveImport(db, user.id);
 
     if (active) {
-      return c.json({ error: "An import is already in progress" }, 409);
+      return c.json({ error: ACTIVE_IMPORT_ERROR }, 409);
     }
 
     const oneHourAgo = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
@@ -128,7 +155,7 @@ export default new Hono<AppEnv>()
 
     const now = new Date();
 
-    const row = await insertImport(db, {
+    const row = await recordUpload(c.env.IMPORTS_BUCKET, db, {
       id,
       userId: user.id,
       filename: file.name || "listening-history.csv",
@@ -140,6 +167,10 @@ export default new Hono<AppEnv>()
       createdAt: now,
       updatedAt: now,
     });
+
+    if (!row) {
+      return c.json({ error: ACTIVE_IMPORT_ERROR }, 409);
+    }
 
     return c.json(
       {

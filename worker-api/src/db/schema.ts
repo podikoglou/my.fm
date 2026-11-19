@@ -1,5 +1,12 @@
 import { defineRelations, sql } from "drizzle-orm";
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text().primaryKey(),
@@ -176,6 +183,11 @@ export const imports = sqliteTable(
   (table) => [
     index("imports_status_created_at_idx").on(table.status, table.createdAt),
     index("imports_user_id_idx").on(table.userId),
+    // One active import per user, enforced here because two uploads can both
+    // pass the route's check before either inserts.
+    uniqueIndex("imports_user_id_active_idx")
+      .on(table.userId)
+      .where(sql`status in ('pending', 'processing')`),
   ],
 );
 

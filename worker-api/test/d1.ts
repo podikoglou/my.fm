@@ -81,3 +81,21 @@ export function createFailingUpdateDatabase(message: string, database: D1Databas
     batch: (statements: D1PreparedStatement[]) => database.batch(statements),
   });
 }
+
+/**
+ * A database whose inserts into one table reject with the given error, while
+ * every other statement passes through.
+ */
+export function createFailingInsertDatabase(
+  table: string,
+  message: string,
+  database: D1Database,
+): D1Database {
+  return asD1Database({
+    prepare: (sql: string) =>
+      sql.toLowerCase().startsWith(`insert into "${table}"`)
+        ? rejectingStatement(message)
+        : database.prepare(sql),
+    batch: (statements: D1PreparedStatement[]) => database.batch(statements),
+  });
+}

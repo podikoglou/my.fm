@@ -7,6 +7,7 @@ import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
 import { imports } from "../src/db/schema.ts";
 import { runImportIngestion } from "../src/ingestion/import.ts";
+import { createFailingInsertDatabase, D1_WRITE_LIMIT_MESSAGE } from "./d1.ts";
 import { network } from "./network.ts";
 
 const baseUrl = "http://app.test";
@@ -290,6 +291,58 @@ describe("import routes", () => {
     );
 
     expect(second.status).toBe(409);
+  });
+
+  test("accepts one of two uploads that arrive together", async () => {
+    const app = createApp();
+    const { cookie } = await signIn({ id: "user-7", email: "user7@example.com" });
+
+    const csvContent =
+      "Artist;Album;Track;Date#user7\n" + "Anderson .Paak;Ventura;Come Home;1644436588000";
+
+    const upload = () => {
+      const formData = new FormData();
+      formData.append("file", new File([csvContent], "export.csv", { type: "text/csv" }));
+
+      return app.request(
+        `${baseUrl}/api/import`,
+        { method: "POST", headers: { cookie }, body: formData },
+        env,
+      );
+    };
+
+    const responses = await Promise.all([upload(), upload()]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([202, 409]);
+    expect(await createDatabase(env.DB).select().from(imports)).toHaveLength(1);
+
+    const stored = await env.IMPORTS_BUCKET.list();
+
+    expect(stored.objects).toHaveLength(1);
+  });
+
+  test("removes the stored file when the import row cannot be recorded", async () => {
+    const app = createApp();
+    const { cookie } = await signIn({ id: "user-8", email: "user8@example.com" });
+
+    const csvContent =
+      "Artist;Album;Track;Date#user8\n" + "Anderson .Paak;Ventura;Come Home;1644436588000";
+
+    const formData = new FormData();
+    formData.append("file", new File([csvContent], "export.csv", { type: "text/csv" }));
+
+    const response = await app.request(
+      `${baseUrl}/api/import`,
+      { method: "POST", headers: { cookie }, body: formData },
+      { ...env, DB: createFailingInsertDatabase("imports", D1_WRITE_LIMIT_MESSAGE, env.DB) },
+    );
+
+    expect(response.status).toBe(500);
+    expect(await createDatabase(env.DB).select().from(imports)).toHaveLength(0);
+
+    const stored = await env.IMPORTS_BUCKET.list();
+
+    expect(stored.objects).toHaveLength(0);
   });
 
   test("reports failed status and error after repeated ingestion failures", async () => {

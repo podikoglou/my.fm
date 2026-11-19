@@ -5,12 +5,16 @@ import type { Import, ImportInsert, User } from "../schema.ts";
 
 import { imports } from "../schema.ts";
 
-export async function insertImport(db: Database, values: ImportInsert): Promise<Import> {
-  const [row] = await db.insert(imports).values(values).returning();
-
-  if (!row) {
-    throw new Error("Failed to insert import row");
-  }
+/**
+ * Record an import. Returns nothing when the user already has an active
+ * import: the unique index on active imports rejects the row, which closes
+ * the gap between a route's check and its insert.
+ */
+export async function insertImport(
+  db: Database,
+  values: ImportInsert,
+): Promise<Import | undefined> {
+  const [row] = await db.insert(imports).values(values).onConflictDoNothing().returning();
 
   return row;
 }
