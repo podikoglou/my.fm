@@ -8,6 +8,7 @@ import { sessionMiddleware } from "../auth-middleware.ts";
 import { createDatabase } from "../db/index.ts";
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { canViewProfile, findUserByUsernamePublic } from "../db/queries/users.ts";
+import { unlinkedAlbum, unlinkedTrack } from "../import/unlinked.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
 import { isTimeZone } from "../time-zone.ts";
 
@@ -51,37 +52,41 @@ export default new Hono<AppEnv>()
       });
 
       return c.json(
-        scrobbles.map(({ id, track, album, scrobbleDate }) => {
-          // track artists
-          const trackArtists = track.trackArtists
-            .map((artist) => ({
-              ...artist.artist,
-              position: artist.position,
-            }))
-            .sort((a, b) => a.position - b.position)
-            .map(({ position: _, ...rest }) => rest);
+        scrobbles.map((scrobble) => {
+          const { id, track, album, scrobbleDate } = scrobble;
 
-          // album artists
-          const albumArtists = album.albumArtists
-            .map((artist) => ({
-              ...artist.artist,
-              position: artist.position,
-            }))
-            .sort((a, b) => a.position - b.position)
-            .map(({ position: _, ...rest }) => rest);
+          const resolvedTrack = track
+            ? {
+                ...track,
+                trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
+                artists: track.trackArtists
+                  .map((artist) => ({
+                    ...artist.artist,
+                    position: artist.position,
+                  }))
+                  .sort((a, b) => a.position - b.position)
+                  .map(({ position: _, ...rest }) => rest),
+              }
+            : unlinkedTrack(scrobble);
+
+          const resolvedAlbum = album
+            ? {
+                ...album,
+                albumArtists: undefined,
+                artists: album.albumArtists
+                  .map((artist) => ({
+                    ...artist.artist,
+                    position: artist.position,
+                  }))
+                  .sort((a, b) => a.position - b.position)
+                  .map(({ position: _, ...rest }) => rest),
+              }
+            : unlinkedAlbum(scrobble);
 
           return {
             id,
-            track: {
-              ...track,
-              trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
-              artists: trackArtists,
-            },
-            album: {
-              ...album,
-              albumArtists: undefined,
-              artists: albumArtists,
-            },
+            track: resolvedTrack,
+            album: resolvedAlbum,
             scrobbleDate,
           };
         }),

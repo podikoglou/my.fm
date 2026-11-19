@@ -75,7 +75,8 @@ of the window is left, so the header states the whole window.
 - `GET /health` and `GET /health/ingestion` are never limited: an uptime
   monitor depends on them.
 - The authenticated routes are not limited: a session attributes them to a
-  user, and these budgets cover anonymous callers.
+  user, and these budgets cover anonymous callers. The import routes keep their
+  own per-user limit instead, which `docs/IMPORT-DESIGN.md` describes.
 - Sign-in and the public reads are counted before the session lookup, so a
   rejected request costs no database query.
 

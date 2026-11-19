@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 import { fileURLToPath } from "node:url";
 
 import { API_RUN_WORKER_FIRST } from "./app/api-paths.ts";
-import { Database, Worker } from "./worker-api/src/alchemy.ts";
+import { Database, ImportsBucket, Worker } from "./worker-api/src/alchemy.ts";
 
 const appDir = fileURLToPath(new URL("./app/", import.meta.url));
 
@@ -76,6 +76,7 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const database = yield* Database;
+    const importsBucket = yield* ImportsBucket;
     const worker = yield* Worker;
     const website = yield* Website;
 
