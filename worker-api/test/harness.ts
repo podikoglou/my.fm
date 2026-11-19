@@ -1,9 +1,11 @@
 import type { SQLQueryBindings } from "bun:sqlite";
 
 import { Database as SQLite } from "bun:sqlite";
+import { spyOn } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 
 import type { WorkerEnv } from "../src/alchemy.ts";
+import type { IngestionEventFields } from "../src/ingestion/events.ts";
 
 export const baseUrl = "http://app.test";
 
@@ -145,6 +147,132 @@ type FetchHandler = (
   input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1],
 ) => Promise<Response>;
+
+/**
+ * Capture the ingestion log output and keep it out of the test output.
+ *
+ * Normal events are one object; failures are an event name followed by an
+ * optional detail.
+ */
+export function captureLogs() {
+  const events: IngestionEventFields[] = [];
+  const messages: unknown[][] = [];
+
+  const recordEvent = (fields: IngestionEventFields) => {
+    events.push(fields);
+  };
+
+  const recordMessage = (...args: unknown[]) => {
+    messages.push(args);
+  };
+
+  const spies = [
+    spyOn(console, "log").mockImplementation(recordEvent),
+    spyOn(console, "warn").mockImplementation(recordMessage),
+    spyOn(console, "error").mockImplementation(recordMessage),
+  ];
+
+  return {
+    events,
+    messages,
+    named: (event: string) => events.filter((entry) => entry.event === event),
+    restore: () => {
+      for (const spy of spies) {
+        spy.mockRestore();
+      }
+    },
+  };
+}
+
+/**
+ * The exact message the D1 binding throws once the account exceeds its daily
+ * free-tier write limit.
+ */
+const D1_WRITE_LIMIT_MESSAGE =
+  "D1_ERROR: Your account has exceeded D1's free tier daily row write limit. " +
+  "Upgrade to a paid plan or wait until tomorrow (midnight UTC) to continue. " +
+  "See https://developers.cloudflare.com/d1/platform/limits/ for more details.";
+
+/** SQL that D1 counts as written rows. */
+const writeStatementPattern = /^(insert|update|delete)\b/i;
+
+/**
+ * A statement that rejects like the binding does. The methods return rejected
+ * promises because a synchronous throw skips Drizzle's error wrapper and
+ * would not reproduce the wrapped shape that production sees.
+ */
+function rejectingStatement(message: string) {
+  const reject = () => {
+    throw new Error(message);
+  };
+
+  const statement = {
+    bind: () => statement,
+    all: async () => reject(),
+    first: async () => reject(),
+    raw: async () => reject(),
+    run: async () => reject(),
+    execute: () => reject(),
+  };
+
+  return statement;
+}
+
+/**
+ * A database whose `batch` rejects with the D1 write-limit error, as the
+ * binding does once the account exceeds its daily row writes. Single
+ * statements run for real, so a test can seed and assert through the tables.
+ */
+export function createBatchWriteLimitDatabase(
+  database: D1Database = createTestDatabase(),
+): D1Database {
+  return asD1Database({
+    prepare(sql: string) {
+      return database.prepare(sql);
+    },
+    batch(_statements: D1PreparedStatement[]) {
+      return Promise.reject(new Error(D1_WRITE_LIMIT_MESSAGE));
+    },
+  });
+}
+
+/**
+ * A database whose write statements reject with the D1 write-limit error, so
+ * Drizzle wraps the message in a `DrizzleQueryError` with the binding error as
+ * its cause. Reads pass through.
+ */
+export function createStatementWriteLimitDatabase(
+  database: D1Database = createTestDatabase(),
+): D1Database {
+  return asD1Database({
+    prepare(sql: string) {
+      return writeStatementPattern.test(sql)
+        ? rejectingStatement(D1_WRITE_LIMIT_MESSAGE)
+        : database.prepare(sql);
+    },
+    batch(statements: D1PreparedStatement[]) {
+      return database.batch(statements);
+    },
+  });
+}
+
+/**
+ * A database whose update statements reject with the given error, while
+ * inserts and reads pass through.
+ */
+export function createFailingUpdateDatabase(
+  message: string,
+  database: D1Database = createTestDatabase(),
+): D1Database {
+  return asD1Database({
+    prepare(sql: string) {
+      return /^update\b/i.test(sql) ? rejectingStatement(message) : database.prepare(sql);
+    },
+    batch(statements: D1PreparedStatement[]) {
+      return database.batch(statements);
+    },
+  });
+}
 
 /**
  * Replace the global fetch for the duration of a test. The returned function

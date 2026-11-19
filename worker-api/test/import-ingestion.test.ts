@@ -8,8 +8,16 @@ import { createDatabase } from "../src/db/index.ts";
 import { findActiveImportForCron, insertImport } from "../src/db/queries/imports.ts";
 import { albums, artists, imports, scrobbles, tracks, users } from "../src/db/schema.ts";
 import { getImportR2Key } from "../src/import/csv.ts";
+import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { runImportIngestion } from "../src/ingestion/import.ts";
-import { createTestEnv } from "./harness.ts";
+import {
+  captureLogs,
+  createBatchWriteLimitDatabase,
+  createStatementWriteLimitDatabase,
+  createTestDatabase,
+  createTestEnv,
+  createTestR2Bucket,
+} from "./harness.ts";
 
 const FAILING_CSV =
   "Artist;Album;Track;Date#user\n" +
@@ -416,5 +424,149 @@ describe("import ingestion cron processor", () => {
     expect(stuck?.status).toBe("failed");
     expect(next?.status).toBe("completed");
     expect(next?.processedRows).toBe(2);
+  });
+
+  test("pauses without bookkeeping when D1 rejects the batch with its daily limit", async () => {
+    const env = createTestEnv(createBatchWriteLimitDatabase());
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    await seedImport(env, db, {
+      id: "import-paused",
+      userId: "user-paused",
+      username: "user_paused",
+      createdAt: new Date(),
+    });
+
+    try {
+      const result = await runImportIngestion(env, {
+        batchLimit: 500,
+        throttleMs: 0,
+        fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
+      });
+
+      expect(result).toEqual({ status: "paused", processed: 0 });
+    } finally {
+      logs.restore();
+    }
+
+    const [row] = await db.select().from(imports);
+
+    // The pre-failure transition persisted; the pause changed nothing else.
+    expect(row?.status).toBe("processing");
+    expect(row?.attemptCount).toBe(0);
+    expect(row?.cursor).toBe(0);
+
+    expect(await env.IMPORTS_BUCKET.get(getImportR2Key("import-paused"))).not.toBeNull();
+    expect(logs.messages).toEqual([[INGESTION_EVENTS.d1WriteLimit]]);
+    expect(logs.named(INGESTION_EVENTS.importIngested)).toEqual([]);
+  });
+
+  test("does not abandon the import across repeated quota pauses", async () => {
+    const env = createTestEnv(createBatchWriteLimitDatabase());
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    await seedImport(env, db, {
+      id: "import-paused",
+      userId: "user-paused",
+      username: "user_paused",
+      createdAt: new Date(),
+    });
+
+    const fetchBatch = async () =>
+      ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>;
+
+    try {
+      for (let i = 0; i < 3; i++) {
+        const result = await runImportIngestion(env, {
+          batchLimit: 500,
+          throttleMs: 0,
+          fetchBatch,
+        });
+
+        expect(result).toEqual({ status: "paused", processed: 0 });
+      }
+    } finally {
+      logs.restore();
+    }
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.status).toBe("processing");
+    expect(row?.attemptCount).toBe(0);
+
+    const active = await findActiveImportForCron(db);
+
+    expect(active?.id).toBe("import-paused");
+    expect(await env.IMPORTS_BUCKET.get(getImportR2Key("import-paused"))).not.toBeNull();
+    expect(logs.messages).toHaveLength(3);
+  });
+
+  test("pauses when the first status write is the failure", async () => {
+    const base = createTestDatabase();
+    const bucket = createTestR2Bucket();
+    const db = createDatabase(base);
+    const logs = captureLogs();
+
+    await seedImport(createTestEnv(base, bucket), db, {
+      id: "import-first-write",
+      userId: "user-first-write",
+      username: "user_first_write",
+      createdAt: new Date(),
+    });
+
+    const env = createTestEnv(createStatementWriteLimitDatabase(base), bucket);
+
+    try {
+      const result = await runImportIngestion(env, {
+        batchLimit: 500,
+        throttleMs: 0,
+        fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
+      });
+
+      expect(result).toEqual({ status: "paused", processed: 0 });
+    } finally {
+      logs.restore();
+    }
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.status).toBe("pending");
+    expect(row?.attemptCount).toBe(0);
+    expect(await bucket.get(getImportR2Key("import-first-write"))).not.toBeNull();
+    expect(logs.messages).toEqual([[INGESTION_EVENTS.d1WriteLimit]]);
+  });
+
+  test("logs the batch failure detail with its cause chain", async () => {
+    const env = createTestEnv();
+    const db = createDatabase(env.DB);
+    const logs = captureLogs();
+
+    await seedImport(env, db, {
+      id: "import-detail",
+      userId: "user-detail",
+      username: "user_detail",
+      createdAt: new Date(),
+    });
+
+    try {
+      await runImportIngestion(env, {
+        batchLimit: 500,
+        throttleMs: 0,
+        fetchBatch: throwingFetchBatch(),
+      });
+    } finally {
+      logs.restore();
+    }
+
+    expect(logs.messages).toContainEqual([
+      INGESTION_EVENTS.importBatchFailed,
+      { name: "Error", message: "metadata endpoint unavailable", causes: [] },
+    ]);
+
+    const [row] = await db.select().from(imports);
+
+    expect(row?.attemptCount).toBe(1);
   });
 });
