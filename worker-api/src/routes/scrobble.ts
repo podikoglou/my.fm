@@ -8,101 +8,105 @@ import { sessionMiddleware } from "../auth-middleware.ts";
 import { createDatabase } from "../db/index.ts";
 import { findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { canViewProfile, findUserByUsernamePublic } from "../db/queries/users.ts";
+import { rateLimit } from "../rate-limit-middleware.ts";
 
-export default new Hono<AppEnv>().use("/*", sessionMiddleware).get(
-  "/getRecent",
-  zValidator(
-    "query",
-    z.object({
-      username: z.string(),
+export default new Hono<AppEnv>()
+  .use("/getRecent", rateLimit("PUBLIC_READ_RATE_LIMIT"))
+  .use("/*", sessionMiddleware)
+  .get(
+    "/getRecent",
+    zValidator(
+      "query",
+      z.object({
+        username: z.string(),
 
-      // we *could* make offset optional but it's just better for the user to remember that this exists
-      offset: z.coerce.number(),
-      limit: z.coerce.number().max(8).default(8),
-    }),
-  ),
-  async (c) => {
-    const { username, offset, limit } = c.req.valid("query");
-    const db = createDatabase(c.env.DB);
+        // we *could* make offset optional but it's just better for the user to remember that this exists
+        offset: z.coerce.number(),
+        limit: z.coerce.number().max(8).default(8),
+      }),
+    ),
+    async (c) => {
+      const { username, offset, limit } = c.req.valid("query");
+      const db = createDatabase(c.env.DB);
 
-    const user = await findUserByUsernamePublic(db, username);
+      const user = await findUserByUsernamePublic(db, username);
 
-    if (!user) {
-      return c.json({ error: "User not found" }, 404);
-    }
+      if (!user) {
+        return c.json({ error: "User not found" }, 404);
+      }
 
-    if (!canViewProfile(user, c.get("user")?.id)) {
-      return c.json({ error: "Profile is private" }, 403);
-    }
+      if (!canViewProfile(user, c.get("user")?.id)) {
+        return c.json({ error: "Profile is private" }, 403);
+      }
 
-    const scrobbles = await findRecentScrobblesByUserId(db, user.id, {
-      offset,
-      limit,
-    });
+      const scrobbles = await findRecentScrobblesByUserId(db, user.id, {
+        offset,
+        limit,
+      });
 
-    return c.json(
-      scrobbles.map(
-        ({
-          id,
-          track,
-          album,
-          scrobbleDate,
-          artistName,
-          albumName,
-          trackName,
-          coverArtUrl,
-          trackSpotifyUri,
-          albumSpotifyUri,
-        }) => {
-          const resolvedTrack = track
-            ? {
-                ...track,
-                trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
-                artists: track.trackArtists
-                  .map((artist) => ({
-                    ...artist.artist,
-                    position: artist.position,
-                  }))
-                  .sort((a, b) => a.position - b.position)
-                  .map(({ position: _, ...rest }) => rest),
-              }
-            : {
-                spotifyUri: trackSpotifyUri ?? undefined,
-                name: trackName ?? "Unknown Track",
-                imageUrl: coverArtUrl ?? "",
-                artists: artistName
-                  ? [{ name: artistName, spotifyUri: undefined, imageUrl: null }]
-                  : [],
-              };
-
-          const resolvedAlbum = album
-            ? {
-                ...album,
-                albumArtists: undefined,
-                artists: album.albumArtists
-                  .map((artist) => ({
-                    ...artist.artist,
-                    position: artist.position,
-                  }))
-                  .sort((a, b) => a.position - b.position)
-                  .map(({ position: _, ...rest }) => rest),
-              }
-            : {
-                spotifyUri: albumSpotifyUri ?? undefined,
-                name: albumName ?? "",
-                imageUrl: coverArtUrl ?? "",
-                artists: [],
-              };
-
-          return {
+      return c.json(
+        scrobbles.map(
+          ({
             id,
-            track: resolvedTrack,
-            album: resolvedAlbum,
+            track,
+            album,
             scrobbleDate,
-          };
-        },
-      ),
-      200,
-    );
-  },
-);
+            artistName,
+            albumName,
+            trackName,
+            coverArtUrl,
+            trackSpotifyUri,
+            albumSpotifyUri,
+          }) => {
+            const resolvedTrack = track
+              ? {
+                  ...track,
+                  trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
+                  artists: track.trackArtists
+                    .map((artist) => ({
+                      ...artist.artist,
+                      position: artist.position,
+                    }))
+                    .sort((a, b) => a.position - b.position)
+                    .map(({ position: _, ...rest }) => rest),
+                }
+              : {
+                  spotifyUri: trackSpotifyUri ?? undefined,
+                  name: trackName ?? "Unknown Track",
+                  imageUrl: coverArtUrl ?? "",
+                  artists: artistName
+                    ? [{ name: artistName, spotifyUri: undefined, imageUrl: null }]
+                    : [],
+                };
+
+            const resolvedAlbum = album
+              ? {
+                  ...album,
+                  albumArtists: undefined,
+                  artists: album.albumArtists
+                    .map((artist) => ({
+                      ...artist.artist,
+                      position: artist.position,
+                    }))
+                    .sort((a, b) => a.position - b.position)
+                    .map(({ position: _, ...rest }) => rest),
+                }
+              : {
+                  spotifyUri: albumSpotifyUri ?? undefined,
+                  name: albumName ?? "",
+                  imageUrl: coverArtUrl ?? "",
+                  artists: [],
+                };
+
+            return {
+              id,
+              track: resolvedTrack,
+              album: resolvedAlbum,
+              scrobbleDate,
+            };
+          },
+        ),
+        200,
+      );
+    },
+  );

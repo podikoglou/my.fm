@@ -746,7 +746,7 @@ describe("runIngestion", () => {
   });
 
   test("stops the run without a heartbeat when D1 rejects the store", async () => {
-    const env = createTestEnv(createBatchWriteLimitDatabase());
+    const env = createTestEnv({ database: createBatchWriteLimitDatabase() });
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -774,7 +774,7 @@ describe("runIngestion", () => {
   });
 
   test("reports the limit when the heartbeat write is the failure", async () => {
-    const env = createTestEnv(createStatementWriteLimitDatabase());
+    const env = createTestEnv({ database: createStatementWriteLimitDatabase() });
     const db = createDatabase(env.DB);
     const logs = captureLogs();
 
@@ -797,9 +797,9 @@ describe("runIngestion", () => {
   });
 
   test("logs the cause message of a wrapped update failure", async () => {
-    const env = createTestEnv(
-      createFailingUpdateDatabase("D1_ERROR: FOREIGN KEY constraint failed"),
-    );
+    const env = createTestEnv({
+      database: createFailingUpdateDatabase("D1_ERROR: FOREIGN KEY constraint failed"),
+    });
 
     const db = createDatabase(env.DB);
     const logs = captureLogs();
