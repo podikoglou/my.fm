@@ -2,18 +2,8 @@ import { ListMusic } from "lucide-react";
 
 import { useScrobbleMonths } from "~/hooks/use-scrobble-months";
 
-import { ErrorCard } from "./error-card";
 import { HistoryTimeline } from "./history-timeline";
-
-function ScrobblesError() {
-  return (
-    <ErrorCard
-      Icon={ListMusic}
-      title={<>Couldn't Find Scrobbles</>}
-      description={<>We're not sure why</>}
-    />
-  );
-}
+import { ScrobblesError } from "./scrobbles-error";
 
 export function UserTrackList({ username }: { username: string }) {
   const { data: months, error } = useScrobbleMonths(username);
@@ -31,5 +21,5 @@ export function UserTrackList({ username }: { username: string }) {
     );
   }
 
-  return <HistoryTimeline username={username} months={months} onError={ScrobblesError} />;
+  return <HistoryTimeline username={username} months={months} />;
 }

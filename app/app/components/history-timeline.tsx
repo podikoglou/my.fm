@@ -10,6 +10,7 @@ import {
 } from "~/lib/history-timeline";
 
 import { HistoryRow } from "./history-row";
+import { ScrobblesError } from "./scrobbles-error";
 import { ScrollMonthLabel } from "./scroll-month-label";
 
 /**
@@ -17,15 +18,7 @@ import { ScrollMonthLabel } from "./scroll-month-label";
  * every play. Rows load only once scrolling settles, so dragging across years
  * does not request every page it passes.
  */
-export function HistoryTimeline({
-  username,
-  months,
-  onError,
-}: {
-  username: string;
-  months: Month[];
-  onError: () => React.ReactNode;
-}) {
+export function HistoryTimeline({ username, months }: { username: string; months: Month[] }) {
   const scroll = useSettledScroll();
   const total = totalPlays(months);
 
@@ -36,7 +29,7 @@ export function HistoryTimeline({
 
   const { failed, scrobbleAt } = useHistoryPages(username, months, settledPages);
 
-  if (failed) return onError();
+  if (failed) return <ScrobblesError />;
 
   const { first, last } = rowsInView(scroll.scrollTop, scroll.viewportHeight, total);
   const currentMonth = monthAt(months, Math.floor(scroll.scrollTop / ROW_HEIGHT));
