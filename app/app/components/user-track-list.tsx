@@ -117,7 +117,7 @@ export function UserTrackList({ username }: { username: string }) {
       toMonths(
         await parseResponse(
           apiClient.scrobble.getMonths.$get({
-            query: { username, utcOffset: String(-new Date().getTimezoneOffset()) },
+            query: { username, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
           }),
         ),
       ),

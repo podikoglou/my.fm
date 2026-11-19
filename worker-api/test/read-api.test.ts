@@ -177,20 +177,32 @@ describe("scrobble queries", () => {
   test("counts scrobbles per month in the viewer's time zone", async () => {
     const { db } = await seed();
 
-    await db.insert(scrobbles).values({
-      id: "scrobble-october",
-      userId,
-      trackSpotifyUri: "spotify:track:1",
-      albumSpotifyUri: "spotify:album:1",
-      scrobbleDate: new Date("2026-10-31T23:30:00.000Z"),
-    });
+    await db.insert(scrobbles).values([
+      {
+        id: "scrobble-october",
+        userId,
+        trackSpotifyUri: "spotify:track:1",
+        albumSpotifyUri: "spotify:album:1",
+        scrobbleDate: new Date("2026-10-31T23:30:00.000Z"),
+      },
+      {
+        // 00:30 on 1 October in Athens, which is on summer time (UTC+3) then.
+        id: "scrobble-summer-time",
+        userId,
+        trackSpotifyUri: "spotify:track:1",
+        albumSpotifyUri: "spotify:album:1",
+        scrobbleDate: new Date("2026-09-30T21:30:00.000Z"),
+      },
+    ]);
 
-    expect(await countScrobblesByMonth(db, userId, { utcOffsetMinutes: 0 })).toEqual([
+    expect(await countScrobblesByMonth(db, userId, { timeZone: "UTC" })).toEqual([
       { month: "2026-11", count: 2 },
       { month: "2026-10", count: 1 },
+      { month: "2026-09", count: 1 },
     ]);
-    expect(await countScrobblesByMonth(db, userId, { utcOffsetMinutes: 120 })).toEqual([
+    expect(await countScrobblesByMonth(db, userId, { timeZone: "Europe/Athens" })).toEqual([
       { month: "2026-11", count: 3 },
+      { month: "2026-10", count: 1 },
     ]);
   });
 });
@@ -221,7 +233,7 @@ describe("anonymous reads", () => {
     const { env } = await seed();
 
     const response = await createApp().request(
-      "/api/scrobble/getMonths?username=alex&utcOffset=120",
+      "/api/scrobble/getMonths?username=alex&timeZone=Europe/Athens",
       undefined,
       env,
     );

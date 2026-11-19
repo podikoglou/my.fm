@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, max, min, sql } from "drizzle-orm";
 
 import type { Database } from "../index.ts";
 
@@ -134,23 +134,104 @@ export async function findPublicFeed(
 
 export type FeedRow = Awaited<ReturnType<typeof findPublicFeed>>[number];
 
+function utcOffsetMs(instant: number, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(instant);
+
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((candidate) => candidate.type === type)?.value);
+
+  return (
+    Date.UTC(
+      part("year"),
+      part("month") - 1,
+      part("day"),
+      part("hour"),
+      part("minute"),
+      part("second"),
+    ) -
+    Math.floor(instant / 1000) * 1000
+  );
+}
+
+function startOfMonthIn(year: number, monthIndex: number, timeZone: string) {
+  const wallClock = Date.UTC(year, monthIndex, 1);
+  const guess = wallClock - utcOffsetMs(wallClock, timeZone);
+
+  return wallClock - utcOffsetMs(guess, timeZone);
+}
+
 /**
- * Count one user's scrobbles per calendar month, newest month first.
+ * Every calendar month in `timeZone` from `first` to `last`, newest first,
+ * with the instant it starts.
+ */
+function monthsBetween(first: Date, last: Date, timeZone: string) {
+  const local = (date: Date) => new Date(date.getTime() + utcOffsetMs(date.getTime(), timeZone));
+  const from = local(first);
+  const to = local(last);
+  const months = [];
+
+  for (
+    let year = to.getUTCFullYear(), monthIndex = to.getUTCMonth();
+    year > from.getUTCFullYear() ||
+    (year === from.getUTCFullYear() && monthIndex >= from.getUTCMonth());
+    monthIndex === 0 ? ((year -= 1), (monthIndex = 11)) : (monthIndex -= 1)
+  ) {
+    months.push({
+      month: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
+      start: Math.floor(startOfMonthIn(year, monthIndex, timeZone) / 1000),
+    });
+  }
+
+  return months;
+}
+
+/**
+ * Count one user's scrobbles per calendar month in the viewer's time zone,
+ * newest month first. Months with no plays are left out.
  *
- * `utcOffsetMinutes` moves the month boundaries to the viewer's time zone, so a
- * play just after local midnight on the 1st counts toward the new month.
+ * Month boundaries are local midnights computed per month, so a play just after
+ * midnight on the 1st counts toward the new month in summer and winter alike.
  */
 export async function countScrobblesByMonth(
   db: Database,
   userId: User["id"],
-  { utcOffsetMinutes }: { utcOffsetMinutes: number },
+  { timeZone }: { timeZone: string },
 ) {
-  const month = sql<string>`strftime('%Y-%m', ${scrobbles.scrobbleDate}, 'unixepoch', ${`${utcOffsetMinutes} minutes`})`;
+  const where = and(eq(scrobbles.userId, userId), isNotNull(scrobbles.scrobbleDate));
 
-  return await db
+  const [range] = await db
+    .select({ first: min(scrobbles.scrobbleDate), last: max(scrobbles.scrobbleDate) })
+    .from(scrobbles)
+    .where(where);
+
+  if (!range?.first || !range.last) return [];
+
+  const months = monthsBetween(range.first, range.last, timeZone);
+
+  // D1 caps bound parameters at 100 per query, so the boundaries are inlined.
+  // Every inlined value is an integer or a "YYYY-MM" string built from integers.
+  const month = sql<string>`CASE ${sql.join(
+    months.map(
+      ({ month, start }) =>
+        sql`WHEN ${scrobbles.scrobbleDate} >= ${sql.raw(String(start))} THEN ${sql.raw(`'${month}'`)}`,
+    ),
+    sql` `,
+  )} END`;
+
+  const counts = await db
     .select({ month, count: count() })
     .from(scrobbles)
-    .where(and(eq(scrobbles.userId, userId), isNotNull(scrobbles.scrobbleDate)))
-    .groupBy(month)
-    .orderBy(desc(month));
+    .where(where)
+    .groupBy(month);
+
+  return months.flatMap(({ month }) => counts.filter((row) => row.month === month));
 }

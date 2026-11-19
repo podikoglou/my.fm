@@ -95,12 +95,23 @@ export default new Hono<AppEnv>()
       z.object({
         username: z.string(),
 
-        // minutes east of UTC, so months start at the viewer's local midnight
-        utcOffset: z.coerce.number().int().min(-840).max(840).default(0),
+        // IANA name, so months start at the viewer's local midnight
+        timeZone: z
+          .string()
+          .default("UTC")
+          .refine((timeZone) => {
+            try {
+              new Intl.DateTimeFormat("en-US", { timeZone });
+
+              return true;
+            } catch {
+              return false;
+            }
+          }, "Unknown time zone"),
       }),
     ),
     async (c) => {
-      const { username, utcOffset } = c.req.valid("query");
+      const { username, timeZone } = c.req.valid("query");
       const db = createDatabase(c.env.DB);
 
       const user = await findUserByUsernamePublic(db, username);
@@ -113,7 +124,7 @@ export default new Hono<AppEnv>()
         return c.json({ error: "Profile is private" }, 403);
       }
 
-      const months = await countScrobblesByMonth(db, user.id, { utcOffsetMinutes: utcOffset });
+      const months = await countScrobblesByMonth(db, user.id, { timeZone });
 
       return c.json(months, 200);
     },
