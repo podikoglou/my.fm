@@ -48,6 +48,12 @@ async function fetchLatestImport() {
   return parseResponse(apiClient.import.latest.$get());
 }
 
+const IMPORT_POLL_INTERVAL_MS = 15 * 1000;
+
+function isImportActive(status?: string) {
+  return status === "pending" || status === "processing";
+}
+
 export default function SettingsPage() {
   const { data } = useQuery({ queryKey: ["user", "me"], queryFn: fetchCurrentUser });
 
@@ -73,6 +79,10 @@ export default function SettingsPage() {
   const { data: latestImportData } = useQuery({
     queryKey: ["import", "latest"],
     queryFn: fetchLatestImport,
+    // The cron works through an import in the background, so the status is
+    // polled until it settles.
+    refetchInterval: (query) =>
+      isImportActive(query.state.data?.import?.status) ? IMPORT_POLL_INTERVAL_MS : false,
   });
 
   const latestImport = latestImportData?.import;
