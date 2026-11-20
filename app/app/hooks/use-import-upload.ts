@@ -1,33 +1,34 @@
 import { useMutation } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import { type FormEvent, useRef, useState } from "react";
+import { type ChangeEvent, useRef } from "react";
 
 import { apiClient } from "~/lib/api";
 import { queryClient } from "~/lib/query";
 
 export function useImportUpload() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const uploadImport = useMutation({
     mutationFn: (file: File) => parseResponse(apiClient.import.$post({ form: { file } })),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
+    },
+    onSettled: () => {
       if (inputRef.current) {
         inputRef.current.value = "";
       }
-
-      setSelectedFile(null);
-      queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
     },
   });
 
-  const handleImportSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
 
-    if (selectedFile) {
-      uploadImport.mutate(selectedFile);
+    if (file && !uploadImport.isPending) {
+      uploadImport.mutate(file);
     }
   };
 
-  return { inputRef, selectedFile, setSelectedFile, uploadImport, handleImportSubmit };
+  const openFilePicker = () => inputRef.current?.click();
+
+  return { inputRef, uploadImport, handleFileChange, openFilePicker };
 }

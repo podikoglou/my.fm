@@ -1,101 +1,29 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { DetailedError, parseResponse } from "hono/client";
 import { ArrowLeft } from "lucide-react";
-import { useForm } from "react-hook-form";
 import { Link } from "react-router";
-import { z } from "zod";
 
+import { SettingsRow } from "~/components/settings/settings-row";
+import { SettingsSection } from "~/components/settings/settings-section";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { Form, FormField, FormItem } from "~/components/ui/form";
-import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { UserAvatar } from "~/components/user-avatar";
+import { useCurrentUser } from "~/hooks/use-current-user";
 import { useImportUpload } from "~/hooks/use-import-upload";
+import { useLatestImport } from "~/hooks/use-latest-import";
+import { usePrivacySetting } from "~/hooks/use-privacy-setting";
 import { useSignOut } from "~/hooks/use-sign-out";
-import { apiClient } from "~/lib/api";
-import { queryClient } from "~/lib/query";
-
-const formSchema = z.object({
-  isPrivate: z.boolean(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
-const errorResponseSchema = z.object({
-  error: z.string().optional(),
-});
-
-function importErrorMessage(error: Error): string {
-  if (error instanceof DetailedError) {
-    const parsed = errorResponseSchema.safeParse(error.detail?.data);
-    const serverError = parsed.success ? parsed.data.error : undefined;
-
-    return serverError ?? "Import failed. Please try again.";
-  }
-
-  return "Network error during upload.";
-}
-
-async function fetchCurrentUser() {
-  return parseResponse(apiClient.user.me.$get());
-}
-
-type CurrentUser = Awaited<ReturnType<typeof fetchCurrentUser>>;
-
-async function fetchLatestImport() {
-  return parseResponse(apiClient.import.latest.$get());
-}
-
-const IMPORT_POLL_INTERVAL_MS = 15 * 1000;
-
-function isImportActive(status?: string) {
-  return status === "pending" || status === "processing";
-}
+import { importErrorMessage } from "~/lib/import-error-message";
 
 export default function SettingsPage() {
-  const { data } = useQuery({ queryKey: ["user", "me"], queryFn: fetchCurrentUser });
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    values: { isPrivate: data?.isPrivate ?? false },
-  });
-
-  const saveSettings = useMutation({
-    mutationFn: (values: FormValues) =>
-      parseResponse(apiClient.user.settings.$patch({ json: values })),
-    onSuccess: (settings) => {
-      queryClient.setQueryData<CurrentUser>(["user", "me"], (user) =>
-        user ? { ...user, isPrivate: settings.isPrivate } : user,
-      );
-
-      form.reset({ isPrivate: settings.isPrivate });
-    },
-  });
-
-  const { inputRef, selectedFile, setSelectedFile, uploadImport, handleImportSubmit } =
-    useImportUpload();
-
+  const { data } = useCurrentUser();
+  const privacy = usePrivacySetting();
+  const { inputRef, uploadImport, handleFileChange, openFilePicker } = useImportUpload();
+  const { data: latestImportData } = useLatestImport();
   const signOut = useSignOut();
-
-  const { data: latestImportData } = useQuery({
-    queryKey: ["import", "latest"],
-    queryFn: fetchLatestImport,
-    // The cron works through an import in the background, so the status is
-    // polled until it settles.
-    refetchInterval: (query) =>
-      isImportActive(query.state.data?.import?.status) ? IMPORT_POLL_INTERVAL_MS : false,
-  });
-
   const latestImport = latestImportData?.import;
 
   if (!data) return <></>;
-
-  const onSubmit = (values: FormValues) => {
-    saveSettings.mutate(values);
-  };
 
   return (
     <>
@@ -116,124 +44,120 @@ export default function SettingsPage() {
         </div>
       </CardHeader>
 
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
-        <div className="flex items-center gap-4 rounded-lg border p-4">
-          <UserAvatar
-            avatarUrl={data.avatarUrl}
-            name={data.name}
-            className="h-16 w-16"
-            fallbackClassName="text-xl"
-          />
-
-          <div className="min-w-0 space-y-1">
-            <p className="truncate font-semibold">{data.name}</p>
-            <p className="truncate text-sm text-muted-foreground">@{data.username}</p>
-            <p className="truncate text-sm text-muted-foreground">{data.email}</p>
-          </div>
-        </div>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-            <FormField
-              name="isPrivate"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between gap-4 rounded-lg border p-4">
-                  <div className="space-y-1">
-                    <Label htmlFor={field.name}>Private profile</Label>
-                    <p id={`${field.name}-description`} className="text-sm text-muted-foreground">
-                      Only you can see your profile and your listening history.
-                    </p>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+        <SettingsSection title="Account">
+          <SettingsRow
+            className="max-[360px]:flex-col max-[360px]:items-stretch"
+            label={
+              <div className="flex items-center gap-3">
+                <UserAvatar
+                  avatarUrl={data.avatarUrl}
+                  name={data.name}
+                  className="h-10 w-10"
+                  fallbackClassName="text-sm"
+                />
+                <div className="min-w-0 space-y-1">
+                  <p className="font-semibold wrap-anywhere">{data.name}</p>
+                  <p className="truncate text-sm font-normal text-muted-foreground">
+                    @{data.username}
+                  </p>
+                  <p className="text-sm font-normal wrap-anywhere text-muted-foreground">
+                    {data.email}
+                  </p>
+                  <div role="status" className="text-sm font-normal text-destructive">
+                    {signOut.isError && <p>Could not sign out. Try again.</p>}
                   </div>
+                </div>
+              </div>
+            }
+            control={
+              <Button
+                variant="outline"
+                disabled={signOut.isPending}
+                focusableWhenDisabled
+                onClick={() => signOut.mutate()}
+              >
+                {signOut.isPending ? "Signing out..." : "Sign out"}
+              </Button>
+            }
+          />
+        </SettingsSection>
 
-                  <Switch
-                    id={field.name}
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    aria-describedby={`${field.name}-description`}
-                    disabled={saveSettings.isPending}
-                  />
-                </FormItem>
-              )}
-            />
+        <SettingsSection title="Privacy">
+          <SettingsRow
+            label={<Label htmlFor="isPrivate">Private profile</Label>}
+            description={
+              <>
+                <p id="isPrivate-description">
+                  Only you can see your profile and your listening history.
+                </p>
+                <div role="status" className="text-destructive">
+                  {privacy.isError && <p>Could not save your settings. Please try again.</p>}
+                </div>
+              </>
+            }
+            control={
+              <Switch
+                id="isPrivate"
+                checked={privacy.isPending ? privacy.variables : data.isPrivate}
+                onCheckedChange={(checked) => privacy.mutate(checked)}
+                aria-describedby="isPrivate-description"
+                disabled={privacy.isPending}
+              />
+            }
+          />
+        </SettingsSection>
 
-            {saveSettings.isError && (
-              <p className="text-sm text-destructive">
-                Could not save your settings. Please try again.
-              </p>
-            )}
-
-            <Button type="submit" disabled={!form.formState.isDirty || saveSettings.isPending}>
-              Save
-            </Button>
-          </form>
-        </Form>
-
-        <div className="flex flex-col gap-4 rounded-lg border p-4">
-          <div className="space-y-1">
-            <Label htmlFor="history-file">Import listening history</Label>
-            <p className="text-sm text-muted-foreground">
-              Upload a listening history CSV export (up to 10 MB).
-            </p>
-          </div>
-
-          <form onSubmit={handleImportSubmit} className="flex flex-col gap-3">
-            <Input
-              ref={inputRef}
-              id="history-file"
-              type="file"
-              accept=".csv"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-              disabled={uploadImport.isPending}
-            />
-
-            {latestImport && (
-              <p className="text-xs text-muted-foreground">
-                Status: {latestImport.status}
-                {latestImport.processedRows > 0 &&
-                  ` (${latestImport.processedRows} plays processed)`}
-              </p>
-            )}
-
-            {latestImport?.status === "failed" && (
-              <p className="text-sm text-destructive">
-                {latestImport.error ?? "Import failed. Please try again."}
-              </p>
-            )}
-
-            {uploadImport.isSuccess && (
-              <p className="text-sm text-muted-foreground">
-                File accepted. Ingestion will process in the background.
-              </p>
-            )}
-
-            {uploadImport.error && (
-              <p className="text-sm text-destructive">{importErrorMessage(uploadImport.error)}</p>
-            )}
-
-            <Button
-              type="submit"
-              disabled={!selectedFile || uploadImport.isPending}
-              className="self-start"
-            >
-              {uploadImport.isPending ? "Uploading..." : "Import"}
-            </Button>
-          </form>
-        </div>
-
-        <div>
-          <Button
-            variant="outline"
-            disabled={signOut.isPending}
-            focusableWhenDisabled
-            onClick={() => signOut.mutate()}
-          >
-            {signOut.isPending ? "Signing out..." : "Sign out"}
-          </Button>
-          <div role="status" className="text-sm text-destructive">
-            {signOut.isError && <p className="mt-2">Could not sign out. Try again.</p>}
-          </div>
-        </div>
+        <SettingsSection title="Data">
+          <SettingsRow
+            label="Import listening history"
+            description={
+              <>
+                <p>Upload a listening history CSV export (up to 10 MB).</p>
+                <div role="status" className="space-y-2">
+                  {latestImport && (
+                    <p className="text-xs">
+                      Status: {latestImport.status}
+                      {latestImport.processedRows > 0 &&
+                        ` (${latestImport.processedRows} plays processed)`}
+                    </p>
+                  )}
+                  {latestImport?.status === "failed" && (
+                    <p className="text-destructive">
+                      {latestImport.error ?? "Import failed. Please try again."}
+                    </p>
+                  )}
+                  {uploadImport.isSuccess && (
+                    <p>File accepted. Ingestion will process in the background.</p>
+                  )}
+                  {uploadImport.error && (
+                    <p className="text-destructive">{importErrorMessage(uploadImport.error)}</p>
+                  )}
+                </div>
+              </>
+            }
+            control={
+              <>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept=".csv"
+                  aria-label="Listening history CSV"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  disabled={uploadImport.isPending}
+                />
+                <Button
+                  variant="outline"
+                  onClick={openFilePicker}
+                  disabled={uploadImport.isPending}
+                >
+                  {uploadImport.isPending ? "Uploading..." : "Import"}
+                </Button>
+              </>
+            }
+          />
+        </SettingsSection>
       </CardContent>
     </>
   );
