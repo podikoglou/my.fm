@@ -33,6 +33,7 @@ export default function SettingsPage() {
             <CardTitle className="text-3xl font-bold">Settings</CardTitle>
             <CardDescription className="mt-2">Manage your profile and account.</CardDescription>
           </div>
+
           <Link
             to={`/user/${data.username}`}
             className={buttonVariants({ variant: "ghost", size: "sm" })}
@@ -44,7 +45,7 @@ export default function SettingsPage() {
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-        <SettingsSection title="Profile">
+        <SettingsSection title="Account">
           <SettingsRow
             label={
               <div className="flex items-center gap-4">
@@ -60,8 +61,21 @@ export default function SettingsPage() {
                     @{data.username}
                   </p>
                   <p className="truncate text-sm font-normal text-muted-foreground">{data.email}</p>
+                  <div role="status" className="text-sm font-normal text-destructive">
+                    {signOut.isError && <p>Could not sign out. Try again.</p>}
+                  </div>
                 </div>
               </div>
+            }
+            control={
+              <Button
+                variant="outline"
+                disabled={signOut.isPending}
+                focusableWhenDisabled
+                onClick={() => signOut.mutate()}
+              >
+                {signOut.isPending ? "Signing out..." : "Sign out"}
+              </Button>
             }
           />
         </SettingsSection>
@@ -130,31 +144,14 @@ export default function SettingsPage() {
                   onChange={handleFileChange}
                   disabled={uploadImport.isPending}
                 />
-                <Button onClick={openFilePicker} disabled={uploadImport.isPending}>
+                <Button
+                  variant="outline"
+                  onClick={openFilePicker}
+                  disabled={uploadImport.isPending}
+                >
                   {uploadImport.isPending ? "Uploading..." : "Import"}
                 </Button>
               </>
-            }
-          />
-        </SettingsSection>
-
-        <SettingsSection title="Account">
-          <SettingsRow
-            label="Sign out"
-            description={
-              <div role="status" className="text-destructive">
-                {signOut.isError && <p>Could not sign out. Try again.</p>}
-              </div>
-            }
-            control={
-              <Button
-                variant="outline"
-                disabled={signOut.isPending}
-                focusableWhenDisabled
-                onClick={() => signOut.mutate()}
-              >
-                {signOut.isPending ? "Signing out..." : "Sign out"}
-              </Button>
             }
           />
         </SettingsSection>
