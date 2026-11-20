@@ -1,7 +1,7 @@
 pre-commit:
   commands:
     lint:
-      glob: ".{js,jsx,ts,tsx,mjs,cjs,mts,cts}"
+      glob: "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}"
       run: bun run lint {staged_files}
     format:
       run: oxfmt --no-error-on-unmatched-pattern {staged_files}
