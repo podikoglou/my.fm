@@ -4,6 +4,7 @@ my.fm is a small, self-hosted [last.fm](https://last.fm) clone. It connects to
 your Spotify account and keeps a history of the tracks you play.
 
 ## Architecture
+
 - The app (`app/`) is a simple React served over a Cloudflare Worker
 - The API (`worker-api/`) is a Hono application also on Cloudflare Workers. It
   fetches users' recently played tracks on a schedule through a cron trigger and
@@ -36,6 +37,7 @@ bun run dev:proxy
 ```
 
 Add an entry to your `/etc/hosts` such as:
+
 ```
 127.0.0.1		my.fm
 ```
@@ -43,6 +45,7 @@ Add an entry to your `/etc/hosts` such as:
 You can go to <https://my.fm>.
 
 ### Commands
+
 Useful commands:
 
 - `bun run dev` starts the app, the API, and a local database.
