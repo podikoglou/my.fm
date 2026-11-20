@@ -100,8 +100,9 @@ body, and clicking it only acknowledges it.
 
 The `spotify-reauth` type asks a user to sign in again when their stored
 Spotify grant lacks `user-read-currently-playing`, which the app asks for now.
-`GET /api/notifications` creates it for the signed-in user before listing, and
-a partial unique index keeps at most one unacknowledged one per user. Clicking
+Before listing, `GET /api/notifications` creates it for the signed-in user,
+or acknowledges it once their grant has the scope. A partial unique index
+keeps at most one unacknowledged one per user. Clicking
 it acknowledges it, signs the user out and starts Spotify sign-in.
 
 Better Auth does not update `accounts.scope` when a user signs in again, so a

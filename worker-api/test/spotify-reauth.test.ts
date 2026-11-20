@@ -72,4 +72,26 @@ describe("Spotify reauthorization notification", () => {
     expect(await listNotifications(renewed.cookie)).toEqual([]);
     expect(await findStoredNotifications(renewed.userId)).toHaveLength(1);
   });
+
+  test("a notice is acknowledged once the stored grant has the scope", async () => {
+    const outdated = await signIn({ ...spotify, scope: OUTDATED_SCOPE });
+    const [notification] = await listNotifications(outdated.cookie);
+
+    await createApp().request(
+      `${baseUrl}/api/notifications/${notification!.id}/acknowledge`,
+      { method: "POST", headers: { cookie: outdated.cookie } },
+      env,
+    );
+
+    // A list read before the user signs in again creates a new notice.
+    expect(await listNotifications(outdated.cookie)).toHaveLength(1);
+
+    const renewed = await signIn(spotify);
+
+    expect(await listNotifications(renewed.cookie)).toEqual([]);
+
+    const stored = await findStoredNotifications(renewed.userId);
+
+    expect(stored.every(({ acknowledgedAt }) => acknowledgedAt !== null)).toBe(true);
+  });
 });

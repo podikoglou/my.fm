@@ -1,11 +1,12 @@
+import { parseResponse } from "hono/client";
 import { KeyRound } from "lucide-react";
 
 import type { Notification } from "~/lib/notifications";
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
+import { apiClient } from "~/lib/api";
 import { authClient } from "~/lib/auth";
 import { signInWithSpotify } from "~/lib/auth-guard";
-import { markNotificationAcknowledged } from "~/lib/notifications";
 import { queryClient } from "~/lib/query";
 
 import type { NotificationKind } from "./kind";
@@ -28,7 +29,9 @@ function SpotifyReauthNotificationContent({ notification }: { notification: Noti
 export const spotifyReauthNotificationKind: NotificationKind = {
   Content: SpotifyReauthNotificationContent,
   async acknowledge({ id }) {
-    await markNotificationAcknowledged(id);
+    // Not markNotificationAcknowledged: its refetch would run while the stale
+    // grant is still stored and create a new notice.
+    await parseResponse(apiClient.notifications[":id"].acknowledge.$post({ param: { id } }));
     await authClient.signOut();
     queryClient.clear();
     await signInWithSpotify("/");

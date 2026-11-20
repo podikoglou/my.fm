@@ -8,7 +8,7 @@ import {
   acknowledgeNotification,
   findUnacknowledgedNotifications,
 } from "../db/queries/notifications.ts";
-import { createSpotifyReauthNotification } from "../notifications/spotify-reauth.ts";
+import { syncSpotifyReauthNotification } from "../notifications/spotify-reauth.ts";
 
 export default new Hono<AppEnv>()
   .use("/*", sessionMiddleware)
@@ -17,7 +17,7 @@ export default new Hono<AppEnv>()
     const { id } = await c.get("getUserData")();
     const db = createDatabase(c.env.DB);
 
-    await createSpotifyReauthNotification(db, id);
+    await syncSpotifyReauthNotification(db, id);
 
     const notifications = await findUnacknowledgedNotifications(db, id);
 
