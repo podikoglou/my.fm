@@ -119,7 +119,7 @@ test("returns the API response and request unchanged", async () => {
   expect(response.status).toBe(302);
   expect(response.headers.get("location")).toBe("https://accounts.spotify.com/authorize");
   expect(response.headers.get("set-cookie")).toBe("better-auth.state=abc; Path=/; HttpOnly");
-  expect(received[0]!.method).toBe("POST");
-  expect(received[0]!.headers.get("cookie")).toBe("better-auth.state=abc");
-  expect(received[0]!.headers.get("origin")).toBe("https://app.test");
+  expect(received[0].method).toBe("POST");
+  expect(received[0].headers.get("cookie")).toBe("better-auth.state=abc");
+  expect(received[0].headers.get("origin")).toBe("https://app.test");
 });

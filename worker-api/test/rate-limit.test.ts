@@ -7,12 +7,14 @@ import { RATE_LIMITS, type RateLimitBindingName } from "../src/rate-limits.ts";
 const clientIp = "203.0.113.7";
 
 beforeEach(async () => {
-  const periodMs = RATE_LIMITS.PUBLIC_READ_RATE_LIMIT.period * 1_000;
+  const periodMs = RATE_LIMITS.PUBLIC_READ_RATE_LIMIT.period * 1000;
   const remainingMs = periodMs - (Date.now() % periodMs);
 
   // Miniflare's wall-clock windows must leave the full five-second test timeout.
-  if (remainingMs < 5_000) {
-    await new Promise<void>((resolve) => setTimeout(resolve, remainingMs));
+  if (remainingMs < 5000) {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, remainingMs);
+    });
   }
 });
 

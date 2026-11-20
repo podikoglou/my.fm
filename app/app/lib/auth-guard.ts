@@ -29,8 +29,8 @@ export async function requireAuth(callbackURL: string) {
     });
 
     return { session: session.data, user: data };
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     await signInWithSpotify(callbackURL);
 
     return { session: null, user: null };

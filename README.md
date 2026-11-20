@@ -17,6 +17,8 @@ You need [Bun](https://bun.sh) and a [Spotify
 application](https://developer.spotify.com/). [Caddy](https://caddyserver.com/)
 is optional: it serves the app over HTTPS on a local domain.
 
+Linting requires Node.js 22.18+ on the 22.x line or Node.js 24+.
+
 The Spotify app needs a redirect URI that matches the origin you use in
 development. With the Caddy proxy below, that is
 `https://my.fm/api/auth/callback/spotify`.

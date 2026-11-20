@@ -6,8 +6,8 @@ export function ScrobblesError() {
   return (
     <ErrorCard
       Icon={ListMusic}
-      title={<>Couldn't Find Scrobbles</>}
-      description={<>We're not sure why</>}
+      title={<>Couldn&apos;t Find Scrobbles</>}
+      description={<>We&apos;re not sure why</>}
     />
   );
 }

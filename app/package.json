@@ -5,10 +5,9 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
-    "typecheck": "react-router typegen && tsgo",
+    "typegen": "react-router typegen",
+    "typecheck": "bun run typegen && tsgo",
     "test": "vitest run",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check"
   },

@@ -76,7 +76,7 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const database = yield* Database;
-    const importsBucket = yield* ImportsBucket;
+    yield* ImportsBucket;
     const worker = yield* Worker;
     const website = yield* Website;
 

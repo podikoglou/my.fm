@@ -50,7 +50,7 @@ export default function OnboardPage() {
     mutationFn: (data: FormValues) => parseResponse(apiClient.user.onboard.$put({ form: data })),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-      navigate("/");
+      void navigate("/");
     },
     onError: (error) => console.error(error),
   });

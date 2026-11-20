@@ -9,8 +9,6 @@
   },
   "scripts": {
     "typecheck": "tsgo",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "test": "vitest run",

@@ -339,7 +339,10 @@ describe("import ingestion cron processor", () => {
 
     const stored = await db.select().from(scrobbles);
 
-    expect(stored.map((scrobble) => scrobble.albumName).sort()).toEqual(["EVERYTHING", "Ventura"]);
+    expect(stored).toHaveLength(2);
+    expect(stored.map((scrobble) => scrobble.albumName)).toEqual(
+      expect.arrayContaining(["EVERYTHING", "Ventura"]),
+    );
   });
 
   test("skips a row that ingestion recorded from Spotify minutes apart", async () => {
@@ -354,7 +357,7 @@ describe("import ingestion cron processor", () => {
 
     // The file stamps the start of the play; the recorded play is later by
     // about the track's length.
-    await seedRecordedPlay(db, "user-overlapping", new Date(1644436588000 + 210_000));
+    await seedRecordedPlay(db, "user-overlapping", new Date(1_644_436_588_000 + 210_000));
 
     const result = await runImportIngestion(env, {
       batchLimit: 500,
@@ -366,7 +369,10 @@ describe("import ingestion cron processor", () => {
 
     const stored = await db.select().from(scrobbles);
 
-    expect(stored.map((scrobble) => scrobble.trackName).sort()).toEqual(["Summerhouse", null]);
+    expect(stored).toHaveLength(2);
+    expect(stored.map((scrobble) => scrobble.trackName)).toEqual(
+      expect.arrayContaining(["Summerhouse", null]),
+    );
 
     const [row] = await db.select().from(imports);
 
@@ -392,7 +398,7 @@ describe("import ingestion cron processor", () => {
         "Anderson .Paak;Ventura;Come Home;1644436888000",
     );
 
-    await seedRecordedPlay(db, "user-repeat", new Date(1644436588000 + 210_000));
+    await seedRecordedPlay(db, "user-repeat", new Date(1_644_436_588_000 + 210_000));
 
     const result = await runImportIngestion(env, {
       batchLimit: 500,
@@ -406,7 +412,7 @@ describe("import ingestion cron processor", () => {
 
   test("matches each row to its nearest recorded play", async () => {
     const db = createDatabase(env.DB);
-    const firstStart = 1644436588000;
+    const firstStart = 1_644_436_588_000;
     const secondStart = firstStart + 8 * 60_000;
 
     await seedImport(env, db, {
@@ -446,7 +452,7 @@ describe("import ingestion cron processor", () => {
       createdAt: new Date(),
     });
 
-    await seedRecordedPlay(db, "user-replayed", new Date(1644436588000 - 24 * 60 * 60 * 1000));
+    await seedRecordedPlay(db, "user-replayed", new Date(1_644_436_588_000 - 24 * 60 * 60 * 1000));
 
     const result = await runImportIngestion(env, {
       batchLimit: 500,

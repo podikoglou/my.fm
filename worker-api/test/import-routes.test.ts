@@ -313,7 +313,9 @@ describe("import routes", () => {
 
     const responses = await Promise.all([upload(), upload()]);
 
-    expect(responses.map((response) => response.status).sort()).toEqual([202, 409]);
+    expect(responses.map((response) => response.status)).toEqual(
+      expect.arrayContaining([202, 409]),
+    );
     expect(await createDatabase(env.DB).select().from(imports)).toHaveLength(1);
 
     const stored = await env.IMPORTS_BUCKET.list();
