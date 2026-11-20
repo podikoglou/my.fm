@@ -41,6 +41,60 @@ bun run test
 bun run db:generate
 ```
 
+## Routes
+
+The API is mounted at `/api`. Routes marked "session" answer `401` without a
+signed-in user.
+
+| Route                                        | Access  | Purpose                                     |
+| -------------------------------------------- | ------- | ------------------------------------------- |
+| `POST`, `GET` `/api/auth/*`                  | public  | Better Auth sign-in, callback and sign-out  |
+| `GET /api/user/me`                           | session | The signed-in user                          |
+| `GET /api/user/byUsername`, `/byId`          | public  | A profile, unless it is private             |
+| `PATCH /api/user/settings`                   | session | Update the profile settings                 |
+| `PUT /api/user/onboard`                      | session | Set the name and username                   |
+| `GET /api/scrobble/getRecent`                | public  | A user's recent scrobbles                   |
+| `GET /api/scrobble/getMonths`                | public  | A user's scrobble counts by month           |
+| `GET /api/feed`                              | public  | The latest scrobbles from everyone          |
+| `GET /api/import/latest`, `POST /api/import` | session | The latest history import, and a new upload |
+| `GET /api/notifications`                     | session | The user's unacknowledged notifications     |
+| `POST /api/notifications/:id/acknowledge`    | session | Acknowledge one of the user's notifications |
+| `GET /health`, `GET /health/ingestion`       | public  | Uptime checks                               |
+
+`POST /api/notifications/:id/acknowledge` answers `404` for an ID that belongs
+to another user, the same as for one that does not exist. Acknowledging twice
+keeps the first time.
+
+## Data model
+
+The Drizzle schema in `src/db/schema.ts` defines the D1 tables, and
+`bun run db:generate` writes the migrations in `drizzle/`.
+
+- `users`, `sessions`, `accounts` and `verification` belong to Better Auth.
+- `scrobbles` holds plays, and `tracks`, `albums`, `artists`, `track_artists`
+  and `album_artists` describe them.
+- `imports` tracks history uploads; `docs/IMPORT-DESIGN.md` describes them.
+- `ingestion_runs` records the cron's runs.
+- `notifications` holds messages for one user: `id`, `userId`, `type`,
+  `title`, `body`, `createdAt` and `acknowledgedAt`. A notification is unacknowledged
+  while `acknowledgedAt` is null, and the app shows it until the user clicks
+  it. Deleting a user deletes their notifications.
+
+### Sending a notification
+
+No route creates notifications. Insert a row with D1; the defaults fill in `id`
+and `createdAt`:
+
+```sql
+INSERT INTO notifications (userId, type, title, body)
+VALUES ('<user id>', '<type>', '<title>', '<body>');
+```
+
+The API returns `type` as stored and does not interpret it. The app looks the
+type up in `app/app/notifications/kinds.ts`, which says how to render it and
+what clicking it does. A type that is not listed there renders its title and
+body, and clicking it only acknowledges it.
+
 ## Configuration
 
 The root `.env` holds `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`.
