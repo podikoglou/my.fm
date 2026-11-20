@@ -11,15 +11,7 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await acknowledgeAndSignOut(params.id);
 }
 
-export function HydrateFallback() {
-  return <SigningOut />;
-}
-
 export default function NotificationPage() {
-  return <SigningOut />;
-}
-
-function SigningOut() {
   return (
     <CardHeader className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
       <div>
