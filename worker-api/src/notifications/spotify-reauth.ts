@@ -8,10 +8,9 @@ export const SPOTIFY_REAUTH_TYPE = "spotify-reauth";
 /** The scope that grants from before the app asked for it are missing. */
 export const SPOTIFY_REAUTH_SCOPE = "user-read-currently-playing";
 
-const TITLE = "Reconnect your Spotify account";
+const TITLE = "Reconnect Spotify";
 
-const BODY =
-  "my.fm can now show what you are playing, but your Spotify sign-in is older than that. Click here to sign out, then sign in with Spotify again to allow it.";
+const BODY = "Sign in again to let my.fm show what you are playing.";
 
 // Better Auth stores scopes comma-separated; Spotify returns them space-separated.
 const lacksScope = sql`instr(',' || replace(coalesce(scope, ''), ' ', ',') || ',', ${`,${SPOTIFY_REAUTH_SCOPE},`}) = 0`;
