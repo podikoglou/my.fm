@@ -7,6 +7,13 @@ import type { WorkerEnv } from "./alchemy.ts";
 import { createDatabase } from "./db/index.ts";
 import * as schema from "./db/schema.ts";
 
+export const SPOTIFY_SCOPES = [
+  "user-read-private",
+  "user-read-email",
+  "user-read-recently-played",
+  "user-read-currently-playing",
+] as const;
+
 export function createAuth(env: WorkerEnv) {
   const db = createDatabase(env.DB);
 
@@ -25,12 +32,7 @@ export function createAuth(env: WorkerEnv) {
       spotify: {
         clientId: env.SPOTIFY_CLIENT_ID,
         clientSecret: env.SPOTIFY_CLIENT_SECRET,
-        scope: [
-          "user-read-private",
-          "user-read-email",
-          "user-read-recently-played",
-          "user-read-currently-playing",
-        ],
+        scope: [...SPOTIFY_SCOPES],
       },
     },
     user: {
@@ -58,6 +60,20 @@ export function createAuth(env: WorkerEnv) {
                 username: nanoid(),
               },
             };
+          },
+        },
+      },
+      account: {
+        update: {
+          // Better Auth does not update the stored scope on sign-in. Spotify
+          // grants every requested scope or none, so a completed sign-in has
+          // granted them all. Token refreshes run elsewhere and keep the scope.
+          async before(account, context) {
+            if (account.providerId !== "spotify" || !context?.path.startsWith("/callback/")) {
+              return;
+            }
+
+            return { data: { ...account, scope: SPOTIFY_SCOPES.join(",") } };
           },
         },
       },

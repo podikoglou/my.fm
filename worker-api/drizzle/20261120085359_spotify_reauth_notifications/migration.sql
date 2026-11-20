@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `notifications_spotify_reauth_unacknowledged_idx` ON `notifications` (`userId`) WHERE type = 'spotify-reauth' and acknowledgedAt is null;

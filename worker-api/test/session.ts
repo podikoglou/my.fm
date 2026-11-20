@@ -4,6 +4,7 @@ import { expect } from "vitest";
 import z from "zod";
 
 import { createApp } from "../src/app.ts";
+import { SPOTIFY_SCOPES } from "../src/auth.ts";
 import { createDatabase } from "../src/db/index.ts";
 import { network } from "./network.ts";
 
@@ -16,6 +17,8 @@ export const baseUrl = "http://app.test";
 export async function signIn(spotify: {
   id: string;
   email: string;
+  /** The scopes Spotify's token response grants, space-separated. */
+  scope?: string;
 }): Promise<{ cookie: string; userId: string }> {
   const app = createApp();
 
@@ -28,7 +31,7 @@ export async function signIn(spotify: {
           access_token: "access-token",
           expires_in: 3600,
           refresh_token: "refresh-token",
-          scope: "user-read-email",
+          scope: spotify.scope ?? SPOTIFY_SCOPES.join(" "),
           token_type: "Bearer",
         });
       }
