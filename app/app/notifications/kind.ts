@@ -4,11 +4,8 @@ import type { Notification } from "~/lib/notifications";
 
 /** How the app renders and acknowledges one notification type. */
 export type NotificationKind = {
-  /** The notification's content; the shared list wraps it in the link. */
+  /** The notification's content; the shared list wraps it in the button that acknowledges it. */
   Content: ComponentType<{ notification: Notification }>;
-  /**
-   * Runs when the user opens the notification, as the page's loader. It
-   * returns the loader's result, such as a redirect.
-   */
-  acknowledge: (notification: Notification) => Promise<Response | null>;
+  /** What clicking the notification does. It acknowledges the notification, and may do more. */
+  acknowledge: (notification: Notification) => Promise<void>;
 };
