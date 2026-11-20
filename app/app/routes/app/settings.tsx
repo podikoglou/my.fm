@@ -60,7 +60,9 @@ export default function SettingsPage() {
                   <p className="truncate text-sm font-normal text-muted-foreground">
                     @{data.username}
                   </p>
-                  <p className="truncate text-sm font-normal text-muted-foreground">{data.email}</p>
+                  <p className="text-sm font-normal break-all text-muted-foreground">
+                    {data.email}
+                  </p>
                   <div role="status" className="text-sm font-normal text-destructive">
                     {signOut.isError && <p>Could not sign out. Try again.</p>}
                   </div>
