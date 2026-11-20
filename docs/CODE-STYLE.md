@@ -65,6 +65,7 @@ cannot satisfy without contorting the code is telling you that an interface is
 wrong. These rules are shaped so that the wrong design fails the build, so a
 pile of errors in one place is a signal about architecture.
 
-Silencing is not a fix. The anti-slop rules are vendored with no local
-deviations, so neither an ignore comment nor a rule edit exists. A rule that
-truly does not fit is a conversation.
+Silencing is not a fix. Cloudflare's type-aware Oxlint preset supplies the
+shared rules. The remaining Anti-Slop checks, including the Effect rules, come
+from a development dependency. Discuss rules that do not fit before changing
+the shared config.

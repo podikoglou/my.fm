@@ -543,7 +543,7 @@ describe("runIngestion", () => {
     await recordIngestionRun(db, {
       at: new Date(),
       status: "quota",
-      blockedUntil: new Date(Date.now() - 1_000),
+      blockedUntil: new Date(Date.now() - 1000),
     });
 
     await runIngestion(

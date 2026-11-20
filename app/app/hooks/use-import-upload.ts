@@ -11,7 +11,7 @@ export function useImportUpload() {
   const uploadImport = useMutation({
     mutationFn: (file: File) => parseResponse(apiClient.import.$post({ form: { file } })),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
+      void queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
     },
     onSettled: () => {
       if (inputRef.current) {

@@ -83,16 +83,16 @@ function replaceHomoglyph(char: string): string {
 }
 
 export function normalizeText(raw: string): string {
-  const stripped = stripControlCharacters(raw).trim().replace(/\s+/g, " ");
-  const nfkd = stripped.normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
+  const stripped = stripControlCharacters(raw).trim().replaceAll(/\s+/g, " ");
+  const nfkd = stripped.normalize("NFKD").replaceAll(/[\u0300-\u036F]/g, "");
   const lowered = nfkd.toLowerCase();
 
-  const unhomoglyphed = lowered.replace(/[\u0400-\u04FF\u0370-\u03FF]/g, replaceHomoglyph);
+  const unhomoglyphed = lowered.replaceAll(/[\u0400-\u04FF\u0370-\u03FF]/g, replaceHomoglyph);
 
   return unhomoglyphed
-    .replace(/&/g, " and ")
-    .replace(/['’]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replaceAll("&", " and ")
+    .replaceAll(/['’]/g, "")
+    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 

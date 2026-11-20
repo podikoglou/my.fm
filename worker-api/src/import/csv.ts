@@ -19,7 +19,7 @@ export const MAX_LINE_CHARS = 4096;
 export const MAX_FIELD_CHARS = 512;
 
 export function stripBom(text: string): string {
-  if (text.charCodeAt(0) === 0xfeff) {
+  if (text.charCodeAt(0) === 0xfe_ff) {
     return text.slice(1);
   }
 

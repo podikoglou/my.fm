@@ -94,13 +94,13 @@ describe("csv parsing", () => {
       artist: "Anderson .Paak",
       album: "Ventura",
       track: "Come Home",
-      playedAt: new Date(1644436588000),
+      playedAt: new Date(1_644_436_588_000),
     });
 
     const rowSec = "Anderson .Paak;Ventura;Come Home;1644436588";
     const parsedSec = parseScrobbleRow(rowSec, indices);
 
-    expect(parsedSec?.playedAt.getTime()).toBe(1644436588000);
+    expect(parsedSec?.playedAt.getTime()).toBe(1_644_436_588_000);
   });
 
   test("handles missing album or empty fields gracefully", () => {
@@ -118,7 +118,7 @@ describe("csv parsing", () => {
       artist: "Anderson .Paak",
       album: null,
       track: "Come Home",
-      playedAt: new Date(1644436588000),
+      playedAt: new Date(1_644_436_588_000),
     });
 
     const rowEmptyArtist = ";Ventura;Come Home;1644436588000";

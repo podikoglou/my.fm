@@ -82,9 +82,9 @@ type UserFetchState = {
 };
 
 function isActiveUser(user: UserFetchState, now: Date, config: IngestionConfig) {
-  return (
-    user.lastActiveAt != null && now.getTime() - user.lastActiveAt.getTime() < config.activeWindowMs
-  );
+  const { lastActiveAt } = user;
+
+  return !!lastActiveAt && now.getTime() - lastActiveAt.getTime() < config.activeWindowMs;
 }
 
 export function shouldFetchUser(

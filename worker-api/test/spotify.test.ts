@@ -44,12 +44,10 @@ describe("createSpotifyClient", () => {
 
     const client = createSpotifyClient(env, "token-1");
 
-    const quota = await client.getRecentlyPlayedTracks(50).then(
-      () => null,
-      (error: Error) => getSpotifyQuotaError(error),
-    );
-
-    expect(quota).toEqual({ retryAfterSeconds: 66_362 });
+    await expect(client.getRecentlyPlayedTracks(50)).rejects.toMatchObject({
+      name: SpotifyQuotaExceededError.name,
+      retryAfterSeconds: 66_362,
+    });
   });
 
   test("keeps the quota classification when the response has no retry delay", async () => {
@@ -61,12 +59,10 @@ describe("createSpotifyClient", () => {
 
     const client = createSpotifyClient(env, "token-1");
 
-    const quota = await client.getRecentlyPlayedTracks(50).then(
-      () => null,
-      (error: Error) => getSpotifyQuotaError(error),
-    );
-
-    expect(quota).toEqual({ retryAfterSeconds: null });
+    await expect(client.getRecentlyPlayedTracks(50)).rejects.toMatchObject({
+      name: SpotifyQuotaExceededError.name,
+      retryAfterSeconds: null,
+    });
   });
 
   test("accepts only a whole, non-negative retry delay", async () => {
@@ -89,12 +85,10 @@ describe("createSpotifyClient", () => {
 
       const client = createSpotifyClient(env, "token-1");
 
-      const quota = await client.getRecentlyPlayedTracks(50).then(
-        () => null,
-        (error: Error) => getSpotifyQuotaError(error),
-      );
-
-      expect(quota).toEqual({ retryAfterSeconds: expected });
+      await expect(client.getRecentlyPlayedTracks(50)).rejects.toMatchObject({
+        name: SpotifyQuotaExceededError.name,
+        retryAfterSeconds: expected,
+      });
     }
   });
 });
@@ -140,13 +134,11 @@ describe("getCurrentlyPlaying", () => {
       ),
     );
 
-    const quota = await createSpotifyClient(env, "token-1")
-      .getCurrentlyPlaying()
-      .then(
-        () => null,
-        (error: Error) => getSpotifyQuotaError(error),
-      );
+    const client = createSpotifyClient(env, "token-1");
 
-    expect(quota).toEqual({ retryAfterSeconds: 120 });
+    await expect(client.getCurrentlyPlaying()).rejects.toMatchObject({
+      name: SpotifyQuotaExceededError.name,
+      retryAfterSeconds: 120,
+    });
   });
 });

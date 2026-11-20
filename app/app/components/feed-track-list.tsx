@@ -22,7 +22,6 @@ function fetchFeedPage(cursor: string | null) {
 type FeedPage = Awaited<ReturnType<typeof fetchFeedPage>>;
 
 export function FeedTrackList() {
-  const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const { data, error, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery<
@@ -40,32 +39,30 @@ export function FeedTrackList() {
   });
 
   useEffect(() => {
-    if (!sentinelRef.current) return;
+    const sentinel = sentinelRef.current;
 
-    observerRef.current = new IntersectionObserver(
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
+          void fetchNextPage();
         }
       },
       { threshold: 0.1 },
     );
 
-    observerRef.current.observe(sentinelRef.current);
+    observer.observe(sentinel);
 
-    return () => {
-      if (observerRef.current && sentinelRef.current) {
-        observerRef.current.unobserve(sentinelRef.current);
-      }
-    };
+    return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (error) {
     return (
       <ErrorCard
         Icon={ListMusic}
-        title={<>Couldn't Load the Feed</>}
-        description={<>We're not sure why</>}
+        title={<>Couldn&apos;t Load the Feed</>}
+        description={<>We&apos;re not sure why</>}
       />
     );
   }

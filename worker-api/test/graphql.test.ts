@@ -55,7 +55,7 @@ describe("graphql helper", () => {
     expect(query).toContain('artist: "Anderson .Paak"');
     expect(query).toContain('album: "Ventura"');
     expect(query).toContain("q1: track");
-    expect(query).toContain('\\"Live\\"');
+    expect(query).toContain(String.raw`\"Live\"`);
   });
 
   test("extracts resolved metadata from GraphQL track object", () => {

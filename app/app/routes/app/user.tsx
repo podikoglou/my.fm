@@ -50,7 +50,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
         <ErrorCard
           Icon={Lock}
           title={<>Private Profile</>}
-          description={<>This user's profile is private</>}
+          description={<>This user&apos;s profile is private</>}
         />
       );
     }
@@ -59,7 +59,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
       <ErrorCard
         Icon={UserX}
         title={<>User Not Found</>}
-        description={<>The user you're looking for does not exist</>}
+        description={<>The user you&apos;re looking for does not exist</>}
       />
     );
   }

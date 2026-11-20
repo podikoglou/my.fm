@@ -13,8 +13,6 @@
       "dependsOn": ["^build"]
     },
     "test": {},
-    "lint": {},
-    "lint:fix": {},
     "fmt": {},
     "fmt:check": {},
     "db:generate": {
