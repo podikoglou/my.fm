@@ -5,12 +5,15 @@ import { notificationPath } from "~/lib/notifications";
 import { getNotificationKind } from "~/notifications/kinds";
 
 export function NotificationList() {
-  const { data: notifications } = useNotifications();
+  const notifications = useNotifications();
 
   if (!notifications?.length) return null;
 
   return (
-    <ul aria-label="Notifications" className="flex flex-col gap-2 px-6">
+    <ul
+      aria-label="Notifications"
+      className="flex max-h-48 shrink-0 flex-col gap-2 overflow-y-auto px-6"
+    >
       {notifications.map((notification) => {
         const { Content } = getNotificationKind(notification.type);
 
