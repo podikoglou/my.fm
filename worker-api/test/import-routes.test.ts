@@ -342,7 +342,7 @@ describe("import routes", () => {
 
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({
-      error: "Imports are temporarily unavailable. Please try again tomorrow.",
+      error: "Service is temporarily unavailable. Please try again tomorrow.",
     });
     expect(await createDatabase(env.DB).select().from(imports)).toHaveLength(0);
 
@@ -379,7 +379,7 @@ describe("import routes", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "Import failed. Please try again." });
+    expect(await response.json()).toEqual({ error: "Something went wrong. Please try again." });
   });
 
   test("reports failed status and error after repeated ingestion failures", async () => {
@@ -433,6 +433,6 @@ describe("import routes", () => {
       .parse(await latestResponse.json());
 
     expect(latestBody.import?.status).toBe("failed");
-    expect(latestBody.import?.error).toBe("Import failed. Please try again.");
+    expect(latestBody.import?.error).toContain("repeated metadata batch errors");
   });
 });
