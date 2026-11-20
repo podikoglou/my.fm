@@ -47,20 +47,21 @@ export default function SettingsPage() {
       <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <SettingsSection title="Account">
           <SettingsRow
+            className="max-[360px]:flex-col max-[360px]:items-stretch"
             label={
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <UserAvatar
                   avatarUrl={data.avatarUrl}
                   name={data.name}
-                  className="h-16 w-16"
-                  fallbackClassName="text-xl"
+                  className="h-10 w-10"
+                  fallbackClassName="text-sm"
                 />
                 <div className="min-w-0 space-y-1">
-                  <p className="truncate font-semibold">{data.name}</p>
+                  <p className="font-semibold wrap-anywhere">{data.name}</p>
                   <p className="truncate text-sm font-normal text-muted-foreground">
                     @{data.username}
                   </p>
-                  <p className="text-sm font-normal break-all text-muted-foreground">
+                  <p className="text-sm font-normal wrap-anywhere text-muted-foreground">
                     {data.email}
                   </p>
                   <div role="status" className="text-sm font-normal text-destructive">
