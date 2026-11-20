@@ -1,20 +1,21 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark {
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &:not(:where(.light, .light *)) {
+      @slot;
+    }
+  }
+}
 
 @theme {
   --font-sans:
     "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
-}
-
-html,
-body {
-  @apply bg-white dark:bg-gray-950;
-
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
 }
 
 @theme inline {
@@ -70,6 +71,7 @@ body {
 }
 
 :root {
+  color-scheme: light;
   --background: oklch(98.5% 0 0);
   --foreground: oklch(14.5% 0 0);
   --card: oklch(97% 0 0);
@@ -107,45 +109,46 @@ body {
   --chart-4: oklch(55.3% 0.195 38.402);
   --chart-5: oklch(51.4% 0.222 16.935);
   --radius: 0.625rem;
-}
 
-.dark {
-  --background: oklch(14.5% 0 0);
-  --foreground: oklch(98.5% 0 0);
-  --card: oklch(20.5% 0 0);
-  --card-foreground: oklch(98.5% 0 0);
-  --popover: oklch(20.5% 0 0);
-  --popover-foreground: oklch(98.5% 0 0);
-  --primary: oklch(98.5% 0 0);
-  --primary-foreground: oklch(14.5% 0 0);
-  --secondary: oklch(26.9% 0 0);
-  --secondary-foreground: oklch(97% 0 0);
-  --muted: oklch(26.9% 0 0);
-  --muted-foreground: oklch(70.8% 0 0);
-  --accent: oklch(37.1% 0 0);
-  --accent-foreground: oklch(98.5% 0 0);
-  --destructive: oklch(63.7% 0.237 25.331);
-  --destructive-foreground: oklch(98.5% 0 0);
-  --border: oklch(37.1% 0 0);
-  --input: oklch(26.9% 0 0);
-  --ring: oklch(55.6% 0 0);
-  --danger: oklch(19.9% 0.063 23.01);
-  --danger-foreground: oklch(79.8% 0.115 17.83);
-  --danger-border: oklch(26.9% 0.102 25.45);
-  --warning: oklch(22.7% 0.05 113.29);
-  --warning-foreground: oklch(86.4% 0.141 92.19);
-  --warning-border: oklch(29.1% 0.063 109.77);
-  --info: oklch(15.6% 0.045 250.71);
-  --info-foreground: oklch(67.5% 0.152 258.33);
-  --info-border: oklch(26.2% 0.052 266.51);
-  --success: oklch(20.9% 0.0487 158.25);
-  --success-foreground: oklch(86.2% 0.169 157.764);
-  --success-border: oklch(31.6% 0.082 152.3);
-  --chart-1: oklch(62.3% 0.214 259.815);
-  --chart-2: oklch(72.3% 0.219 149.579);
-  --chart-3: oklch(62.7% 0.265 303.9);
-  --chart-4: oklch(70.5% 0.213 47.604);
-  --chart-5: oklch(64.5% 0.246 16.439);
+  @variant dark {
+    color-scheme: dark;
+    --background: oklch(14.5% 0 0);
+    --foreground: oklch(98.5% 0 0);
+    --card: oklch(20.5% 0 0);
+    --card-foreground: oklch(98.5% 0 0);
+    --popover: oklch(20.5% 0 0);
+    --popover-foreground: oklch(98.5% 0 0);
+    --primary: oklch(98.5% 0 0);
+    --primary-foreground: oklch(14.5% 0 0);
+    --secondary: oklch(26.9% 0 0);
+    --secondary-foreground: oklch(97% 0 0);
+    --muted: oklch(26.9% 0 0);
+    --muted-foreground: oklch(70.8% 0 0);
+    --accent: oklch(37.1% 0 0);
+    --accent-foreground: oklch(98.5% 0 0);
+    --destructive: oklch(63.7% 0.237 25.331);
+    --destructive-foreground: oklch(98.5% 0 0);
+    --border: oklch(37.1% 0 0);
+    --input: oklch(26.9% 0 0);
+    --ring: oklch(55.6% 0 0);
+    --danger: oklch(19.9% 0.063 23.01);
+    --danger-foreground: oklch(79.8% 0.115 17.83);
+    --danger-border: oklch(26.9% 0.102 25.45);
+    --warning: oklch(22.7% 0.05 113.29);
+    --warning-foreground: oklch(86.4% 0.141 92.19);
+    --warning-border: oklch(29.1% 0.063 109.77);
+    --info: oklch(15.6% 0.045 250.71);
+    --info-foreground: oklch(67.5% 0.152 258.33);
+    --info-border: oklch(26.2% 0.052 266.51);
+    --success: oklch(20.9% 0.0487 158.25);
+    --success-foreground: oklch(86.2% 0.169 157.764);
+    --success-border: oklch(31.6% 0.082 152.3);
+    --chart-1: oklch(62.3% 0.214 259.815);
+    --chart-2: oklch(72.3% 0.219 149.579);
+    --chart-3: oklch(62.7% 0.265 303.9);
+    --chart-4: oklch(70.5% 0.213 47.604);
+    --chart-5: oklch(64.5% 0.246 16.439);
+  }
 }
 
 @layer base {
@@ -156,6 +159,7 @@ body {
     scrollbar-color: var(--border) transparent;
   }
   html {
+    background-color: var(--background);
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
