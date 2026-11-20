@@ -218,7 +218,13 @@ export const notifications = sqliteTable(
     /** Null while the notification is unacknowledged. */
     acknowledgedAt: integer({ mode: "timestamp_ms" }),
   },
-  (table) => [index("notifications_user_id_idx").on(table.userId)],
+  (table) => [
+    index("notifications_user_id_idx").on(table.userId),
+    // At most one unacknowledged Spotify reauthorization notice per user.
+    uniqueIndex("notifications_spotify_reauth_unacknowledged_idx")
+      .on(table.userId)
+      .where(sql`type = 'spotify-reauth' and acknowledgedAt is null`),
+  ],
 );
 
 export type Notification = typeof notifications.$inferSelect;

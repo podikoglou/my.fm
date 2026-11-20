@@ -71,6 +71,7 @@ The Drizzle schema in `src/db/schema.ts` defines the D1 tables, and
 `bun run db:generate` writes the migrations in `drizzle/`.
 
 - `users`, `sessions`, `accounts` and `verification` belong to Better Auth.
+  `accounts.scope` holds the Spotify scopes that the user granted.
 - `scrobbles` holds plays, and `tracks`, `albums`, `artists`, `track_artists`
   and `album_artists` describe them.
 - `imports` tracks history uploads; `docs/IMPORT-DESIGN.md` describes them.
@@ -94,6 +95,18 @@ The API returns `type` as stored and does not interpret it. The app looks the
 type up in `app/app/notifications/kinds.ts`, which says how to render it and
 what clicking it does. A type that is not listed there renders its title and
 body, and clicking it only acknowledges it.
+
+### Spotify reauthorization
+
+The `spotify-reauth` type asks a user to sign in again when their stored
+Spotify grant lacks `user-read-currently-playing`, which the app asks for now.
+`GET /api/notifications` creates it for the signed-in user before listing, and
+a partial unique index keeps at most one unacknowledged one per user. Clicking
+it acknowledges it, signs the user out and starts Spotify sign-in.
+
+Better Auth does not update `accounts.scope` when a user signs in again, so a
+hook in `src/auth.ts` records the requested scopes on each completed Spotify
+sign-in. Spotify grants every requested scope or none.
 
 ## Configuration
 
