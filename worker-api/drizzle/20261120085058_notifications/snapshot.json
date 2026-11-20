@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "56c218d6-ae48-4ddb-80d8-a6f774682b69",
+  "id": "434d20c5-5fae-4082-92a5-aa72360db284",
   "prevIds": ["e8ab4b63-7bf5-47e0-bf5e-6b6225fd5337"],
   "ddl": [
     {
@@ -499,6 +499,16 @@
     {
       "table": "notifications",
       "name": "userId",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "notifications",
+      "name": "type",
       "type": "text",
       "notNull": true,
       "autoincrement": false,

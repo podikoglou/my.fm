@@ -10,14 +10,20 @@ import { baseUrl, signIn } from "./session.ts";
 
 const listSchema = z.object({
   notifications: z.array(
-    z.object({ id: z.string(), title: z.string(), body: z.string(), createdAt: z.string() }),
+    z.object({
+      id: z.string(),
+      type: z.string(),
+      title: z.string(),
+      body: z.string(),
+      createdAt: z.string(),
+    }),
   ),
 });
 
 async function seedNotification(userId: string, title: string, createdAt: Date) {
   const [row] = await createDatabase(env.DB)
     .insert(notifications)
-    .values({ userId, title, body: `${title} body`, createdAt })
+    .values({ userId, type: "test", title, body: `${title} body`, createdAt })
     .returning();
 
   return row!;
@@ -77,6 +83,7 @@ describe("notification routes", () => {
     expect(listed.map(({ id }) => id)).toEqual([newer.id, older.id]);
     expect(listed[0]).toEqual({
       id: newer.id,
+      type: "test",
       title: "Newer",
       body: "Newer body",
       createdAt: "2026-11-02T00:00:00.000Z",

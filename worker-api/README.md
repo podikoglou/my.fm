@@ -71,34 +71,29 @@ The Drizzle schema in `src/db/schema.ts` defines the D1 tables, and
 `bun run db:generate` writes the migrations in `drizzle/`.
 
 - `users`, `sessions`, `accounts` and `verification` belong to Better Auth.
-  `accounts.scope` holds the Spotify scopes that the user granted.
 - `scrobbles` holds plays, and `tracks`, `albums`, `artists`, `track_artists`
   and `album_artists` describe them.
 - `imports` tracks history uploads; `docs/IMPORT-DESIGN.md` describes them.
 - `ingestion_runs` records the cron's runs.
-- `notifications` holds messages for one user: `id`, `userId`, `title`,
-  `body`, `createdAt` and `acknowledgedAt`. A notification is unacknowledged
+- `notifications` holds messages for one user: `id`, `userId`, `type`,
+  `title`, `body`, `createdAt` and `acknowledgedAt`. A notification is unacknowledged
   while `acknowledgedAt` is null, and the app shows it until the user clicks
   it. Deleting a user deletes their notifications.
 
 ### Sending a notification
 
-No route creates notifications. Insert rows with D1; the defaults fill in `id`
-and `createdAt`. For example, to ask users whose Spotify grant predates
-`user-read-currently-playing` to sign in again:
+No route creates notifications. Insert a row with D1; the defaults fill in `id`
+and `createdAt`:
 
 ```sql
-INSERT INTO notifications (userId, title, body)
-SELECT user_id,
-  'Reconnect your Spotify account',
-  'my.fm now reads the track you are playing, and your Spotify sign-in does not allow it yet. Click here to sign out, then sign in again to grant access.'
-FROM accounts
-WHERE provider_id = 'spotify'
-  AND (scope IS NULL OR scope NOT LIKE '%user-read-currently-playing%');
+INSERT INTO notifications (userId, type, title, body)
+VALUES ('<user id>', '<type>', '<title>', '<body>');
 ```
 
-Clicking a notification opens `/notifications/:id` in the app, which
-acknowledges it, signs the user out and starts Spotify sign-in.
+The API returns `type` as stored and does not interpret it. The app looks the
+type up in `app/app/notifications/kinds.ts`, which says how to render it and
+what clicking it does. A type that is not listed there renders its title and
+body, and clicking it only acknowledges it.
 
 ## Configuration
 

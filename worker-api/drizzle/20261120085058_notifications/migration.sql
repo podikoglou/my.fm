@@ -1,6 +1,7 @@
 CREATE TABLE `notifications` (
 	`id` text PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
 	`userId` text NOT NULL,
+	`type` text NOT NULL,
 	`title` text NOT NULL,
 	`body` text NOT NULL,
 	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,

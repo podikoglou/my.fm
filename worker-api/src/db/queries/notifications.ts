@@ -5,7 +5,10 @@ import type { Notification, User } from "../schema.ts";
 
 import { notifications } from "../schema.ts";
 
-export type UnacknowledgedNotification = Pick<Notification, "id" | "title" | "body" | "createdAt">;
+export type UnacknowledgedNotification = Pick<
+  Notification,
+  "id" | "type" | "title" | "body" | "createdAt"
+>;
 
 export async function findUnacknowledgedNotifications(
   db: Database,
@@ -14,6 +17,7 @@ export async function findUnacknowledgedNotifications(
   return await db
     .select({
       id: notifications.id,
+      type: notifications.type,
       title: notifications.title,
       body: notifications.body,
       createdAt: notifications.createdAt,

@@ -1,16 +1,9 @@
 import { parseResponse } from "hono/client";
 
 import { apiClient } from "./api";
-import { authClient } from "./auth";
-import { signInWithSpotify } from "./auth-guard";
 import { queryClient } from "./query";
 
 export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
-
-/** The path that a notification links to, where opening it acknowledges it. */
-export function notificationPath(id: string) {
-  return `/notifications/${encodeURIComponent(id)}`;
-}
 
 export async function fetchNotifications() {
   const { notifications } = await parseResponse(apiClient.notifications.$get());
@@ -18,18 +11,24 @@ export async function fetchNotifications() {
   return notifications;
 }
 
-/**
- * Acknowledge the notification, then sign out and send the user back through
- * Spotify sign-in, so the next sign-in grants the scopes the app asks for now.
- */
-export async function acknowledgeAndSignOut(id: string) {
-  const session = await authClient.getSession();
+export type Notification = Awaited<ReturnType<typeof fetchNotifications>>[number];
 
-  if (session.data) {
-    await parseResponse(apiClient.notifications[":id"].acknowledge.$post({ param: { id } }));
-    await authClient.signOut();
-    queryClient.clear();
-  }
+/** The page a notification links to, where opening it runs its acknowledge action. */
+export function notificationPath(id: string) {
+  return `/notifications/${encodeURIComponent(id)}`;
+}
 
-  await signInWithSpotify("/");
+/** The signed-in user's unacknowledged notification with this ID, if any. */
+export async function findNotification(id: string) {
+  const notifications = await queryClient.fetchQuery({
+    queryKey: NOTIFICATIONS_QUERY_KEY,
+    queryFn: fetchNotifications,
+  });
+
+  return notifications.find((notification) => notification.id === id);
+}
+
+export async function markNotificationAcknowledged(id: string) {
+  await parseResponse(apiClient.notifications[":id"].acknowledge.$post({ param: { id } }));
+  await queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
 }

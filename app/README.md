@@ -18,12 +18,12 @@ The app talks to the API using Hono RPC.
 `app/routes.ts` declares the pages. The shared layout renders the signed-in
 user's unacknowledged notifications above every page.
 
-| Path                 | Page                                                        |
-| -------------------- | ----------------------------------------------------------- |
-| `/`                  | Redirects to the feed                                       |
-| `/feed`              | The latest scrobbles from everyone                          |
-| `/settings`          | Profile settings and history import; requires a session     |
-| `/user/:username`    | A user's profile and history                                |
-| `/onboard`           | Name and username for a new user                            |
-| `/notifications/:id` | Acknowledges the notification, signs out and starts sign-in |
-| `/auth/error`        | Explains a failed Spotify sign-in                           |
+| Path                 | Page                                                    |
+| -------------------- | ------------------------------------------------------- |
+| `/`                  | Redirects to the feed                                   |
+| `/feed`              | The latest scrobbles from everyone                      |
+| `/settings`          | Profile settings and history import; requires a session |
+| `/user/:username`    | A user's profile and history                            |
+| `/onboard`           | Name and username for a new user                        |
+| `/notifications/:id` | Runs the notification's acknowledge action              |
+| `/auth/error`        | Explains a failed Spotify sign-in                       |

@@ -196,9 +196,9 @@ export type ImportInsert = typeof imports.$inferInsert;
 export type Import = typeof imports.$inferSelect;
 
 /**
- * A message for one user, shown in the app until they acknowledge it. There is
- * no creation route: an operator inserts rows, and the column defaults supply
- * the ID and the creation time.
+ * A message for one user, shown in the app until they acknowledge it. `type`
+ * selects how the app renders and acknowledges it. There is no creation route,
+ * and the column defaults supply the ID and the creation time.
  */
 export const notifications = sqliteTable(
   "notifications",
@@ -209,6 +209,7 @@ export const notifications = sqliteTable(
     userId: text()
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    type: text().notNull(),
     title: text().notNull(),
     body: text().notNull(),
     createdAt: integer({ mode: "timestamp" })
