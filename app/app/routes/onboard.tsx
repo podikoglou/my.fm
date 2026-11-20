@@ -60,7 +60,7 @@ export default function OnboardPage() {
   };
 
   return (
-    <div className="flex w-96 flex-col gap-6">
+    <div className="flex w-full flex-col gap-6 sm:w-96">
       <CardHeader className="flex flex-1 flex-col gap-4">
         <div>
           <CardTitle className="text-3xl font-bold">One more thing...</CardTitle>
