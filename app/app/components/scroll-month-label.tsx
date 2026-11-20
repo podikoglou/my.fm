@@ -1,3 +1,5 @@
+import { Badge } from "./ui/badge";
+
 const LABEL_HEIGHT = 24;
 
 /** The month pill that follows the scrollbar thumb while the list is scrolling. */
@@ -13,15 +15,16 @@ export function ScrollMonthLabel({
   visible: boolean;
 }) {
   return (
-    <div
+    <Badge
       aria-hidden
-      className="pointer-events-none absolute right-3 z-20 rounded-full border bg-card px-2.5 text-xs leading-[22px] font-medium shadow-sm transition-opacity duration-150 motion-reduce:transition-none"
+      variant="outline"
+      className="pointer-events-none absolute right-3 z-20 h-6 rounded-full bg-card px-2.5 transition-opacity duration-150 motion-reduce:transition-none"
       style={{
         top: progress * Math.max(0, viewportHeight - LABEL_HEIGHT),
         opacity: visible ? 1 : 0,
       }}
     >
       {label}
-    </div>
+    </Badge>
   );
 }
