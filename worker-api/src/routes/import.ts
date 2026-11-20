@@ -1,10 +1,12 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 import type { Database } from "../db/index.ts";
 import type { ImportInsert } from "../db/schema.ts";
 import type { AppEnv } from "../types.ts";
 
 import { requireSession, sessionMiddleware } from "../auth-middleware.ts";
+import { describeError, getD1QuotaError } from "../db/errors.ts";
 import { createDatabase } from "../db/index.ts";
 import {
   findLatestImportByUserId,
@@ -18,6 +20,7 @@ import { hasValidRow, readImportFile } from "../import/file.ts";
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 const ACTIVE_IMPORT_ERROR = "An import is already in progress";
+const IMPORT_FAILED_ERROR = "Import failed. Please try again.";
 
 /**
  * Record an upload whose file is already in storage.
@@ -43,6 +46,22 @@ async function recordUpload(bucket: R2Bucket, db: Database, values: ImportInsert
 }
 
 export default new Hono<AppEnv>()
+  .onError((error, c) => {
+    if (error instanceof HTTPException && error.status === 401) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    console.error("Import request failed", describeError(error));
+
+    if (getD1QuotaError(error)) {
+      return c.json(
+        { error: "Imports are temporarily unavailable. Please try again tomorrow." },
+        503,
+      );
+    }
+
+    return c.json({ error: IMPORT_FAILED_ERROR }, 500);
+  })
   .use("/*", sessionMiddleware)
   .use("/*", requireSession)
   .get("/latest", async (c) => {
@@ -55,7 +74,10 @@ export default new Hono<AppEnv>()
     const db = createDatabase(c.env.DB);
     const latest = await findLatestImportByUserId(db, user.id);
 
-    return c.json({ import: latest ?? null }, 200);
+    return c.json(
+      { import: latest ? { ...latest, error: latest.error ? IMPORT_FAILED_ERROR : null } : null },
+      200,
+    );
   })
   .post("/", async (c) => {
     const user = c.get("user");
