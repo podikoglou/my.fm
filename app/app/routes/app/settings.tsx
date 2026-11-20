@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 
+import { AppearanceSettings } from "~/components/settings/appearance-settings";
 import { SettingsRow } from "~/components/settings/settings-row";
 import { SettingsSection } from "~/components/settings/settings-section";
 import { Button, buttonVariants } from "~/components/ui/button";
@@ -107,6 +108,8 @@ export default function SettingsPage() {
             }
           />
         </SettingsSection>
+
+        <AppearanceSettings />
 
         <SettingsSection title="Data">
           <SettingsRow

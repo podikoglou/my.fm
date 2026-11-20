@@ -15,6 +15,7 @@ import type { Route } from "./+types/root";
 import { ErrorCard } from "./components/error-card";
 import { CardLayout } from "./components/ui/card-layout";
 import { queryClient } from "./lib/query";
+import { themeBootstrapScript } from "./lib/theme";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -31,10 +32,11 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <script>{themeBootstrapScript}</script>
         <Meta />
         <Links />
       </head>
