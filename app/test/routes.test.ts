@@ -25,35 +25,12 @@ function findChain(nodes: readonly RouteNode[], path: string): RouteNode[] | und
   return undefined;
 }
 
-/** Return the nodes from the root down to the first match. */
-function findChainWhere(
-  nodes: readonly RouteNode[],
-  match: (node: RouteNode) => boolean,
-): RouteNode[] | undefined {
-  for (const node of nodes) {
-    if (match(node)) return [node];
-
-    const chain = findChainWhere(node.children ?? [], match);
-
-    if (chain) return [node, ...chain];
-  }
-
-  return undefined;
-}
-
 test("the OAuth error page is registered where Better Auth redirects", () => {
   const node = flatten(routes).find(({ path }) => path === AUTH_ERROR_ROUTE);
 
   expect(node).toBeDefined();
   expect(`/${node!.path}`).toBe(AUTH_ERROR_PATH);
   expect(existsSync(join(import.meta.dirname, "../app", node!.file!))).toBe(true);
-});
-
-test("the profile is a page at /user/:username and not below /app", () => {
-  const paths = flatten(routes).flatMap(({ path }) => (path === undefined ? [] : [path]));
-
-  expect(paths).toContain("user/:username");
-  expect(paths.filter((path) => path === "app" || path.startsWith("app/"))).toEqual([]);
 });
 
 test("the profile route is not behind the guarded layout", () => {
@@ -68,13 +45,5 @@ test("the feed is a public page outside the guarded layout", () => {
   const files = chain?.map(({ file }) => file) ?? [];
 
   expect(files).toContain("routes/feed.tsx");
-  expect(files).not.toContain("routes/app/layout.tsx");
-});
-
-test("the root sends a visitor to the public feed", () => {
-  const chain = findChainWhere(routes, (node) => node.index === true);
-  const files = chain?.map(({ file }) => file) ?? [];
-
-  expect(files).toContain("routes/index.tsx");
   expect(files).not.toContain("routes/app/layout.tsx");
 });

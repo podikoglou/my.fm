@@ -71,18 +71,6 @@ export function createStatementWriteLimitDatabase(database: D1Database): D1Datab
 }
 
 /**
- * A database whose update statements reject with the given error, while
- * inserts and reads pass through.
- */
-export function createFailingUpdateDatabase(message: string, database: D1Database): D1Database {
-  return asD1Database({
-    prepare: (sql: string) =>
-      /^update\b/i.test(sql) ? rejectingStatement(message) : database.prepare(sql),
-    batch: (statements: D1PreparedStatement[]) => database.batch(statements),
-  });
-}
-
-/**
  * A database whose inserts into one table reject with the given error, while
  * every other statement passes through.
  */

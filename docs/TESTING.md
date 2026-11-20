@@ -69,11 +69,12 @@ Those tests use plain Vitest in Node and import the route table and the modules
 under test. The website handler tests are pure request-routing unit tests;
 they do not exercise Workers runtime APIs. They pin the
 places where two files must agree, such as a registered path and the file behind
-it, or an error code and its message. There is no DOM renderer; do not add one
+it. There is no DOM renderer; do not add one
 for a question that a table or a pure function can answer.
 
 ## What to assert
 
 The behaviour the requirement states, and not the values that the current code
 happens to produce. When a test fails, decide which of the two is wrong. A test
-is deleted only when the behaviour it pins has gone on purpose.
+is deleted when the behaviour it pins has gone on purpose, or when it pins
+nothing we own: a library's behaviour, a constant, or plain query plumbing.

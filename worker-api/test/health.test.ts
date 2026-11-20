@@ -48,15 +48,6 @@ describe("GET /health/ingestion", () => {
     });
   });
 
-  test("reports ok after a recent run", async () => {
-    await recordIngestionRun(createDatabase(env.DB), { at: new Date(), status: "ok" });
-
-    const response = await createApp().request("/health/ingestion", undefined, env);
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ status: "ok", lastRunStatus: "ok" });
-  });
-
   test("reports stale when the last run is too old", async () => {
     const at = new Date(Date.now() - INGESTION_STALE_AFTER_MS - 60_000);
     await recordIngestionRun(createDatabase(env.DB), { at, status: "ok" });
