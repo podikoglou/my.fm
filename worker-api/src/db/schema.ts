@@ -195,6 +195,33 @@ export type ImportInsert = typeof imports.$inferInsert;
 
 export type Import = typeof imports.$inferSelect;
 
+/**
+ * A message for one user, shown in the app until they acknowledge it. There is
+ * no creation route: an operator inserts rows, and the column defaults supply
+ * the ID and the creation time.
+ */
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text()
+      .primaryKey()
+      .default(sql`(lower(hex(randomblob(16))))`),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text().notNull(),
+    body: text().notNull(),
+    createdAt: integer({ mode: "timestamp" })
+      .default(sql`(unixepoch())`)
+      .notNull(),
+    /** Null while the notification is unacknowledged. */
+    acknowledgedAt: integer({ mode: "timestamp_ms" }),
+  },
+  (table) => [index("notifications_user_id_idx").on(table.userId)],
+);
+
+export type Notification = typeof notifications.$inferSelect;
+
 export const albums = sqliteTable("albums", {
   spotifyUri: text().primaryKey(),
   createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
@@ -291,6 +318,7 @@ export const relations = defineRelations(
     albumArtists,
     tracks,
     imports,
+    notifications,
   },
   (r) => ({
     users: {
@@ -298,12 +326,16 @@ export const relations = defineRelations(
       sessions: r.many.sessions({ from: r.users.id, to: r.sessions.userId }),
       accounts: r.many.accounts({ from: r.users.id, to: r.accounts.userId }),
       imports: r.many.imports({ from: r.users.id, to: r.imports.userId }),
+      notifications: r.many.notifications({ from: r.users.id, to: r.notifications.userId }),
     },
     sessions: {
       user: r.one.users({ from: r.sessions.userId, to: r.users.id, optional: false }),
     },
     accounts: {
       user: r.one.users({ from: r.accounts.userId, to: r.users.id, optional: false }),
+    },
+    notifications: {
+      user: r.one.users({ from: r.notifications.userId, to: r.users.id, optional: false }),
     },
     imports: {
       user: r.one.users({ from: r.imports.userId, to: r.users.id, optional: false }),

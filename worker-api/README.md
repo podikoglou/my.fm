@@ -41,6 +41,65 @@ bun run test
 bun run db:generate
 ```
 
+## Routes
+
+The API is mounted at `/api`. Routes marked "session" answer `401` without a
+signed-in user.
+
+| Route                                        | Access  | Purpose                                     |
+| -------------------------------------------- | ------- | ------------------------------------------- |
+| `POST`, `GET` `/api/auth/*`                  | public  | Better Auth sign-in, callback and sign-out  |
+| `GET /api/user/me`                           | session | The signed-in user                          |
+| `GET /api/user/byUsername`, `/byId`          | public  | A profile, unless it is private             |
+| `PATCH /api/user/settings`                   | session | Update the profile settings                 |
+| `PUT /api/user/onboard`                      | session | Set the name and username                   |
+| `GET /api/scrobble/getRecent`                | public  | A user's recent scrobbles                   |
+| `GET /api/scrobble/getMonths`                | public  | A user's scrobble counts by month           |
+| `GET /api/feed`                              | public  | The latest scrobbles from everyone          |
+| `GET /api/import/latest`, `POST /api/import` | session | The latest history import, and a new upload |
+| `GET /api/notifications`                     | session | The user's unacknowledged notifications     |
+| `POST /api/notifications/:id/acknowledge`    | session | Acknowledge one of the user's notifications |
+| `GET /health`, `GET /health/ingestion`       | public  | Uptime checks                               |
+
+`POST /api/notifications/:id/acknowledge` answers `404` for an ID that belongs
+to another user, the same as for one that does not exist. Acknowledging twice
+keeps the first time.
+
+## Data model
+
+The Drizzle schema in `src/db/schema.ts` defines the D1 tables, and
+`bun run db:generate` writes the migrations in `drizzle/`.
+
+- `users`, `sessions`, `accounts` and `verification` belong to Better Auth.
+  `accounts.scope` holds the Spotify scopes that the user granted.
+- `scrobbles` holds plays, and `tracks`, `albums`, `artists`, `track_artists`
+  and `album_artists` describe them.
+- `imports` tracks history uploads; `docs/IMPORT-DESIGN.md` describes them.
+- `ingestion_runs` records the cron's runs.
+- `notifications` holds messages for one user: `id`, `userId`, `title`,
+  `body`, `createdAt` and `acknowledgedAt`. A notification is unacknowledged
+  while `acknowledgedAt` is null, and the app shows it until the user clicks
+  it. Deleting a user deletes their notifications.
+
+### Sending a notification
+
+No route creates notifications. Insert rows with D1; the defaults fill in `id`
+and `createdAt`. For example, to ask users whose Spotify grant predates
+`user-read-currently-playing` to sign in again:
+
+```sql
+INSERT INTO notifications (userId, title, body)
+SELECT user_id,
+  'Reconnect your Spotify account',
+  'my.fm now reads the track you are playing, and your Spotify sign-in does not allow it yet. Click here to sign out, then sign in again to grant access.'
+FROM accounts
+WHERE provider_id = 'spotify'
+  AND (scope IS NULL OR scope NOT LIKE '%user-read-currently-playing%');
+```
+
+Clicking a notification opens `/notifications/:id` in the app, which
+acknowledges it, signs the user out and starts Spotify sign-in.
+
 ## Configuration
 
 The root `.env` holds `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`.

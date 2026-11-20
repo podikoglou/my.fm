@@ -1,6 +1,5 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { http } from "msw";
 import { describe, expect, test } from "vitest";
 import z from "zod";
 
@@ -22,9 +21,7 @@ import {
   tracks,
   users,
 } from "../src/db/schema.ts";
-import { network } from "./network.ts";
-
-const baseUrl = "http://app.test";
+import { baseUrl, signIn } from "./session.ts";
 
 const userId = "V1StGXR8_Z5jdHi6B-myT";
 const now = new Date("2026-11-11T12:00:00.000Z");
@@ -350,77 +347,9 @@ describe("authenticated routes", () => {
   });
 });
 
-async function signIn(
-  env: Cloudflare.Env,
-  spotify: { id: string; email: string },
-): Promise<{ cookie: string; userId: string }> {
-  const app = createApp();
-
-  network.use(
-    http.all("https://*.spotify.com/*", async ({ request }) => {
-      const url = request.url;
-
-      if (url.startsWith("https://accounts.spotify.com/api/token")) {
-        return Response.json({
-          access_token: "access-token",
-          expires_in: 3600,
-          refresh_token: "refresh-token",
-          scope: "user-read-email",
-          token_type: "Bearer",
-        });
-      }
-
-      if (url.startsWith("https://api.spotify.com/v1/me")) {
-        return Response.json({
-          display_name: "Test User",
-          email: spotify.email,
-          id: spotify.id,
-          images: [],
-        });
-      }
-
-      throw new Error(`Unexpected fetch: ${url}`);
-    }),
-  );
-
-  const signInResponse = await app.request(
-    `${baseUrl}/api/auth/sign-in/social`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: baseUrl },
-      body: JSON.stringify({ provider: "spotify", callbackURL: `${baseUrl}/onboard` }),
-    },
-    env,
-  );
-
-  const { url } = z.object({ url: z.string() }).parse(await signInResponse.json());
-  const state = new URL(url).searchParams.get("state");
-  const cookies = signInResponse.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
-
-  const callback = await app.request(
-    `${baseUrl}/api/auth/callback/spotify?code=fake-code&state=${state}`,
-    { headers: { cookie: cookies.join("; ") } },
-    env,
-  );
-
-  expect(callback.status).toBe(302);
-
-  const sessionCookies = callback.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
-
-  const user = await createDatabase(env.DB).query.users.findFirst({
-    where: { email: spotify.email },
-  });
-
-  if (!user) {
-    throw new Error("The Spotify callback did not create a user");
-  }
-
-  return { cookie: sessionCookies.join("; "), userId: user.id };
-}
-
 describe("settings routes", () => {
   test("returns the privacy setting on the current user", async () => {
-    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
 
     const response = await createApp().request(
       `${baseUrl}/api/user/me`,
@@ -441,7 +370,7 @@ describe("settings routes", () => {
   });
 
   test("updates the privacy setting for the session user", async () => {
-    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
 
     const response = await createApp().request(
       `${baseUrl}/api/user/settings`,
@@ -464,7 +393,7 @@ describe("settings routes", () => {
   });
 
   test("rejects an invalid privacy value", async () => {
-    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
 
     const response = await createApp().request(
       `${baseUrl}/api/user/settings`,
@@ -480,8 +409,8 @@ describe("settings routes", () => {
   });
 
   test("hides the profile from other users after the owner makes it private", async () => {
-    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
-    const other = await signIn(env, { id: "spotify-other", email: "other@example.com" });
+    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
+    const other = await signIn({ id: "spotify-other", email: "other@example.com" });
 
     await createDatabase(env.DB)
       .update(users)
@@ -515,8 +444,8 @@ describe("settings routes", () => {
 
 describe("profile visibility", () => {
   test("hides a private profile and its scrobbles from other users", async () => {
-    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
-    const other = await signIn(env, { id: "spotify-other", email: "other@example.com" });
+    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
+    const other = await signIn({ id: "spotify-other", email: "other@example.com" });
 
     await createDatabase(env.DB)
       .update(users)
@@ -539,7 +468,7 @@ describe("profile visibility", () => {
   });
 
   test("shows a private profile to its owner", async () => {
-    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
+    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
 
     await createDatabase(env.DB)
       .update(users)
@@ -562,8 +491,8 @@ describe("profile visibility", () => {
   });
 
   test("shows a public profile to other users", async () => {
-    const owner = await signIn(env, { id: "spotify-owner", email: "owner@example.com" });
-    const other = await signIn(env, { id: "spotify-other", email: "other@example.com" });
+    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
+    const other = await signIn({ id: "spotify-other", email: "other@example.com" });
 
     await createDatabase(env.DB)
       .update(users)

@@ -78,3 +78,12 @@ test("the root sends a visitor to the public feed", () => {
   expect(files).toContain("routes/index.tsx");
   expect(files).not.toContain("routes/app/layout.tsx");
 });
+
+test("a notification's page is registered outside the guarded layout", () => {
+  const chain = findChain(routes, "notifications/:id");
+  const files = chain?.map(({ file }) => file) ?? [];
+
+  expect(files).toContain("routes/notification.tsx");
+  expect(files).not.toContain("routes/app/layout.tsx");
+  expect(existsSync(join(import.meta.dirname, "../app/routes/notification.tsx"))).toBe(true);
+});

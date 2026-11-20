@@ -1,5 +1,4 @@
 import { env } from "cloudflare:workers";
-import { http } from "msw";
 import { describe, expect, test } from "vitest";
 import z from "zod";
 
@@ -8,74 +7,7 @@ import { createDatabase } from "../src/db/index.ts";
 import { imports } from "../src/db/schema.ts";
 import { runImportIngestion } from "../src/ingestion/import.ts";
 import { createFailingInsertDatabase, D1_WRITE_LIMIT_MESSAGE } from "./d1.ts";
-import { network } from "./network.ts";
-
-const baseUrl = "http://app.test";
-
-async function signIn(spotify: { id: string; email: string }) {
-  const app = createApp();
-
-  network.use(
-    http.all("https://*.spotify.com/*", ({ request }) => {
-      const url = request.url;
-
-      if (url.startsWith("https://accounts.spotify.com/api/token")) {
-        return Response.json({
-          access_token: "access-token",
-          expires_in: 3600,
-          refresh_token: "refresh-token",
-          scope: "user-read-email",
-          token_type: "Bearer",
-        });
-      }
-
-      if (url.startsWith("https://api.spotify.com/v1/me")) {
-        return Response.json({
-          display_name: "Test User",
-          email: spotify.email,
-          id: spotify.id,
-          images: [],
-        });
-      }
-
-      throw new Error(`Unexpected fetch: ${url}`);
-    }),
-  );
-
-  const signInResponse = await app.request(
-    `${baseUrl}/api/auth/sign-in/social`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: baseUrl },
-      body: JSON.stringify({ provider: "spotify", callbackURL: `${baseUrl}/onboard` }),
-    },
-    env,
-  );
-
-  const { url } = z.object({ url: z.string() }).parse(await signInResponse.json());
-  const state = new URL(url).searchParams.get("state");
-  const cookies = signInResponse.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
-
-  const callback = await app.request(
-    `${baseUrl}/api/auth/callback/spotify?code=fake-code&state=${state}`,
-    { headers: { cookie: cookies.join("; ") } },
-    env,
-  );
-
-  expect(callback.status).toBe(302);
-
-  const sessionCookies = callback.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
-
-  const user = await createDatabase(env.DB).query.users.findFirst({
-    where: { email: spotify.email },
-  });
-
-  if (!user) {
-    throw new Error("The Spotify callback did not create a user");
-  }
-
-  return { cookie: sessionCookies.join("; "), userId: user.id };
-}
+import { baseUrl, signIn } from "./session.ts";
 
 describe("import routes", () => {
   test("rejects import routes without a session", async () => {
