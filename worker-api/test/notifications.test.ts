@@ -64,8 +64,8 @@ describe("notification routes", () => {
   });
 
   test("list the user's unacknowledged notifications, newest first", async () => {
-    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
-    const other = await signIn({ id: "spotify-other", email: "other@example.com" });
+    const owner = await signIn({ id: "owner-account", email: "owner@example.com" });
+    const other = await signIn({ id: "other-account", email: "other@example.com" });
 
     const older = await seedNotification(owner.userId, "Older", new Date("2026-11-01T00:00:00Z"));
     const newer = await seedNotification(owner.userId, "Newer", new Date("2026-11-02T00:00:00Z"));
@@ -91,8 +91,8 @@ describe("notification routes", () => {
   });
 
   test("acknowledging removes the notification from the list", async () => {
-    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
-    const notification = await seedNotification(owner.userId, "Reauthorize", new Date());
+    const owner = await signIn({ id: "owner-account", email: "owner@example.com" });
+    const notification = await seedNotification(owner.userId, "Welcome", new Date());
 
     const response = await acknowledge(notification.id, owner.cookie);
 
@@ -102,8 +102,8 @@ describe("notification routes", () => {
   });
 
   test("acknowledging again keeps the first acknowledgement", async () => {
-    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
-    const notification = await seedNotification(owner.userId, "Reauthorize", new Date());
+    const owner = await signIn({ id: "owner-account", email: "owner@example.com" });
+    const notification = await seedNotification(owner.userId, "Welcome", new Date());
 
     await acknowledge(notification.id, owner.cookie);
     const first = await findAcknowledgedAt(notification.id);
@@ -113,9 +113,9 @@ describe("notification routes", () => {
   });
 
   test("another user's notification answers 404 and stays unacknowledged", async () => {
-    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
-    const other = await signIn({ id: "spotify-other", email: "other@example.com" });
-    const notification = await seedNotification(owner.userId, "Reauthorize", new Date());
+    const owner = await signIn({ id: "owner-account", email: "owner@example.com" });
+    const other = await signIn({ id: "other-account", email: "other@example.com" });
+    const notification = await seedNotification(owner.userId, "Welcome", new Date());
 
     const response = await acknowledge(notification.id, other.cookie);
 
@@ -124,14 +124,14 @@ describe("notification routes", () => {
   });
 
   test("an unknown notification answers 404", async () => {
-    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
+    const owner = await signIn({ id: "owner-account", email: "owner@example.com" });
 
     expect((await acknowledge("missing", owner.cookie)).status).toBe(404);
   });
 
   test("deleting a user deletes their notifications", async () => {
-    const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
-    const notification = await seedNotification(owner.userId, "Reauthorize", new Date());
+    const owner = await signIn({ id: "owner-account", email: "owner@example.com" });
+    const notification = await seedNotification(owner.userId, "Welcome", new Date());
     const db = createDatabase(env.DB);
 
     await db.delete(users).where(eq(users.id, owner.userId));
