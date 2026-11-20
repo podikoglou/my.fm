@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { DetailedError, parseResponse } from "hono/client";
 import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router";
 import { z } from "zod";
@@ -14,6 +13,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { UserAvatar } from "~/components/user-avatar";
+import { useImportUpload } from "~/hooks/use-import-upload";
 import { apiClient } from "~/lib/api";
 import { queryClient } from "~/lib/query";
 
@@ -74,7 +74,8 @@ export default function SettingsPage() {
     },
   });
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { inputRef, selectedFile, setSelectedFile, uploadImport, handleImportSubmit } =
+    useImportUpload();
 
   const { data: latestImportData } = useQuery({
     queryKey: ["import", "latest"],
@@ -86,22 +87,6 @@ export default function SettingsPage() {
   });
 
   const latestImport = latestImportData?.import;
-
-  const uploadImport = useMutation({
-    mutationFn: (file: File) => parseResponse(apiClient.import.$post({ form: { file } })),
-    onSuccess: () => {
-      setSelectedFile(null);
-      queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
-    },
-  });
-
-  const handleImportSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (selectedFile) {
-      uploadImport.mutate(selectedFile);
-    }
-  };
 
   if (!data) return <></>;
 
@@ -191,6 +176,7 @@ export default function SettingsPage() {
 
           <form onSubmit={handleImportSubmit} className="flex flex-col gap-3">
             <Input
+              ref={inputRef}
               id="history-file"
               type="file"
               accept=".csv"
