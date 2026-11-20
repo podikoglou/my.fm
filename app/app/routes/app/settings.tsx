@@ -14,6 +14,7 @@ import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { UserAvatar } from "~/components/user-avatar";
 import { useImportUpload } from "~/hooks/use-import-upload";
+import { useSignOut } from "~/hooks/use-sign-out";
 import { apiClient } from "~/lib/api";
 import { queryClient } from "~/lib/query";
 
@@ -76,6 +77,8 @@ export default function SettingsPage() {
 
   const { inputRef, selectedFile, setSelectedFile, uploadImport, handleImportSubmit } =
     useImportUpload();
+
+  const signOut = useSignOut();
 
   const { data: latestImportData } = useQuery({
     queryKey: ["import", "latest"],
@@ -216,6 +219,20 @@ export default function SettingsPage() {
               {uploadImport.isPending ? "Uploading..." : "Import"}
             </Button>
           </form>
+        </div>
+
+        <div>
+          <Button
+            variant="outline"
+            disabled={signOut.isPending}
+            focusableWhenDisabled
+            onClick={() => signOut.mutate()}
+          >
+            {signOut.isPending ? "Signing out..." : "Sign out"}
+          </Button>
+          <div role="status" className="text-sm text-destructive">
+            {signOut.isError && <p className="mt-2">Could not sign out. Try again.</p>}
+          </div>
         </div>
       </CardContent>
     </>
