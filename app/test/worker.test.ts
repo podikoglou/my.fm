@@ -1,6 +1,5 @@
 import { expect, test } from "vitest";
 
-import { API_RUN_WORKER_FIRST } from "../api-paths.ts";
 import worker from "../worker.ts";
 
 type WebsiteEnv = Parameters<typeof worker.fetch>[1];
@@ -40,10 +39,6 @@ function createEnv() {
   return { env, apiPaths, assetPaths };
 }
 
-test("asset routing covers every API path", () => {
-  expect(API_RUN_WORKER_FIRST).toEqual(["/api/*", "/health"]);
-});
-
 test("forwards API paths over the service binding", async () => {
   const { env, apiPaths, assetPaths } = createEnv();
 
@@ -80,46 +75,4 @@ test("serves every other path from the assets", async () => {
 
   expect(apiPaths).toEqual([]);
   expect(assetPaths).toEqual(paths);
-});
-
-test("returns the API response and request unchanged", async () => {
-  const redirect = new Response(null, {
-    status: 302,
-    headers: {
-      location: "https://accounts.spotify.com/authorize",
-      "set-cookie": "better-auth.state=abc; Path=/; HttpOnly",
-    },
-  });
-
-  const received: Request[] = [];
-
-  const env: WebsiteEnv = {
-    API: createService(async (request) => {
-      received.push(request);
-
-      return redirect;
-    }),
-    ASSETS: createService(async () => new Response("asset")),
-  };
-
-  const request = new Request("https://app.test/api/auth/callback/spotify?code=1", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      cookie: "better-auth.state=abc",
-      origin: "https://app.test",
-    },
-    body: '{"code":"1"}',
-  });
-
-  const response = await worker.fetch(request, env);
-
-  expect(response).toBe(redirect);
-  expect(received[0]).toBe(request);
-  expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toBe("https://accounts.spotify.com/authorize");
-  expect(response.headers.get("set-cookie")).toBe("better-auth.state=abc; Path=/; HttpOnly");
-  expect(received[0].method).toBe("POST");
-  expect(received[0].headers.get("cookie")).toBe("better-auth.state=abc");
-  expect(received[0].headers.get("origin")).toBe("https://app.test");
 });

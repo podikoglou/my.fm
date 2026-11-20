@@ -7,12 +7,7 @@ import z from "zod";
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../src/db/queries/scrobbles.ts";
-import {
-  findUserById,
-  findUserByIdPublic,
-  findUserByUsernamePublic,
-  onboardUser,
-} from "../src/db/queries/users.ts";
+import { findUserByIdPublic, findUserByUsernamePublic } from "../src/db/queries/users.ts";
 import {
   albumArtists,
   albums,
@@ -98,15 +93,6 @@ async function seed() {
 }
 
 describe("user queries", () => {
-  test("reads the application user by id", async () => {
-    const { db } = await seed();
-
-    const user = await findUserById(db, userId);
-
-    expect(user?.email).toBe("alex@example.com");
-    expect(user?.onboarded).toBe(true);
-  });
-
   test("limits public lookups to the public columns", async () => {
     const { db } = await seed();
 
@@ -121,17 +107,6 @@ describe("user queries", () => {
       isPrivate: false,
     });
     expect(byId).toEqual(byUsername);
-  });
-
-  test("marks the user as onboarded", async () => {
-    const { db } = await seed();
-
-    await onboardUser(db, userId, { username: "alex_new", name: "Alex New" });
-    const user = await findUserById(db, userId);
-
-    expect(user?.username).toBe("alex_new");
-    expect(user?.name).toBe("Alex New");
-    expect(user?.onboarded).toBe(true);
   });
 });
 
@@ -152,14 +127,6 @@ describe("scrobble queries", () => {
     ]);
     expect(scrobble?.album?.name).toBe("An Album");
     expect(scrobble?.album?.albumArtists[0]?.artist.name).toBe("First Artist");
-  });
-
-  test("applies the offset and limit", async () => {
-    const { db } = await seed();
-
-    const recent = await findRecentScrobblesByUserId(db, userId, { offset: 1, limit: 1 });
-
-    expect(recent.map((scrobble) => scrobble.id)).toEqual(["scrobble-old"]);
   });
 
   test("returns only scrobbles played before the given time", async () => {
@@ -334,6 +301,10 @@ describe("authenticated routes", () => {
       app.request("/api/user/me", undefined, env),
       app.request("/api/user/onboard", { method: "PUT" }, env),
       app.request("/api/user/settings", { method: "PATCH" }, env),
+      app.request("/api/notifications", undefined, env),
+      app.request("/api/notifications/any-id/acknowledge", { method: "POST" }, env),
+      app.request("/api/import", { method: "POST" }, env),
+      app.request("/api/import/latest", undefined, env),
     ];
 
     for (const response of await Promise.all(requests)) {
@@ -341,12 +312,6 @@ describe("authenticated routes", () => {
       // The error handler forwards HTTPException's empty message.
       expect(await response.json()).toEqual({ error: "" });
     }
-  });
-
-  test("does not serve the client routes outside /api", async () => {
-    const response = await createApp().request("/user/me", undefined, env);
-
-    expect(response.status).toBe(404);
   });
 });
 

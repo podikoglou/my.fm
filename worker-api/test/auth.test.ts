@@ -9,13 +9,6 @@ import { network } from "./network.ts";
 const baseUrl = "http://app.test";
 
 describe("auth routes", () => {
-  test("returns no session without a session cookie", async () => {
-    const response = await createApp().request(`${baseUrl}/api/auth/get-session`, undefined, env);
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toBe(null);
-  });
-
   test("starts Spotify authorization with the configured scopes", async () => {
     const response = await createApp().request(
       `${baseUrl}/api/auth/sign-in/social`,

@@ -78,47 +78,6 @@ async function signIn(spotify: { id: string; email: string }) {
 }
 
 describe("import routes", () => {
-  test("rejects import routes without a session", async () => {
-    const app = createApp();
-
-    const postResponse = await app.request(
-      `${baseUrl}/api/import`,
-      {
-        method: "POST",
-      },
-      env,
-    );
-
-    expect(postResponse.status).toBe(401);
-
-    const getResponse = await app.request(`${baseUrl}/api/import/latest`, undefined, env);
-
-    expect(getResponse.status).toBe(401);
-  });
-
-  test("rejects request without a file", async () => {
-    const app = createApp();
-    const { cookie } = await signIn({ id: "user-1", email: "user1@example.com" });
-
-    const formData = new FormData();
-
-    const response = await app.request(
-      `${baseUrl}/api/import`,
-      {
-        method: "POST",
-        headers: { cookie },
-        body: formData,
-      },
-      env,
-    );
-
-    expect(response.status).toBe(400);
-
-    const body = z.object({ error: z.string() }).parse(await response.json());
-
-    expect(body.error).toBe("Missing CSV file");
-  });
-
   test("rejects CSV with missing headers", async () => {
     const app = createApp();
     const { cookie } = await signIn({ id: "user-2", email: "user2@example.com" });

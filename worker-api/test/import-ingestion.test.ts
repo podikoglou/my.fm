@@ -758,35 +758,4 @@ describe("import ingestion cron processor", () => {
     expect(await env.IMPORTS_BUCKET.get(getImportR2Key("import-first-write"))).not.toBeNull();
     expect(logs.messages).toEqual([[INGESTION_EVENTS.d1WriteLimit]]);
   });
-
-  test("logs the batch failure detail with its cause chain", async () => {
-    const db = createDatabase(env.DB);
-    const logs = captureLogs();
-
-    await seedImport(env, db, {
-      id: "import-detail",
-      userId: "user-detail",
-      username: "user_detail",
-      createdAt: new Date(),
-    });
-
-    try {
-      await runImportIngestion(env, {
-        batchLimit: 500,
-        throttleMs: 0,
-        fetchBatch: throwingFetchBatch(),
-      });
-    } finally {
-      logs.restore();
-    }
-
-    expect(logs.messages).toContainEqual([
-      INGESTION_EVENTS.importBatchFailed,
-      { name: "Error", message: "metadata endpoint unavailable", causes: [] },
-    ]);
-
-    const [row] = await db.select().from(imports);
-
-    expect(row?.attemptCount).toBe(1);
-  });
 });

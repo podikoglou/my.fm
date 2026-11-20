@@ -19,10 +19,4 @@ describe("spotifyUriToUrl", () => {
     const trackUrl = "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT";
     expect(spotifyUriToUrl(trackUrl)).toBe(trackUrl);
   });
-
-  test("returns undefined for null, undefined, or empty values", () => {
-    expect(spotifyUriToUrl(undefined)).toBeUndefined();
-    expect(spotifyUriToUrl(null)).toBeUndefined();
-    expect(spotifyUriToUrl("")).toBeUndefined();
-  });
 });

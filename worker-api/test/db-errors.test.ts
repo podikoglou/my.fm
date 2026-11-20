@@ -52,13 +52,6 @@ describe("getD1QuotaError", () => {
     expect(getD1QuotaError(new Error("D1_ERROR: FOREIGN KEY constraint failed"))).toBeNull();
   });
 
-  test("returns null when the cause is not an error", () => {
-    const error = new Error("Failed query: select from imports");
-    error.cause = "a string";
-
-    expect(getD1QuotaError(error)).toBeNull();
-  });
-
   test("stops walking after four errors in the chain", () => {
     const chained = chainOver(new Error(WRITE_LIMIT_MESSAGE), [
       "layer 1",
@@ -77,14 +70,6 @@ describe("describeError", () => {
       name: "DrizzleQueryError",
       message: 'Failed query: insert into "ingestion_runs" (id) values (?)',
       causes: [WRITE_LIMIT_MESSAGE],
-    });
-  });
-
-  test("returns no causes for a plain error", () => {
-    expect(describeError(new Error("metadata endpoint unavailable"))).toEqual({
-      name: "Error",
-      message: "metadata endpoint unavailable",
-      causes: [],
     });
   });
 

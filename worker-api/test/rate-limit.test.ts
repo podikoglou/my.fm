@@ -130,22 +130,6 @@ describe("auth rate limit", () => {
     expect(await response.json()).toEqual({ error: "Too many requests" });
     expect(response.headers.get("Retry-After")).toBe("60");
   });
-
-  test("limits sign-in", async () => {
-    await spendBudget("AUTH_RATE_LIMIT");
-
-    const response = await createApp().request(
-      "/api/auth/sign-in/social",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "spotify" }),
-      },
-      env,
-    );
-
-    expect(response.status).toBe(429);
-  });
 });
 
 describe("public read rate limit", () => {

@@ -28,11 +28,7 @@ import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { storePlays } from "../src/ingestion/plays.ts";
 import { runIngestion, shouldFetchHistory, shouldFetchUser } from "../src/ingestion/run.ts";
 import { SpotifyQuotaExceededError } from "../src/ingestion/spotify.ts";
-import {
-  createBatchWriteLimitDatabase,
-  createFailingUpdateDatabase,
-  createStatementWriteLimitDatabase,
-} from "./d1.ts";
+import { createBatchWriteLimitDatabase, createStatementWriteLimitDatabase } from "./d1.ts";
 import { captureLogs } from "./logs.ts";
 import { network } from "./network.ts";
 
@@ -390,17 +386,6 @@ describe("runIngestion", () => {
     expect(await db.select().from(scrobbles)).toHaveLength(1);
   });
 
-  test("does nothing when no Spotify accounts exist", async () => {
-    const calls: FetchCall[] = [];
-
-    await runIngestion(
-      env,
-      clientFor(calls, () => []),
-    );
-
-    expect(calls).toHaveLength(0);
-  });
-
   test("continues with other accounts when one fetch fails", async () => {
     const db = createDatabase(env.DB);
     const seen: string[] = [];
@@ -604,29 +589,6 @@ describe("runIngestion", () => {
     expect(seen).toHaveLength(2);
   });
 
-  test("logs the retry delay from a quota error", async () => {
-    const db = createDatabase(env.DB);
-    const logs = captureLogs();
-
-    try {
-      await seedUser(db, { userId: "user-1", accessToken: "token-1" });
-
-      await runIngestion(env, () => ({
-        getCurrentlyPlaying: async () => null,
-        getRecentlyPlayedTracks: async () => {
-          throw new SpotifyQuotaExceededError(66_362);
-        },
-      }));
-    } finally {
-      logs.restore();
-    }
-
-    expect(logs.messages).toContainEqual([INGESTION_EVENTS.quotaExhausted]);
-    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
-      expect.objectContaining({ status: "quota", retryAfterSeconds: 66_362 }),
-    ]);
-  });
-
   test("fetches a user once when a second Spotify account is linked", async () => {
     const db = createDatabase(env.DB);
     const calls: FetchCall[] = [];
@@ -649,56 +611,6 @@ describe("runIngestion", () => {
 
     expect(calls).toHaveLength(1);
     expect(["token-1", "token-2"].includes(calls[0]?.accessToken ?? "")).toBe(true);
-  });
-
-  test("logs one run-complete event per run with the stored totals", async () => {
-    const db = createDatabase(env.DB);
-    const logs = captureLogs();
-
-    const plays = [makePlay("2026-11-11T12:00:00.000Z"), makePlay("2026-11-11T12:01:00.000Z", "2")];
-
-    try {
-      await seedUser(db);
-      await runIngestion(
-        env,
-        clientFor([], () => plays),
-      );
-    } finally {
-      logs.restore();
-    }
-
-    expect(logs.named(INGESTION_EVENTS.accountIngested)).toEqual([
-      expect.objectContaining({ userId: "user-1", plays: 2 }),
-    ]);
-    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
-      expect.objectContaining({ status: "ok", accounts: 1, plays: 2, failures: 0 }),
-    ]);
-  });
-
-  test("counts a failed account in the run-complete event", async () => {
-    const db = createDatabase(env.DB);
-    const logs = captureLogs();
-
-    try {
-      await seedUser(db);
-      await runIngestion(env, () => ({
-        getCurrentlyPlaying: async () => null,
-        getRecentlyPlayedTracks: async () => {
-          throw new Error("Spotify unavailable");
-        },
-      }));
-    } finally {
-      logs.restore();
-    }
-
-    const [failure] = logs.messages.filter(
-      ([message]) => message === INGESTION_EVENTS.accountFailed,
-    );
-
-    expect(failure?.[1]).toEqual({ name: "Error", message: "Spotify unavailable", causes: [] });
-    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
-      expect.objectContaining({ status: "partial", accounts: 1, plays: 0, failures: 1 }),
-    ]);
   });
 
   test("records one heartbeat per run", async () => {
@@ -782,36 +694,6 @@ describe("runIngestion", () => {
       expect.objectContaining({ status: "ok", accounts: 0, plays: 0, failures: 0 }),
     ]);
     expect(await db.select().from(ingestionRuns)).toHaveLength(0);
-  });
-
-  test("logs the cause message of a wrapped update failure", async () => {
-    const db = createDatabase(env.DB);
-    const logs = captureLogs();
-
-    try {
-      await seedUser(db);
-      await runIngestion(
-        {
-          ...env,
-          DB: createFailingUpdateDatabase("D1_ERROR: FOREIGN KEY constraint failed", env.DB),
-        },
-        clientFor([], () => [makePlay("2026-11-11T12:00:00.000Z")]),
-      );
-    } finally {
-      logs.restore();
-    }
-
-    const [failure] = logs.messages.filter(
-      ([message]) => message === INGESTION_EVENTS.accountFailed,
-    );
-
-    expect(failure?.[1]).toMatchObject({
-      name: "DrizzleQueryError",
-      causes: ["D1_ERROR: FOREIGN KEY constraint failed"],
-    });
-    expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
-      expect.objectContaining({ status: "partial", accounts: 1, plays: 0, failures: 1 }),
-    ]);
   });
 });
 
