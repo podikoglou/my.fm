@@ -128,7 +128,7 @@ export default function SettingsPage() {
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col gap-6">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
         <div className="flex items-center gap-4 rounded-lg border p-4">
           <UserAvatar
             avatarUrl={data.avatarUrl}
