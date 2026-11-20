@@ -4,6 +4,8 @@ import { Link } from "react-router";
 import { useNotifications } from "~/hooks/use-notifications";
 import { notificationPath } from "~/lib/notifications";
 
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+
 export function NotificationList() {
   const { data: notifications } = useNotifications();
 
@@ -15,14 +17,14 @@ export function NotificationList() {
         <li key={notification.id}>
           <Link
             to={notificationPath(notification.id)}
-            className="flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="block rounded-lg focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
           >
-            <Bell className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-
-            <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium">{notification.title}</p>
-              <p className="text-sm text-muted-foreground">{notification.body}</p>
-            </div>
+            {/* The link carries the semantics; a persistent notice is not an alert. */}
+            <Alert role={undefined} className="transition-colors hover:bg-muted/50">
+              <Bell />
+              <AlertTitle>{notification.title}</AlertTitle>
+              <AlertDescription>{notification.body}</AlertDescription>
+            </Alert>
           </Link>
         </li>
       ))}
