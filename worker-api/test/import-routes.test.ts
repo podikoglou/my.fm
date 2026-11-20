@@ -5,6 +5,7 @@ import z from "zod";
 
 import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
+import { insertImport } from "../src/db/queries/imports.ts";
 import { imports } from "../src/db/schema.ts";
 import { runImportIngestion } from "../src/ingestion/import.ts";
 import { createFailingInsertDatabase, D1_WRITE_LIMIT_MESSAGE } from "./d1.ts";
@@ -298,12 +299,46 @@ describe("import routes", () => {
       { ...env, DB: createFailingInsertDatabase("imports", D1_WRITE_LIMIT_MESSAGE, env.DB) },
     );
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "Service is temporarily unavailable. Please try again tomorrow.",
+    });
     expect(await createDatabase(env.DB).select().from(imports)).toHaveLength(0);
 
     const stored = await env.IMPORTS_BUCKET.list();
 
     expect(stored.objects).toHaveLength(0);
+  });
+
+  test("keeps a D1 insert failure private", async () => {
+    const app = createApp();
+    const { cookie } = await signIn({ id: "insert-failure", email: "failure@example.com" });
+    const message =
+      "D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_FOREIGNKEY)";
+
+    await expect(
+      insertImport(createDatabase(env.DB), {
+        id: crypto.randomUUID(),
+        userId: "missing-user",
+        filename: "export.csv",
+        status: "pending",
+      }),
+    ).rejects.toMatchObject({ cause: { message } });
+
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new File(["Artist;Album;Track;Date#user\nArtist;Album;Track;1644436588000"], "export.csv"),
+    );
+
+    const response = await app.request(
+      `${baseUrl}/api/import`,
+      { method: "POST", headers: { cookie }, body: formData },
+      { ...env, DB: createFailingInsertDatabase("imports", message, env.DB) },
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Something went wrong. Please try again." });
   });
 
   test("reports failed status and error after repeated ingestion failures", async () => {

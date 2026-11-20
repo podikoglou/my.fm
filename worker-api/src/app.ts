@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./types.ts";
 
 import { createAuth } from "./auth.ts";
+import { describeError, getD1QuotaError } from "./db/errors.ts";
 import { createDatabase } from "./db/index.ts";
 import { findIngestionRun } from "./db/queries/ingestionRuns.ts";
 import { INGESTION_STALE_AFTER_MS } from "./ingestion/run.ts";
@@ -79,11 +80,22 @@ export function createApp() {
         c.json({ error: "Not found" }, 404, { "Cache-Control": "private, no-store" }),
       )
       .onError((err, c) => {
-        const status = err instanceof HTTPException ? err.status : 500;
+        c.header("Cache-Control", "private, no-store");
 
-        return c.json({ error: err.message ?? "Internal server error" }, status, {
-          "Cache-Control": "private, no-store",
-        });
+        if (err instanceof HTTPException) {
+          return c.json({ error: err.message }, err.status);
+        }
+
+        console.error("Request failed", describeError(err));
+
+        if (getD1QuotaError(err)) {
+          return c.json(
+            { error: "Service is temporarily unavailable. Please try again tomorrow." },
+            503,
+          );
+        }
+
+        return c.json({ error: "Something went wrong. Please try again." }, 500);
       })
   );
 }
