@@ -1,15 +1,15 @@
-import type { BatchItem } from "drizzle-orm/batch";
-
 import type { Database } from "../db/index.ts";
 import type { Import, Scrobble, User } from "../db/schema.ts";
 import type { ResolvedTrackMetadata } from "./graphql.ts";
 
-import { insertAlbumArtist } from "../db/queries/albumArtists.ts";
-import { insertAlbum } from "../db/queries/albums.ts";
-import { insertArtist } from "../db/queries/artists.ts";
-import { findRecordedPlaysBetween, insertScrobble } from "../db/queries/scrobbles.ts";
-import { insertTrackArtist } from "../db/queries/trackArtists.ts";
-import { insertTrack } from "../db/queries/tracks.ts";
+import {
+  findRecordedPlaysBetween,
+  persistPlays,
+  type PlayAlbum,
+  type PlayArtist,
+  type PlayRecord,
+  type PlayTrack,
+} from "../db/queries/scrobbles.ts";
 import { parseScrobbleRow, type CsvHeaderIndices, type ParsedScrobbleRow } from "./csv.ts";
 import { extractResolvedMetadata } from "./graphql.ts";
 import { computeImportScrobbleId, computeNormKeys } from "./normalize.ts";
@@ -134,113 +134,66 @@ export async function storeImportedPlays(
   plays: ImportedPlay[],
   resolved: Map<string, ResolvedTrackMetadata>,
 ): Promise<void> {
-  for (let start = 0; start < plays.length; start += PLAYS_PER_D1_BATCH) {
-    const statements = plays
-      .slice(start, start + PLAYS_PER_D1_BATCH)
-      .flatMap((play) =>
-        buildPlayStatements(
-          db,
-          { importId, userId },
-          play,
-          resolved.get(play.normTrackKey) ??
-            extractResolvedMetadata(play.row.artist, play.row.track, play.row.album, null),
-        ),
-      );
+  const records: PlayRecord[] = plays.map((play) => {
+    const metadata =
+      resolved.get(play.normTrackKey) ??
+      extractResolvedMetadata(play.row.artist, play.row.track, play.row.album, null);
 
-    const [first, ...rest] = statements;
+    const trackSpotifyUri = metadata.trackSpotifyUri;
+    const albumSpotifyUri = metadata.albumSpotifyUri;
+    const artistSpotifyUri = metadata.artistSpotifyUri;
 
-    if (first) {
-      await db.batch([first, ...rest]);
-    }
-  }
-}
-
-/**
- * Build the statements for one play in dependency order: artist, album,
- * track, then the scrobble that references them.
- */
-function buildPlayStatements(
-  db: Database,
-  { importId, userId }: { importId: Import["id"]; userId: User["id"] },
-  play: ImportedPlay,
-  metadata: ResolvedTrackMetadata,
-): BatchItem<"sqlite">[] {
-  const statements: BatchItem<"sqlite">[] = [];
-
-  let effectiveTrackSpotifyUri: string | null = null;
-  let effectiveAlbumSpotifyUri: string | null = null;
-
-  if (metadata.trackSpotifyUri) {
-    effectiveTrackSpotifyUri = metadata.trackSpotifyUri;
-
-    if (metadata.artistSpotifyUri) {
-      statements.push(
-        insertArtist(db, {
-          spotifyUri: metadata.artistSpotifyUri,
+    const artist: PlayArtist | null = artistSpotifyUri
+      ? {
+          spotifyUri: artistSpotifyUri,
           name: metadata.artistName,
           imageUrl: metadata.artistImageUrl,
-        }),
-      );
-    }
+        }
+      : null;
 
-    if (metadata.albumSpotifyUri) {
-      effectiveAlbumSpotifyUri = metadata.albumSpotifyUri;
-
-      statements.push(
-        insertAlbum(db, {
-          spotifyUri: metadata.albumSpotifyUri,
-          name: metadata.albumName ?? "Unknown Album",
+    const track: PlayTrack | null = trackSpotifyUri
+      ? {
+          spotifyUri: trackSpotifyUri,
+          name: metadata.trackName,
+          trackNumber: 1,
           releaseDate: metadata.albumReleaseDate,
-          totalTracks: 1,
-          albumType: metadata.albumType,
           imageUrl: metadata.coverArtUrl ?? "",
-        }),
-      );
+          explicit: false,
+          duration: 0,
+          artists: artist ? [artist] : [],
+        }
+      : null;
 
-      if (metadata.artistSpotifyUri) {
-        statements.push(
-          insertAlbumArtist(db, metadata.albumSpotifyUri, metadata.artistSpotifyUri, 0),
-        );
-      }
-    }
+    const album: PlayAlbum | null =
+      trackSpotifyUri && albumSpotifyUri
+        ? {
+            spotifyUri: albumSpotifyUri,
+            name: metadata.albumName ?? "Unknown Album",
+            releaseDate: metadata.albumReleaseDate,
+            totalTracks: 1,
+            albumType: metadata.albumType,
+            imageUrl: metadata.coverArtUrl ?? "",
+            artists: artist ? [{ spotifyUri: artist.spotifyUri, name: artist.name }] : [],
+          }
+        : null;
 
-    statements.push(
-      insertTrack(db, {
-        spotifyUri: metadata.trackSpotifyUri,
-        name: metadata.trackName,
-        trackNumber: 1,
-        releaseDate: metadata.albumReleaseDate,
-        imageUrl: metadata.coverArtUrl ?? "",
-        explicit: false,
-        duration: 0,
-      }),
-    );
-
-    if (metadata.artistSpotifyUri) {
-      statements.push(
-        insertTrackArtist(db, metadata.trackSpotifyUri, metadata.artistSpotifyUri, 0),
-      );
-    }
-  }
-
-  statements.push(
-    insertScrobble(db, {
+    return {
       id: play.scrobbleId,
       userId,
-      trackSpotifyUri: effectiveTrackSpotifyUri,
-      albumSpotifyUri: effectiveAlbumSpotifyUri,
-      coverArtUrl: metadata.coverArtUrl,
+      scrobbleDate: play.row.playedAt,
+      importId,
+      normArtistKey: play.normArtistKey,
+      normTrackKey: play.normTrackKey,
       artistName: metadata.artistName,
       // Plays that share a track key share one lookup, and the retry
       // without the album drops it, so the row's own album is the fallback.
       albumName: metadata.albumName ?? play.row.album,
       trackName: metadata.trackName,
-      normArtistKey: play.normArtistKey,
-      normTrackKey: play.normTrackKey,
-      scrobbleDate: play.row.playedAt,
-      importId,
-    }),
-  );
+      coverArtUrl: metadata.coverArtUrl,
+      track,
+      album,
+    };
+  });
 
-  return statements;
+  await persistPlays(db, records, { batchSize: PLAYS_PER_D1_BATCH });
 }

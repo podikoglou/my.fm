@@ -1,15 +1,8 @@
-import type { BatchItem } from "drizzle-orm/batch";
-
 import type { Database } from "../db/index.ts";
-import type { User } from "../db/schema.ts";
+import type { Scrobble, User } from "../db/schema.ts";
 import type { SpotifyPlay } from "./spotify.ts";
 
-import { insertAlbumArtist } from "../db/queries/albumArtists.ts";
-import { insertAlbum } from "../db/queries/albums.ts";
-import { insertArtist } from "../db/queries/artists.ts";
-import { createScrobbleId, insertScrobble } from "../db/queries/scrobbles.ts";
-import { insertTrackArtist } from "../db/queries/trackArtists.ts";
-import { insertTrack } from "../db/queries/tracks.ts";
+import { createScrobbleId, persistPlays, type PlayRecord } from "../db/queries/scrobbles.ts";
 
 /**
  * D1 counts one `batch()` call as one query, so a whole fetch could go in a
@@ -25,80 +18,48 @@ const PLAYS_PER_BATCH = 10;
  * Every insert uses `onConflictDoNothing`, so a re-fetched play is idempotent.
  * Returns the play times so the caller can advance the user's fetch cursor.
  */
-export async function storePlays(db: Database, userId: User["id"], plays: SpotifyPlay[]) {
-  const scrobbleDates: Date[] = [];
-
-  for (let start = 0; start < plays.length; start += PLAYS_PER_BATCH) {
-    const chunk = plays.slice(start, start + PLAYS_PER_BATCH);
-    const statements: BatchItem<"sqlite">[] = [];
-
-    for (const play of chunk) {
-      const scrobbleDate = new Date(play.played_at);
-      scrobbleDates.push(scrobbleDate);
-      statements.push(...(await buildPlayStatements(db, userId, play, scrobbleDate)));
-    }
-
-    const [first, ...rest] = statements;
-
-    if (first) {
-      await db.batch([first, ...rest]);
-    }
-  }
-
-  return scrobbleDates;
-}
-
-/**
- * Build the statements for one play in dependency order: artists, album,
- * album artists, track, track artists, then the scrobble that references them.
- *
- * The statements are returned and not awaited because `db.batch()` needs them.
- * A statement also works on its own, if a caller ever needs just one.
- */
-async function buildPlayStatements(
+export async function storePlays(
   db: Database,
   userId: User["id"],
-  play: SpotifyPlay,
-  scrobbleDate: Date,
-): Promise<BatchItem<"sqlite">[]> {
-  const { track } = play;
-  const album = track.album;
+  plays: SpotifyPlay[],
+): Promise<NonNullable<Scrobble["scrobbleDate"]>[]> {
+  const records: PlayRecord[] = [];
+  const scrobbleDates: NonNullable<Scrobble["scrobbleDate"]>[] = [];
 
-  return [
-    // Insert the track's and album's artists first; both insert styles are
-    // used because the two lists are not guaranteed to match.
-    ...track.artists.map(({ name, uri }) => insertArtist(db, { spotifyUri: uri, name })),
-    ...album.artists.map(({ name, uri }) => insertArtist(db, { spotifyUri: uri, name })),
+  for (const play of plays) {
+    const scrobbleDate = new Date(play.played_at);
+    scrobbleDates.push(scrobbleDate);
 
-    insertAlbum(db, {
-      spotifyUri: album.uri,
-      name: album.name,
-      releaseDate: album.release_date,
-      totalTracks: album.total_tracks,
-      albumType: album.album_type,
-      imageUrl: album.images[0]?.url ?? "",
-    }),
+    const { track } = play;
+    const album = track.album;
 
-    ...album.artists.map(({ uri }, position) => insertAlbumArtist(db, album.uri, uri, position)),
-
-    insertTrack(db, {
-      spotifyUri: track.uri,
-      name: track.name,
-      trackNumber: track.track_number,
-      releaseDate: album.release_date,
-      imageUrl: album.images[0]?.url ?? "",
-      explicit: track.explicit,
-      duration: track.duration_ms,
-    }),
-
-    ...track.artists.map(({ uri }, position) => insertTrackArtist(db, track.uri, uri, position)),
-
-    insertScrobble(db, {
+    records.push({
       id: await createScrobbleId(userId, scrobbleDate),
       userId,
-      trackSpotifyUri: track.uri,
-      albumSpotifyUri: album.uri,
       scrobbleDate,
-    }),
-  ];
+      track: {
+        spotifyUri: track.uri,
+        name: track.name,
+        trackNumber: track.track_number,
+        releaseDate: album.release_date,
+        imageUrl: album.images[0]?.url ?? "",
+        explicit: track.explicit,
+        duration: track.duration_ms,
+        artists: track.artists.map(({ name, uri }) => ({ spotifyUri: uri, name })),
+      },
+      album: {
+        spotifyUri: album.uri,
+        name: album.name,
+        releaseDate: album.release_date,
+        totalTracks: album.total_tracks,
+        albumType: album.album_type,
+        imageUrl: album.images[0]?.url ?? "",
+        artists: album.artists.map(({ name, uri }) => ({ spotifyUri: uri, name })),
+      },
+    });
+  }
+
+  await persistPlays(db, records, { batchSize: PLAYS_PER_BATCH });
+
+  return scrobbleDates;
 }
