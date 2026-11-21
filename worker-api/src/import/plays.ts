@@ -2,8 +2,14 @@ import type { Database } from "../db/index.ts";
 import type { Import, Scrobble, User } from "../db/schema.ts";
 import type { ResolvedTrackMetadata } from "./graphql.ts";
 
-import { persistPlays, type PlayRecord } from "../db/queries/plays.ts";
-import { findRecordedPlaysBetween } from "../db/queries/scrobbles.ts";
+import {
+  findRecordedPlaysBetween,
+  persistPlays,
+  type PlayAlbum,
+  type PlayArtist,
+  type PlayRecord,
+  type PlayTrack,
+} from "../db/queries/scrobbles.ts";
 import { parseScrobbleRow, type CsvHeaderIndices, type ParsedScrobbleRow } from "./csv.ts";
 import { extractResolvedMetadata } from "./graphql.ts";
 import { computeImportScrobbleId, computeNormKeys } from "./normalize.ts";
@@ -137,7 +143,7 @@ export async function storeImportedPlays(
     const albumSpotifyUri = metadata.albumSpotifyUri;
     const artistSpotifyUri = metadata.artistSpotifyUri;
 
-    const artist = artistSpotifyUri
+    const artist: PlayArtist | null = artistSpotifyUri
       ? {
           spotifyUri: artistSpotifyUri,
           name: metadata.artistName,
@@ -145,7 +151,7 @@ export async function storeImportedPlays(
         }
       : null;
 
-    const track = trackSpotifyUri
+    const track: PlayTrack | null = trackSpotifyUri
       ? {
           spotifyUri: trackSpotifyUri,
           name: metadata.trackName,
@@ -158,7 +164,7 @@ export async function storeImportedPlays(
         }
       : null;
 
-    const album =
+    const album: PlayAlbum | null =
       trackSpotifyUri && albumSpotifyUri
         ? {
             spotifyUri: albumSpotifyUri,

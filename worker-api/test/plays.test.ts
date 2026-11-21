@@ -2,7 +2,11 @@ import { env } from "cloudflare:workers";
 import { describe, expect, test, vi } from "vitest";
 
 import { createDatabase } from "../src/db/index.ts";
-import { buildPlayStatements, persistPlays, type PlayRecord } from "../src/db/queries/plays.ts";
+import {
+  buildPlayStatements,
+  persistPlays,
+  type PlayRecord,
+} from "../src/db/queries/scrobbles.ts";
 import {
   albumArtists,
   albums,

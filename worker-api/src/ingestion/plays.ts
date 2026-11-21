@@ -1,9 +1,8 @@
 import type { Database } from "../db/index.ts";
-import type { User } from "../db/schema.ts";
+import type { Scrobble, User } from "../db/schema.ts";
 import type { SpotifyPlay } from "./spotify.ts";
 
-import { persistPlays, type PlayRecord } from "../db/queries/plays.ts";
-import { createScrobbleId } from "../db/queries/scrobbles.ts";
+import { createScrobbleId, persistPlays, type PlayRecord } from "../db/queries/scrobbles.ts";
 
 /**
  * D1 counts one `batch()` call as one query, so a whole fetch could go in a
@@ -23,9 +22,9 @@ export async function storePlays(
   db: Database,
   userId: User["id"],
   plays: SpotifyPlay[],
-): Promise<Date[]> {
+): Promise<NonNullable<Scrobble["scrobbleDate"]>[]> {
   const records: PlayRecord[] = [];
-  const scrobbleDates: Date[] = [];
+  const scrobbleDates: NonNullable<Scrobble["scrobbleDate"]>[] = [];
 
   for (const play of plays) {
     const scrobbleDate = new Date(play.played_at);
