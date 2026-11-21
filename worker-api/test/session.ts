@@ -19,8 +19,10 @@ export async function signIn(spotify: {
   email: string;
   /** The scopes Spotify's token response grants, space-separated. */
   scope?: string;
+  callbackURL?: string;
 }): Promise<{ cookie: string; userId: string }> {
   const app = createApp();
+  const callbackURL = spotify.callbackURL ?? `${baseUrl}/onboard`;
 
   network.use(
     http.all("https://*.spotify.com/*", ({ request }) => {
@@ -54,7 +56,7 @@ export async function signIn(spotify: {
     {
       method: "POST",
       headers: { "content-type": "application/json", origin: baseUrl },
-      body: JSON.stringify({ provider: "spotify", callbackURL: `${baseUrl}/onboard` }),
+      body: JSON.stringify({ provider: "spotify", callbackURL }),
     },
     env,
   );
@@ -70,6 +72,7 @@ export async function signIn(spotify: {
   );
 
   expect(callback.status).toBe(302);
+  expect(callback.headers.get("location")).toBe(callbackURL);
 
   const sessionCookies = callback.headers.getSetCookie().map((cookie) => cookie.split(";")[0]);
 

@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.20",
+    "@cloudflare/workers-oauth-provider": "1.2.4",
     "@hono/zod-validator": "^0.7.6",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@spotify/web-api-ts-sdk": "1.2.0",
     "better-auth": "1.7.20",
     "drizzle-orm": "1.0.0-rc.5",

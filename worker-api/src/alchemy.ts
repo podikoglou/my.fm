@@ -1,3 +1,5 @@
+import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
+
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Config from "effect/Config";
@@ -9,6 +11,7 @@ import { RATE_LIMITS, type RateLimitBindingName } from "./rate-limits.ts";
 export { Database } from "./database.ts";
 
 export const ImportsBucket = Cloudflare.R2.Bucket("ImportsBucket");
+export const OAuthKv = Cloudflare.KV.Namespace("OAuthKv");
 
 /**
  * Minted once and kept in stack state. A new value would invalidate every
@@ -29,7 +32,7 @@ function rateLimitBinding(name: RateLimitBindingName) {
 
 export const Worker = Cloudflare.Worker("Worker", {
   main: new URL("./worker.ts", import.meta.url).href,
-  compatibility: { date: "2026-11-02" },
+  compatibility: { date: "2026-11-02", flags: ["global_fetch_strictly_public"] },
   dev: { port: API_DEV_PORT, strictPort: true },
   // Runs every minute. Ingestion dynamically adjusts per-user fetch intervals
   // (every 3 minutes for active listeners, every 10 minutes for inactive users)
@@ -43,6 +46,7 @@ export const Worker = Cloudflare.Worker("Worker", {
   observability: { enabled: true, issues: { enabled: true } },
   env: {
     DB: Database,
+    OAUTH_KV: OAuthKv,
     IMPORTS_BUCKET: ImportsBucket,
     AUTH_RATE_LIMIT: rateLimitBinding("AUTH_RATE_LIMIT"),
     PUBLIC_READ_RATE_LIMIT: rateLimitBinding("PUBLIC_READ_RATE_LIMIT"),
@@ -52,4 +56,6 @@ export const Worker = Cloudflare.Worker("Worker", {
   },
 });
 
-export type WorkerEnv = Cloudflare.InferEnv<typeof Worker>;
+export type WorkerEnv = Cloudflare.InferEnv<typeof Worker> & {
+  OAUTH_PROVIDER: OAuthHelpers;
+};
