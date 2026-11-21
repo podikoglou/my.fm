@@ -112,20 +112,14 @@ function buildPlayStatements(db: Database, play: PlayRecord): BatchItem<"sqlite"
   const trackArtistsList = play.track?.artists ?? [];
   const albumArtistsList = play.album?.artists ?? [];
 
-  for (const artist of trackArtistsList) {
-    statements.push(
-      db
-        .insert(artists)
-        .values({
-          spotifyUri: artist.spotifyUri,
-          name: artist.name,
-          imageUrl: artist.imageUrl ?? null,
-        })
-        .onConflictDoNothing(),
-    );
-  }
+  // The same artist usually appears on both the track and its album; insert
+  // once, keeping the first-seen metadata.
+  const insertedUris = new Set<PlayArtist["spotifyUri"]>();
 
-  for (const artist of albumArtistsList) {
+  for (const artist of [...trackArtistsList, ...albumArtistsList]) {
+    if (insertedUris.has(artist.spotifyUri)) continue;
+
+    insertedUris.add(artist.spotifyUri);
     statements.push(
       db
         .insert(artists)
