@@ -8,7 +8,6 @@ import {
   type Album,
   type Artist,
   type Scrobble,
-  type ScrobbleInsert,
   type Track,
   type User,
 } from "../schema.ts";
@@ -27,25 +26,6 @@ export async function createScrobbleId(userId: User["id"], scrobbleDate: Date) {
   return Array.from(new Uint8Array(digest).slice(0, 16), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
-}
-
-export type ScrobbleValues = Pick<
-  ScrobbleInsert,
-  | "userId"
-  | "trackSpotifyUri"
-  | "albumSpotifyUri"
-  | "coverArtUrl"
-  | "artistName"
-  | "albumName"
-  | "trackName"
-  | "normArtistKey"
-  | "normTrackKey"
-  | "scrobbleDate"
-  | "importId"
-> & { id: string };
-
-export function insertScrobble(db: Database, values: ScrobbleValues) {
-  return db.insert(scrobbles).values(values).onConflictDoNothing().returning();
 }
 
 export type ProjectedArtist = Pick<Artist, "name"> & {
