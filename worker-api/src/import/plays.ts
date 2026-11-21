@@ -147,7 +147,7 @@ export async function storeImportedPlays(
       ? {
           spotifyUri: artistSpotifyUri,
           name: metadata.artistName,
-          imageUrl: metadata.artistImageUrl ?? null,
+          imageUrl: metadata.artistImageUrl,
         }
       : null;
 
@@ -156,7 +156,7 @@ export async function storeImportedPlays(
           spotifyUri: trackSpotifyUri,
           name: metadata.trackName,
           trackNumber: 1,
-          releaseDate: metadata.albumReleaseDate ?? "",
+          releaseDate: metadata.albumReleaseDate,
           imageUrl: metadata.coverArtUrl ?? "",
           explicit: false,
           duration: 0,
@@ -169,9 +169,9 @@ export async function storeImportedPlays(
         ? {
             spotifyUri: albumSpotifyUri,
             name: metadata.albumName ?? "Unknown Album",
-            releaseDate: metadata.albumReleaseDate ?? "",
+            releaseDate: metadata.albumReleaseDate,
             totalTracks: 1,
-            albumType: metadata.albumType ?? "",
+            albumType: metadata.albumType,
             imageUrl: metadata.coverArtUrl ?? "",
             artists: artist ? [{ spotifyUri: artist.spotifyUri, name: artist.name }] : [],
           }
@@ -185,6 +185,8 @@ export async function storeImportedPlays(
       normArtistKey: play.normArtistKey,
       normTrackKey: play.normTrackKey,
       artistName: metadata.artistName,
+      // Plays that share a track key share one lookup, and the retry
+      // without the album drops it, so the row's own album is the fallback.
       albumName: metadata.albumName ?? play.row.album,
       trackName: metadata.trackName,
       coverArtUrl: metadata.coverArtUrl,
