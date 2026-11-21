@@ -1,3 +1,4 @@
+import { authorizationErrorRedirect } from "@cloudflare/workers-oauth-provider";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import z from "zod";
@@ -48,13 +49,7 @@ export default new Hono<AppEnv>()
         if (!client) return c.json({ error: "Invalid OAuth request" }, 400);
 
         if (decision === "deny") {
-          const redirect = new URL(request.redirectUri);
-          redirect.searchParams.set("error", "access_denied");
-          redirect.searchParams.set("state", request.state);
-
-          if (request.issuer) redirect.searchParams.set("iss", request.issuer);
-
-          return c.json({ redirectTo: redirect.href });
+          return c.json({ redirectTo: authorizationErrorRedirect(request, "access_denied") });
         }
 
         const result = await c.env.OAUTH_PROVIDER.completeAuthorization({
