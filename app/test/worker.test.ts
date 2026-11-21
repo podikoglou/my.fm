@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 
+import { API_RUN_WORKER_FIRST } from "../api-paths.ts";
 import worker from "../worker.ts";
 
 type WebsiteEnv = Parameters<typeof worker.fetch>[1];
@@ -47,6 +48,11 @@ test("forwards API paths over the service binding", async () => {
     "/api/user/me",
     "/api/scrobble/getRecent",
     "/health",
+    "/mcp",
+    "/token",
+    "/register",
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-protected-resource/mcp",
   ]) {
     const response = await worker.fetch(new Request(`https://app.test${path}`), env);
 
@@ -58,6 +64,11 @@ test("forwards API paths over the service binding", async () => {
     "/api/user/me",
     "/api/scrobble/getRecent",
     "/health",
+    "/mcp",
+    "/token",
+    "/register",
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-protected-resource/mcp",
   ]);
   expect(assetPaths).toEqual([]);
 });
@@ -65,7 +76,15 @@ test("forwards API paths over the service binding", async () => {
 test("serves every other path from the assets", async () => {
   const { env, apiPaths, assetPaths } = createEnv();
 
-  const paths = ["/", "/user/alex", "/settings", "/apiary", "/api"];
+  const paths = [
+    "/",
+    "/user/alex",
+    "/settings",
+    "/apiary",
+    "/api",
+    "/oauth/authorize",
+    "/health/ingestion",
+  ];
 
   for (const path of paths) {
     const response = await worker.fetch(new Request(`https://app.test${path}`), env);
@@ -75,4 +94,15 @@ test("serves every other path from the assets", async () => {
 
   expect(apiPaths).toEqual([]);
   expect(assetPaths).toEqual(paths);
+});
+
+test("asset routing forwards protocol endpoints without intercepting consent or ingestion health", () => {
+  expect(API_RUN_WORKER_FIRST).toEqual([
+    "/api/*",
+    "/.well-known/oauth-*",
+    "/health",
+    "/mcp",
+    "/token",
+    "/register",
+  ]);
 });

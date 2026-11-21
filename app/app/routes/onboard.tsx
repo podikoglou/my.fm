@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
 import { useForm } from "react-hook-form";
-import { redirect, useNavigate } from "react-router";
+import { redirect, useLoaderData, useNavigate } from "react-router";
 import { z } from "zod";
 
 import { Button } from "~/components/ui/button";
@@ -18,14 +18,19 @@ import {
 import { Input } from "~/components/ui/input";
 import { apiClient } from "~/lib/api";
 import { requireAuth } from "~/lib/auth-guard";
+import { authReturnPath } from "~/lib/auth-return";
 import { queryClient } from "~/lib/query";
 
-export async function clientLoader() {
-  const { user } = await requireAuth("/onboard");
+export async function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const returnTo = authReturnPath(request.url);
+  const { user } = await requireAuth(url.pathname + url.search);
 
   if (user && user.onboarded) {
-    throw redirect("/");
+    throw redirect(returnTo);
   }
+
+  return { returnTo };
 }
 
 const formSchema = z.object({
@@ -37,6 +42,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function OnboardPage() {
   const navigate = useNavigate();
+  const { returnTo } = useLoaderData<typeof clientLoader>();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -50,7 +56,7 @@ export default function OnboardPage() {
     mutationFn: (data: FormValues) => parseResponse(apiClient.user.onboard.$put({ form: data })),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-      void navigate("/");
+      void navigate(returnTo);
     },
     onError: (error) => console.error(error),
   });

@@ -47,3 +47,10 @@ test("the feed is a public page outside the guarded layout", () => {
   expect(files).toContain("routes/feed.tsx");
   expect(files).not.toContain("routes/app/layout.tsx");
 });
+
+test("consent has its own guard instead of the settings callback", () => {
+  const files = findChain(routes, "oauth/authorize")?.map(({ file }) => file) ?? [];
+
+  expect(files).toContain("routes/oauth-authorize.tsx");
+  expect(files).not.toContain("routes/app/layout.tsx");
+});
