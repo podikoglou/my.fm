@@ -1,6 +1,8 @@
+import { formatDistanceToNow } from "date-fns";
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -10,12 +12,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
+import { useConnectedApps } from "~/hooks/use-connected-apps";
+import { useRevokeApp } from "~/hooks/use-revoke-app";
 import { agentOnboardingInstructions } from "~/lib/agents-instructions";
 
 import { SettingsRow } from "./settings-row";
 import { SettingsSection } from "./settings-section";
 
 export function AgentsSettings() {
+  const { data } = useConnectedApps();
+  const revoke = useRevokeApp();
+  const apps = data?.apps;
+
   return (
     <SettingsSection title="Agents">
       <Dialog>
@@ -40,6 +48,55 @@ export function AgentsSettings() {
           <Instructions />
         </DialogContent>
       </Dialog>
+
+      {apps?.map((app) => (
+        <SettingsRow
+          key={app.id}
+          label={
+            <div className="flex items-center gap-2">
+              {app.clientUri ? (
+                <a
+                  href={app.clientUri}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                >
+                  {app.name}
+                </a>
+              ) : (
+                <span>{app.name}</span>
+              )}
+              <Badge variant="outline" className="text-[10px] font-normal">
+                Read-only
+              </Badge>
+            </div>
+          }
+          description={
+            <>
+              <p>
+                Connected {formatDistanceToNow(new Date(app.createdAt * 1000), { addSuffix: true })}
+                .
+              </p>
+              {revoke.isError && revoke.variables === app.id && (
+                <div role="status" className="text-destructive">
+                  Could not revoke access. Please try again.
+                </div>
+              )}
+            </>
+          }
+          control={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={revoke.isPending && revoke.variables === app.id}
+              focusableWhenDisabled
+              onClick={() => revoke.mutate(app.id)}
+            >
+              {revoke.isPending && revoke.variables === app.id ? "Revoking..." : "Revoke"}
+            </Button>
+          }
+        />
+      ))}
     </SettingsSection>
   );
 }
