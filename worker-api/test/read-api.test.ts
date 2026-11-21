@@ -19,7 +19,8 @@ import {
 } from "../src/db/schema.ts";
 import { getPublicFeed } from "../src/services/feed-reads.ts";
 import { getRecentScrobbles, getScrobbleMonths } from "../src/services/scrobble-reads.ts";
-import { getMeForMcp, getUserByUsername, toMcpPublicUser } from "../src/services/user-reads.ts";
+import { getMeForMcp } from "../src/services/user-reads.ts";
+import { viewProfileByUsername } from "../src/visibility.ts";
 import { network } from "./network.ts";
 
 const baseUrl = "http://app.test";
@@ -96,17 +97,22 @@ async function seed() {
 }
 
 describe("user queries", () => {
-  test("omits sensitive fields from MCP projections, including the owner's private profile", async () => {
+  test("resolves a private profile for its owner and hides it from every read surface", async () => {
     const { db } = await seed();
+
     await db.update(users).set({ isPrivate: true }).where(eq(users.id, userId));
     expect(await getMeForMcp(db, userId)).toEqual({
       data: { id: userId, username: "alex", name: "Alex", onboarded: true, isPrivate: true },
     });
-    const profile = await getUserByUsername(db, "alex", userId);
-
-    if ("error" in profile) throw new Error(profile.error);
-    expect(toMcpPublicUser(profile.data)).toEqual({ id: userId, username: "alex", name: "Alex" });
-    expect(await getUserByUsername(db, "alex", "other")).toEqual({
+    expect(await viewProfileByUsername(db, "alex", userId)).toEqual({
+      data: {
+        id: userId,
+        username: "alex",
+        name: "Alex",
+        avatarUrl: "https://example.com/alex.jpg",
+      },
+    });
+    expect(await viewProfileByUsername(db, "alex", "other")).toEqual({
       error: "Profile is private",
       status: 403,
     });
@@ -126,7 +132,7 @@ describe("user queries", () => {
   test("reports missing users and validates service inputs without a route", async () => {
     const db = createDatabase(env.DB);
     expect(await getMeForMcp(db, userId)).toEqual({ error: "User not found", status: 404 });
-    expect(await getUserByUsername(db, "missing")).toEqual({
+    expect(await viewProfileByUsername(db, "missing")).toEqual({
       error: "User not found",
       status: 404,
     });

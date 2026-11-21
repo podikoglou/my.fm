@@ -16,19 +16,14 @@ const profileColumns = {
   isPrivate: true,
 } as const;
 
+/**
+ * The shape the public finders return: what a profile page needs, plus the
+ * flag that decides whether the viewer may see it at all. The rule that
+ * reads it lives in `src/visibility.ts`.
+ */
 export type PublicUser = Pick<User, "id" | "username" | "name" | "avatarUrl">;
 
 export type UserProfile = PublicUser & Pick<User, "isPrivate">;
-
-export function canViewProfile(profile: UserProfile, viewerId?: User["id"]) {
-  return !profile.isPrivate || profile.id === viewerId;
-}
-
-export function toPublicUser(profile: UserProfile): PublicUser {
-  const { isPrivate: _, ...user } = profile;
-
-  return user;
-}
 
 export async function findUserById(db: Database, id: User["id"]) {
   return await db.query.users.findFirst({
