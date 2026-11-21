@@ -13,34 +13,31 @@ import {
 import { agentOnboardingInstructions } from "~/lib/agents-instructions";
 
 import { SettingsRow } from "./settings-row";
-import { SettingsSection } from "./settings-section";
 
-export function AgentsSettings() {
+export function ConnectAgentDialog() {
   return (
-    <SettingsSection title="Agents">
-      <Dialog>
-        <SettingsRow
-          label={
-            <DialogTrigger
-              render={<Button variant="link" className="h-auto p-0 underline-offset-4" />}
-            >
-              Connect an agent
-            </DialogTrigger>
-          }
-          description="Add the my.fm MCP server to Claude, OpenCode or another client. Access is read-only."
-        />
-        <DialogContent>
-          <div className="space-y-1">
-            <DialogTitle>Connect an agent</DialogTitle>
-            <DialogDescription>
-              Paste this into your agent. The first request opens a browser window where you allow
-              access.
-            </DialogDescription>
-          </div>
-          <Instructions />
-        </DialogContent>
-      </Dialog>
-    </SettingsSection>
+    <Dialog>
+      <SettingsRow
+        label={
+          <DialogTrigger
+            render={<Button variant="link" className="h-auto p-0 underline-offset-4" />}
+          >
+            Connect an agent
+          </DialogTrigger>
+        }
+        description="Add the my.fm MCP server to Claude, OpenCode or another client. Access is read-only."
+      />
+      <DialogContent>
+        <div className="space-y-1">
+          <DialogTitle>Connect an agent</DialogTitle>
+          <DialogDescription>
+            Paste this into your agent. The first request opens a browser window where you allow
+            access.
+          </DialogDescription>
+        </div>
+        <Instructions />
+      </DialogContent>
+    </Dialog>
   );
 }
 

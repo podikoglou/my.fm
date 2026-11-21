@@ -62,6 +62,8 @@ signed-in user, and `/mcp` answers `401` without a valid OAuth bearer token.
 | `POST /api/notifications/:id/acknowledge`     | session | Acknowledge one of the user's notifications |
 | `GET /api/oauth/authorize`                    | session | Parse authorization request and client info |
 | `POST /api/oauth/authorize`                   | session | Record allow or deny consent decision       |
+| `GET /api/oauth/apps`                         | session | List authorized connected applications      |
+| `DELETE /api/oauth/apps/:id`                  | session | Revoke access for a connected application   |
 | `POST /register`                              | public  | Dynamic client registration                 |
 | `POST /token`                                 | public  | OAuth code and refresh exchange             |
 | `POST /mcp`                                   | bearer  | Read-only Model Context Protocol server     |

@@ -1,8 +1,8 @@
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 
-import { AgentsSettings } from "~/components/settings/agents-settings";
 import { AppearanceSettings } from "~/components/settings/appearance-settings";
+import { ConnectedAppsSettings } from "~/components/settings/connected-apps-settings";
 import { SettingsRow } from "~/components/settings/settings-row";
 import { SettingsSection } from "~/components/settings/settings-section";
 import { Button, buttonVariants } from "~/components/ui/button";
@@ -163,7 +163,7 @@ export default function SettingsPage() {
           />
         </SettingsSection>
 
-        <AgentsSettings />
+        <ConnectedAppsSettings />
       </CardContent>
     </>
   );
