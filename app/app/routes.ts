@@ -14,8 +14,8 @@ export default [
     route("user/:username", "routes/app/user.tsx"),
 
     route("onboard", "routes/onboard.tsx"),
-    route("oauth/authorize", "routes/oauth-authorize.tsx"),
 
     route(AUTH_ERROR_ROUTE, "routes/auth-error.tsx"),
   ]),
+  route("oauth/authorize", "routes/oauth-authorize.tsx"),
 ] satisfies RouteConfig;

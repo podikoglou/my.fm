@@ -5,6 +5,7 @@ import { redirect, useLoaderData } from "react-router";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { CardLayout } from "~/components/ui/card-layout";
 import { apiClient } from "~/lib/api";
 import { requireAuth } from "~/lib/auth-guard";
 import { onboardingPath } from "~/lib/auth-return";
@@ -48,67 +49,69 @@ export default function OAuthAuthorizePage() {
   });
 
   return (
-    <div className="flex w-full flex-col gap-6 sm:w-96">
-      <CardHeader>
-        <CardTitle className="text-3xl font-bold">Connect an app</CardTitle>
-        <CardDescription className="mt-2">
-          {consent
-            ? `${consent.client.clientName || "This app"} wants read-only access to your my.fm account.`
-            : error
-              ? "Unable to connect this app."
-              : "Checking your account…"}
-        </CardDescription>
-      </CardHeader>
+    <CardLayout cardClassName="sm:h-auto">
+      <div className="flex w-full flex-col gap-6 sm:w-96">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold">Connect an app</CardTitle>
+          <CardDescription className="mt-2">
+            {consent
+              ? `${consent.client.clientName || "This app"} wants read-only access to your my.fm account.`
+              : error
+                ? "Unable to connect this app."
+                : "Checking your account…"}
+          </CardDescription>
+        </CardHeader>
 
-      <CardContent className="flex flex-col gap-4">
-        {consent ? (
-          <>
-            {consent.client.clientUri ? (
+        <CardContent className="flex flex-col gap-4">
+          {consent ? (
+            <>
+              {consent.client.clientUri ? (
+                <p className="text-sm break-words text-muted-foreground">
+                  {consent.client.clientUri}
+                </p>
+              ) : null}
               <p className="text-sm break-words text-muted-foreground">
-                {consent.client.clientUri}
+                Redirects to {new URL(consent.redirectUri).origin}
               </p>
-            ) : null}
-            <p className="text-sm break-words text-muted-foreground">
-              Redirects to {new URL(consent.redirectUri).origin}
-            </p>
-            {URL.canParse(consent.client.clientId) ? (
-              <p className="text-sm break-words text-muted-foreground">
-                Client ID: {consent.client.clientId}
+              {URL.canParse(consent.client.clientId) ? (
+                <p className="text-sm break-words text-muted-foreground">
+                  Client ID: {consent.client.clientId}
+                </p>
+              ) : null}
+              <p className="text-sm">
+                Read your profile, listening history and the public feed; no changes.
               </p>
-            ) : null}
-            <p className="text-sm">
-              Read your profile, listening history and the public feed; no changes.
-            </p>
-          </>
-        ) : null}
-        {error || decision.isError ? (
-          <Alert variant="danger">
-            <AlertDescription>
-              {error ||
-                "Your decision could not be saved. Try again, or restart from the connecting app."}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {consent ? (
-          <div className="flex gap-3">
-            <Button
-              className="flex-1"
-              variant="outline"
-              disabled={decision.isPending}
-              onClick={() => decision.mutate("deny")}
-            >
-              Deny
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={decision.isPending}
-              onClick={() => decision.mutate("allow")}
-            >
-              Allow
-            </Button>
-          </div>
-        ) : null}
-      </CardContent>
-    </div>
+            </>
+          ) : null}
+          {error || decision.isError ? (
+            <Alert variant="danger">
+              <AlertDescription>
+                {error ||
+                  "Your decision could not be saved. Try again, or restart from the connecting app."}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {consent ? (
+            <div className="flex gap-3">
+              <Button
+                className="flex-1"
+                variant="outline"
+                disabled={decision.isPending}
+                onClick={() => decision.mutate("deny")}
+              >
+                Deny
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={decision.isPending}
+                onClick={() => decision.mutate("allow")}
+              >
+                Allow
+              </Button>
+            </div>
+          ) : null}
+        </CardContent>
+      </div>
+    </CardLayout>
   );
 }
