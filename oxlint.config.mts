@@ -42,6 +42,7 @@ export default defineConfig({
     "typescript/array-type": "off",
     "import/consistent-type-specifier-style": "off",
     curly: ["error", "multi-line"],
+    "no-console": "off",
     "import/no-namespace": [
       "error",
       { ignore: ["react", "alchemy", "@alchemy.run/cloudflare", "effect/**", "**/schema.ts"] },
@@ -87,14 +88,6 @@ export default defineConfig({
           },
         ],
       },
-    },
-    {
-      files: ["app/app/**/*.{ts,tsx}"],
-      rules: { "no-console": ["error", { allow: ["error"] }] },
-    },
-    {
-      files: ["worker-api/src/ingestion/events.ts"],
-      rules: { "no-console": "off" }, // Structured Cloudflare Workers logs.
     },
     {
       files: ["app/test/**/*.test.ts", "worker-api/test/**/*.test.ts"],

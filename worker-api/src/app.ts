@@ -88,7 +88,6 @@ export function createApp() {
           return c.json({ error: err.message }, err.status);
         }
 
-        // oxlint-disable-next-line no-console -- Preserve structured Cloudflare Workers error logs.
         console.error("Request failed", describeError(err));
 
         if (getD1QuotaError(err)) {
