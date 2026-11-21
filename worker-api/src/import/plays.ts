@@ -1,7 +1,7 @@
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { Database } from "../db/index.ts";
-import type { Import, User } from "../db/schema.ts";
+import type { Import, Scrobble, User } from "../db/schema.ts";
 import type { ResolvedTrackMetadata } from "./graphql.ts";
 
 import { insertAlbumArtist } from "../db/queries/albumArtists.ts";
@@ -26,9 +26,9 @@ const RECORDED_PLAY_WINDOW_MS = 10 * 60 * 1000;
 
 export type ImportedPlay = {
   row: ParsedScrobbleRow;
-  scrobbleId: string;
-  normArtistKey: string;
-  normTrackKey: string;
+  scrobbleId: Scrobble["id"];
+  normArtistKey: NonNullable<Scrobble["normArtistKey"]>;
+  normTrackKey: NonNullable<Scrobble["normTrackKey"]>;
 };
 
 /** Read the lines that hold a play, each with its ID and its lookup keys. */
@@ -92,14 +92,8 @@ export async function withoutRecordedPlays(
 
   const recordedTimes = new Map<string, number[]>();
 
-  for (const { scrobbleDate, track } of recorded) {
-    const [first] = track?.trackArtists.toSorted((a, b) => a.position - b.position) ?? [];
-
-    if (!scrobbleDate || !track || !first) {
-      continue;
-    }
-
-    const { normTrackKey } = await computeNormKeys(first.artist.name, track.name);
+  for (const { scrobbleDate, trackName, artistName } of recorded) {
+    const { normTrackKey } = await computeNormKeys(artistName, trackName);
 
     recordedTimes.set(normTrackKey, [
       ...(recordedTimes.get(normTrackKey) ?? []),

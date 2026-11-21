@@ -3,7 +3,15 @@ import { and, count, eq, isNotNull, max, min, sql } from "drizzle-orm";
 import type { Database } from "../index.ts";
 
 import { monthsBetween } from "../../time-zone.ts";
-import { scrobbles, type ScrobbleInsert, type User } from "../schema.ts";
+import {
+  scrobbles,
+  type Album,
+  type Artist,
+  type Scrobble,
+  type ScrobbleInsert,
+  type Track,
+  type User,
+} from "../schema.ts";
 
 /**
  * Derive a deterministic scrobble ID from the user and the play time.
@@ -40,6 +48,102 @@ export function insertScrobble(db: Database, values: ScrobbleValues) {
   return db.insert(scrobbles).values(values).onConflictDoNothing().returning();
 }
 
+export type ProjectedArtist = Pick<Artist, "name"> & {
+  spotifyUri?: Artist["spotifyUri"];
+};
+
+export type ProjectedTrack = Pick<Track, "name" | "imageUrl"> & {
+  spotifyUri?: Track["spotifyUri"];
+  artists: ProjectedArtist[];
+};
+
+export type ProjectedAlbum = Pick<Album, "name" | "imageUrl"> & {
+  spotifyUri?: Album["spotifyUri"];
+  artists: ProjectedArtist[];
+};
+
+export type ProjectedScrobble = Pick<Scrobble, "id" | "scrobbleDate"> & {
+  track: ProjectedTrack;
+  album: ProjectedAlbum;
+};
+
+export type FeedItem = Pick<Scrobble, "id"> & {
+  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
+  user: Pick<User, "username" | "name" | "avatarUrl">;
+  track: ProjectedTrack;
+  album: Pick<Album, "name"> & {
+    spotifyUri?: Album["spotifyUri"];
+  };
+};
+
+export type RecordedPlay = {
+  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
+  trackName: Track["name"];
+  artistName: Artist["name"];
+};
+
+function toProjectedTrack(
+  row: Partial<Pick<Scrobble, "trackSpotifyUri" | "trackName" | "artistName" | "coverArtUrl">> & {
+    track?:
+      | (Pick<Track, "name" | "imageUrl" | "spotifyUri"> & {
+          trackArtists: { position: number; artist: Pick<Artist, "name" | "spotifyUri"> }[];
+        })
+      | null;
+  },
+): ProjectedTrack {
+  if (row.track) {
+    return {
+      name: row.track.name,
+      imageUrl: row.track.imageUrl,
+      spotifyUri: row.track.spotifyUri,
+      artists: row.track.trackArtists
+        .toSorted((a, b) => a.position - b.position)
+        .map(({ artist }) => ({
+          name: artist.name,
+          spotifyUri: artist.spotifyUri,
+        })),
+    };
+  }
+
+  return {
+    spotifyUri: row.trackSpotifyUri ?? undefined,
+    name: row.trackName ?? "Unknown Track",
+    imageUrl: row.coverArtUrl ?? "",
+    artists: row.artistName ? [{ name: row.artistName, spotifyUri: undefined }] : [],
+  };
+}
+
+function toProjectedAlbum(
+  row: Partial<Pick<Scrobble, "albumSpotifyUri" | "albumName" | "coverArtUrl">> & {
+    album?:
+      | (Pick<Album, "name" | "imageUrl" | "spotifyUri"> & {
+          albumArtists?: { position: number; artist: Pick<Artist, "name" | "spotifyUri"> }[];
+        })
+      | null;
+  },
+): ProjectedAlbum {
+  if (row.album) {
+    return {
+      name: row.album.name,
+      imageUrl: row.album.imageUrl,
+      spotifyUri: row.album.spotifyUri,
+      artists: (row.album.albumArtists ?? [])
+        .toSorted((a, b) => a.position - b.position)
+        .map(({ artist }) => ({
+          name: artist.name,
+          spotifyUri: artist.spotifyUri,
+        })),
+    };
+  }
+
+  return {
+    spotifyUri: row.albumSpotifyUri ?? undefined,
+    name: row.albumName ?? "",
+    imageUrl: row.coverArtUrl ?? "",
+    artists: [],
+  };
+}
+
 /**
  * The plays that ingestion recorded for a user between two times, with each
  * track's name and artists. Imported plays are left out.
@@ -47,10 +151,10 @@ export function insertScrobble(db: Database, values: ScrobbleValues) {
 export async function findRecordedPlaysBetween(
   db: Database,
   userId: User["id"],
-  from: Date,
-  to: Date,
-) {
-  return await db.query.scrobbles.findMany({
+  from: NonNullable<Scrobble["scrobbleDate"]>,
+  to: NonNullable<Scrobble["scrobbleDate"]>,
+): Promise<RecordedPlay[]> {
+  const rows = await db.query.scrobbles.findMany({
     where: { userId, importId: { isNull: true }, scrobbleDate: { gte: from, lte: to } },
     columns: { scrobbleDate: true },
     with: {
@@ -60,10 +164,23 @@ export async function findRecordedPlaysBetween(
           trackArtists: {
             columns: { position: true },
             with: { artist: { columns: { name: true } } },
+            orderBy: { position: "asc" },
           },
         },
       },
     },
+  });
+
+  return rows.flatMap((row) => {
+    const [first] = (row.track?.trackArtists ?? []).toSorted((a, b) => a.position - b.position);
+    const artistName = first?.artist.name;
+    const trackName = row.track?.name;
+
+    if (!row.scrobbleDate || !trackName || !artistName) {
+      return [];
+    }
+
+    return [{ scrobbleDate: row.scrobbleDate, trackName, artistName }];
   });
 }
 
@@ -71,39 +188,77 @@ export async function findRecordedPlaysBetween(
 export async function findRecentScrobblesByUserId(
   db: Database,
   userId: User["id"],
-  { before, offset, limit }: { before?: Date; offset: number; limit: number },
-) {
-  return await db.query.scrobbles.findMany({
+  {
+    before,
+    offset,
+    limit,
+  }: { before?: NonNullable<Scrobble["scrobbleDate"]>; offset: number; limit: number },
+): Promise<ProjectedScrobble[]> {
+  const rows = await db.query.scrobbles.findMany({
     where: before ? { userId, scrobbleDate: { lt: before } } : { userId },
     orderBy: { scrobbleDate: "desc", id: "desc" },
     offset,
     limit,
+    columns: {
+      id: true,
+      scrobbleDate: true,
+      trackSpotifyUri: true,
+      albumSpotifyUri: true,
+      coverArtUrl: true,
+      artistName: true,
+      albumName: true,
+      trackName: true,
+    },
     with: {
       track: {
+        columns: {
+          name: true,
+          imageUrl: true,
+          spotifyUri: true,
+        },
         with: {
           trackArtists: {
+            columns: { position: true },
             with: {
-              artist: true,
+              artist: {
+                columns: { name: true, spotifyUri: true },
+              },
             },
+            orderBy: { position: "asc" },
           },
         },
       },
       album: {
+        columns: {
+          name: true,
+          imageUrl: true,
+          spotifyUri: true,
+        },
         with: {
           albumArtists: {
+            columns: { position: true },
             with: {
-              artist: true,
+              artist: {
+                columns: { name: true, spotifyUri: true },
+              },
             },
+            orderBy: { position: "asc" },
           },
         },
       },
     },
   });
+
+  return rows.map((row) => ({
+    id: row.id,
+    scrobbleDate: row.scrobbleDate,
+    track: toProjectedTrack(row),
+    album: toProjectedAlbum(row),
+  }));
 }
 
-export type FeedCursor = {
-  scrobbleDate: Date;
-  id: string;
+export type FeedCursor = Pick<Scrobble, "id"> & {
+  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
 };
 
 /**
@@ -116,8 +271,8 @@ export type FeedCursor = {
 export async function findPublicFeed(
   db: Database,
   { cursor, limit }: { cursor?: FeedCursor; limit: number },
-) {
-  return await db.query.scrobbles.findMany({
+): Promise<FeedItem[]> {
+  const rows = await db.query.scrobbles.findMany({
     where: {
       user: { isPrivate: false, onboarded: true },
       scrobbleDate: { isNotNull: true as const },
@@ -174,9 +329,28 @@ export async function findPublicFeed(
       },
     },
   });
-}
 
-export type FeedRow = Awaited<ReturnType<typeof findPublicFeed>>[number];
+  return rows.flatMap((row) => {
+    if (!row.scrobbleDate) return [];
+
+    return [
+      {
+        id: row.id,
+        scrobbleDate: row.scrobbleDate,
+        user: {
+          username: row.user.username,
+          name: row.user.name,
+          avatarUrl: row.user.avatarUrl,
+        },
+        track: toProjectedTrack(row),
+        album: {
+          name: row.album?.name ?? row.albumName ?? "",
+          spotifyUri: row.album?.spotifyUri ?? row.albumSpotifyUri ?? undefined,
+        },
+      },
+    ];
+  });
+}
 
 /**
  * Count one user's scrobbles per calendar month in the viewer's time zone,

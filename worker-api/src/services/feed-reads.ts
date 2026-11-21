@@ -2,8 +2,7 @@ import z from "zod";
 
 import type { Database } from "../db/index.ts";
 
-import { findPublicFeed, type FeedRow } from "../db/queries/scrobbles.ts";
-import { unlinkedAlbum, unlinkedTrack } from "../import/unlinked.ts";
+import { findPublicFeed, type FeedCursor, type FeedItem } from "../db/queries/scrobbles.ts";
 
 const CURSOR_VERSION = 1;
 
@@ -13,16 +12,14 @@ const cursorPayload = z.tuple([
   z.string().regex(/^[0-9a-f]{32}$/),
 ]);
 
-function encodeCursor(row: FeedRow) {
-  if (!row.scrobbleDate) return null;
-
+function encodeCursor(row: Pick<FeedItem, "id" | "scrobbleDate">) {
   const seconds = Math.floor(row.scrobbleDate.getTime() / 1000);
   const bytes = btoa(JSON.stringify([CURSOR_VERSION, seconds, row.id]));
 
   return bytes.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-function decodeCursor(value: string) {
+function decodeCursor(value: string): FeedCursor | undefined {
   try {
     const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
@@ -32,34 +29,6 @@ function decodeCursor(value: string) {
   } catch {
     return undefined;
   }
-}
-
-function toFeedItem(row: FeedRow) {
-  const track = row.track
-    ? {
-        name: row.track.name,
-        imageUrl: row.track.imageUrl,
-        spotifyUri: row.track.spotifyUri,
-        artists: row.track.trackArtists.map(({ artist }) => ({
-          name: artist.name,
-          spotifyUri: artist.spotifyUri,
-        })),
-      }
-    : unlinkedTrack(row);
-
-  const { name, spotifyUri } = row.album ?? unlinkedAlbum(row);
-
-  return {
-    id: row.id,
-    scrobbleDate: row.scrobbleDate,
-    user: {
-      username: row.user.username,
-      name: row.user.name,
-      avatarUrl: row.user.avatarUrl,
-    },
-    track,
-    album: { name, spotifyUri },
-  };
 }
 
 export const publicFeedInput = z.object({
@@ -76,10 +45,10 @@ export async function getPublicFeed(db: Database, input: z.input<typeof publicFe
     return { error: "Invalid cursor", status: 400 } as const;
   }
 
-  const rows = await findPublicFeed(db, { cursor, limit: limit + 1 });
-  const page = rows.slice(0, limit);
+  const items = await findPublicFeed(db, { cursor, limit: limit + 1 });
+  const page = items.slice(0, limit);
   const last = page.at(-1);
-  const nextCursor = rows.length > limit && last ? encodeCursor(last) : null;
+  const nextCursor = items.length > limit && last ? encodeCursor(last) : null;
 
-  return { data: { items: page.map(toFeedItem), nextCursor } };
+  return { data: { items: page, nextCursor } };
 }

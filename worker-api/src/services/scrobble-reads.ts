@@ -1,9 +1,9 @@
 import z from "zod";
 
 import type { Database } from "../db/index.ts";
+import type { User } from "../db/schema.ts";
 
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
-import { unlinkedAlbum, unlinkedTrack } from "../import/unlinked.ts";
 import { isTimeZone } from "../time-zone.ts";
 import { getUserByUsername } from "./user-reads.ts";
 
@@ -28,7 +28,7 @@ export const scrobbleMonthsInput = z.object({
 export async function getRecentScrobbles(
   db: Database,
   input: z.input<typeof recentScrobblesInput>,
-  viewerUserId?: string,
+  viewerUserId?: User["id"],
 ) {
   const { username, offset, limit, before } = recentScrobblesInput.parse(input);
   const user = await getUserByUsername(db, username, viewerUserId);
@@ -41,52 +41,13 @@ export async function getRecentScrobbles(
     limit,
   });
 
-  return {
-    data: scrobbles.map((scrobble) => {
-      const { id, track, album, scrobbleDate } = scrobble;
-
-      const resolvedTrack = track
-        ? {
-            ...track,
-            trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
-            artists: track.trackArtists
-              .map((artist) => ({
-                ...artist.artist,
-                position: artist.position,
-              }))
-              .sort((a, b) => a.position - b.position)
-              .map(({ position: _, ...rest }) => rest),
-          }
-        : unlinkedTrack(scrobble);
-
-      const resolvedAlbum = album
-        ? {
-            ...album,
-            albumArtists: undefined,
-            artists: album.albumArtists
-              .map((artist) => ({
-                ...artist.artist,
-                position: artist.position,
-              }))
-              .sort((a, b) => a.position - b.position)
-              .map(({ position: _, ...rest }) => rest),
-          }
-        : unlinkedAlbum(scrobble);
-
-      return {
-        id,
-        track: resolvedTrack,
-        album: resolvedAlbum,
-        scrobbleDate,
-      };
-    }),
-  };
+  return { data: scrobbles };
 }
 
 export async function getScrobbleMonths(
   db: Database,
   input: z.input<typeof scrobbleMonthsInput>,
-  viewerUserId?: string,
+  viewerUserId?: User["id"],
 ) {
   const { username, timeZone } = scrobbleMonthsInput.parse(input);
   const user = await getUserByUsername(db, username, viewerUserId);

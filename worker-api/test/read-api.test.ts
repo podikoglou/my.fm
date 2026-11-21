@@ -170,13 +170,44 @@ describe("scrobble queries", () => {
 
     const [scrobble] = recent;
     expect(scrobble?.track?.name).toBe("A Track");
-    expect(scrobble?.track?.trackArtists).toHaveLength(2);
-    expect(scrobble?.track?.trackArtists.map(({ artist }) => artist.name)).toEqual([
+    expect(scrobble?.track?.artists).toHaveLength(2);
+    expect(scrobble?.track?.artists.map(({ name }) => name)).toEqual([
       "First Artist",
       "Second Artist",
     ]);
     expect(scrobble?.album?.name).toBe("An Album");
-    expect(scrobble?.album?.albumArtists[0]?.artist.name).toBe("First Artist");
+    expect(scrobble?.album?.artists[0]?.name).toBe("First Artist");
+  });
+
+  test("projects unlinked scrobbles from stored fallback names and cover art", async () => {
+    const { db } = await seed();
+
+    await db.insert(scrobbles).values({
+      id: "scrobble-unlinked",
+      userId,
+      trackName: "Ghost Track",
+      artistName: "Unknown Singer",
+      albumName: "Ghost Album",
+      coverArtUrl: "https://example.com/ghost.jpg",
+      scrobbleDate: new Date("2026-11-12T12:00:00.000Z"),
+    });
+
+    const recent = await findRecentScrobblesByUserId(db, userId, { offset: 0, limit: 1 });
+    const [scrobble] = recent;
+
+    expect(scrobble?.id).toBe("scrobble-unlinked");
+    expect(scrobble?.track).toEqual({
+      name: "Ghost Track",
+      imageUrl: "https://example.com/ghost.jpg",
+      spotifyUri: undefined,
+      artists: [{ name: "Unknown Singer", spotifyUri: undefined }],
+    });
+    expect(scrobble?.album).toEqual({
+      name: "Ghost Album",
+      imageUrl: "https://example.com/ghost.jpg",
+      spotifyUri: undefined,
+      artists: [],
+    });
   });
 
   test("returns only scrobbles played before the given time", async () => {
