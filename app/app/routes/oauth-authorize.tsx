@@ -68,6 +68,14 @@ export default function OAuthAuthorizePage() {
                 {consent.client.clientUri}
               </p>
             ) : null}
+            <p className="text-sm break-words text-muted-foreground">
+              Redirects to {new URL(consent.redirectUri).origin}
+            </p>
+            {URL.canParse(consent.client.clientId) ? (
+              <p className="text-sm break-words text-muted-foreground">
+                Client ID: {consent.client.clientId}
+              </p>
+            ) : null}
             <p className="text-sm">
               Read your profile, listening history and the public feed; no changes.
             </p>

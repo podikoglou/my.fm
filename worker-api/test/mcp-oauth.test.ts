@@ -110,6 +110,7 @@ async function authorize(cookie: string, requestOrigin = origin) {
   expect(await info.json()).toEqual({
     client: { clientId, clientName: "Test MCP client", clientUri: "https://client.example" },
     scope: ["read"],
+    redirectUri,
   });
 
   const allowed = await decide(cookie, query, "allow", requestOrigin);

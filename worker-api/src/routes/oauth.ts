@@ -26,6 +26,7 @@ export default new Hono<AppEnv>()
           clientUri: client.clientUri,
         },
         scope: request.scope,
+        redirectUri: request.redirectUri,
       });
     } catch {
       return c.json({ error: "Invalid OAuth request" }, 400);
