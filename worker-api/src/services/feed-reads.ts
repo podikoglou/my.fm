@@ -2,7 +2,7 @@ import z from "zod";
 
 import type { Database } from "../db/index.ts";
 
-import { findPublicFeed } from "../db/queries/scrobbles.ts";
+import { findPublicFeed, type FeedCursor, type FeedItem } from "../db/queries/scrobbles.ts";
 
 const CURSOR_VERSION = 1;
 
@@ -12,7 +12,7 @@ const cursorPayload = z.tuple([
   z.string().regex(/^[0-9a-f]{32}$/),
 ]);
 
-function encodeCursor(row: { id: string; scrobbleDate: Date | null }) {
+function encodeCursor(row: Pick<FeedItem, "id" | "scrobbleDate">) {
   if (!row.scrobbleDate) return null;
 
   const seconds = Math.floor(row.scrobbleDate.getTime() / 1000);
@@ -21,7 +21,7 @@ function encodeCursor(row: { id: string; scrobbleDate: Date | null }) {
   return bytes.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-function decodeCursor(value: string) {
+function decodeCursor(value: string): FeedCursor | undefined {
   try {
     const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");

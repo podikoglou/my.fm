@@ -149,8 +149,8 @@ function toProjectedAlbum(
 export async function findRecordedPlaysBetween(
   db: Database,
   userId: User["id"],
-  from: Date,
-  to: Date,
+  from: NonNullable<Scrobble["scrobbleDate"]>,
+  to: NonNullable<Scrobble["scrobbleDate"]>,
 ): Promise<RecordedPlay[]> {
   const rows = await db.query.scrobbles.findMany({
     where: { userId, importId: { isNull: true }, scrobbleDate: { gte: from, lte: to } },
@@ -186,7 +186,11 @@ export async function findRecordedPlaysBetween(
 export async function findRecentScrobblesByUserId(
   db: Database,
   userId: User["id"],
-  { before, offset, limit }: { before?: Date; offset: number; limit: number },
+  {
+    before,
+    offset,
+    limit,
+  }: { before?: NonNullable<Scrobble["scrobbleDate"]>; offset: number; limit: number },
 ): Promise<ProjectedScrobble[]> {
   const rows = await db.query.scrobbles.findMany({
     where: before ? { userId, scrobbleDate: { lt: before } } : { userId },
@@ -251,9 +255,8 @@ export async function findRecentScrobblesByUserId(
   }));
 }
 
-export type FeedCursor = {
-  scrobbleDate: Date;
-  id: string;
+export type FeedCursor = Pick<Scrobble, "id"> & {
+  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
 };
 
 /**

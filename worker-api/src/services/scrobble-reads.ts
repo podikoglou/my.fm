@@ -1,6 +1,7 @@
 import z from "zod";
 
 import type { Database } from "../db/index.ts";
+import type { User } from "../db/schema.ts";
 
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { isTimeZone } from "../time-zone.ts";
@@ -27,7 +28,7 @@ export const scrobbleMonthsInput = z.object({
 export async function getRecentScrobbles(
   db: Database,
   input: z.input<typeof recentScrobblesInput>,
-  viewerUserId?: string,
+  viewerUserId?: User["id"],
 ) {
   const { username, offset, limit, before } = recentScrobblesInput.parse(input);
   const user = await getUserByUsername(db, username, viewerUserId);
@@ -46,7 +47,7 @@ export async function getRecentScrobbles(
 export async function getScrobbleMonths(
   db: Database,
   input: z.input<typeof scrobbleMonthsInput>,
-  viewerUserId?: string,
+  viewerUserId?: User["id"],
 ) {
   const { username, timeZone } = scrobbleMonthsInput.parse(input);
   const user = await getUserByUsername(db, username, viewerUserId);
