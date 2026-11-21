@@ -501,3 +501,70 @@ test("enforces the real public-read budget keyed by authenticated user", async (
   expect(rejected.isError).toBe(true);
   expect(text(rejected)).toBe("Too many requests");
 });
+
+test("lists connected apps and revokes access", async () => {
+  const user = await signIn({ id: "oauth-connected", email: "connected@example.com" });
+  const accessToken = await token(user.cookie);
+
+  const listRes = await request("/api/oauth/apps", { headers: { cookie: user.cookie } });
+
+  expect(listRes.status).toBe(200);
+
+  const { apps } = z
+    .object({
+      apps: z.array(
+        z.object({
+          id: z.string(),
+          clientId: z.string(),
+          name: z.string(),
+          clientUri: z.string().optional(),
+          scope: z.array(z.string()),
+          createdAt: z.number(),
+        }),
+      ),
+    })
+    .parse(await listRes.json());
+
+  expect(apps.length).toBe(1);
+  const firstApp = apps[0];
+  expect(firstApp).toBeDefined();
+  expect(firstApp?.name).toBe("Test MCP client");
+  expect(firstApp?.scope).toEqual(["read"]);
+
+  const initialCall = await callTool(accessToken, "get_me");
+  expect(initialCall.isError).not.toBe(true);
+
+  const appId = firstApp!.id;
+
+  const deleteRes = await request(`/api/oauth/apps/${appId}`, {
+    method: "DELETE",
+    headers: { cookie: user.cookie },
+  });
+
+  expect(deleteRes.status).toBe(200);
+  expect(await deleteRes.json()).toEqual({ success: true });
+
+  const emptyRes = await request("/api/oauth/apps", { headers: { cookie: user.cookie } });
+  expect(emptyRes.status).toBe(200);
+  expect(await emptyRes.json()).toEqual({ apps: [] });
+
+  const rejectedCall = await request("/mcp", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + accessToken,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "get_me", arguments: {} },
+    }),
+  });
+
+  expect(rejectedCall.status).toBe(401);
+
+  expect((await request("/api/oauth/apps")).status).toBe(401);
+  expect((await request(`/api/oauth/apps/${appId}`, { method: "DELETE" })).status).toBe(401);
+});
