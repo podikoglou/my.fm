@@ -6,11 +6,32 @@ import { createApp } from "./app.ts";
 import { runImportIngestion } from "./ingestion/import.ts";
 import { runIngestion } from "./ingestion/run.ts";
 import { mcpApiHandler } from "./mcp/handler.ts";
+import { RATE_LIMITS } from "./rate-limits.ts";
 
 const app = createApp();
 
 export default {
-  fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext) {
+  async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext) {
+    const { pathname } = new URL(request.url);
+
+    if (request.method === "POST" && (pathname === "/register" || pathname === "/token")) {
+      const key = request.headers.get("cf-connecting-ip") ?? "unknown";
+      const { success } = await env.AUTH_RATE_LIMIT.limit({ key });
+
+      if (!success) {
+        return Response.json(
+          { error: "Too many requests" },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": String(RATE_LIMITS.AUTH_RATE_LIMIT.period),
+              "Cache-Control": "private, no-store",
+            },
+          },
+        );
+      }
+    }
+
     const provider = new OAuthProvider<WorkerEnv>({
       apiRoute: "/mcp",
       apiHandler: mcpApiHandler,
