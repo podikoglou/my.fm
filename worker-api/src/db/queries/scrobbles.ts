@@ -3,7 +3,15 @@ import { and, count, eq, isNotNull, max, min, sql } from "drizzle-orm";
 import type { Database } from "../index.ts";
 
 import { monthsBetween } from "../../time-zone.ts";
-import { scrobbles, type ScrobbleInsert, type User } from "../schema.ts";
+import {
+  scrobbles,
+  type Album,
+  type Artist,
+  type Scrobble,
+  type ScrobbleInsert,
+  type Track,
+  type User,
+} from "../schema.ts";
 
 /**
  * Derive a deterministic scrobble ID from the user and the play time.
@@ -40,65 +48,47 @@ export function insertScrobble(db: Database, values: ScrobbleValues) {
   return db.insert(scrobbles).values(values).onConflictDoNothing().returning();
 }
 
-export type ProjectedArtist = {
-  name: string;
-  spotifyUri?: string;
+export type ProjectedArtist = Pick<Artist, "name"> & {
+  spotifyUri?: Artist["spotifyUri"];
 };
 
-export type ProjectedTrack = {
-  name: string;
-  imageUrl: string;
-  spotifyUri?: string;
+export type ProjectedTrack = Pick<Track, "name" | "imageUrl"> & {
+  spotifyUri?: Track["spotifyUri"];
   artists: ProjectedArtist[];
 };
 
-export type ProjectedAlbum = {
-  name: string;
-  imageUrl: string;
-  spotifyUri?: string;
+export type ProjectedAlbum = Pick<Album, "name" | "imageUrl"> & {
+  spotifyUri?: Album["spotifyUri"];
   artists: ProjectedArtist[];
 };
 
-export type ProjectedScrobble = {
-  id: string;
-  scrobbleDate: Date | null;
+export type ProjectedScrobble = Pick<Scrobble, "id" | "scrobbleDate"> & {
   track: ProjectedTrack;
   album: ProjectedAlbum;
 };
 
-export type FeedItem = {
-  id: string;
-  scrobbleDate: Date | null;
-  user: {
-    username: string;
-    name: string;
-    avatarUrl: string | null;
-  };
+export type FeedItem = Pick<Scrobble, "id" | "scrobbleDate"> & {
+  user: Pick<User, "username" | "name" | "avatarUrl">;
   track: ProjectedTrack;
-  album: {
-    name: string;
-    spotifyUri?: string;
+  album: Pick<Album, "name"> & {
+    spotifyUri?: Album["spotifyUri"];
   };
 };
 
-export type RecordedPlay = {
-  scrobbleDate: Date | null;
-  trackName: string;
-  artistName: string;
+export type RecordedPlay = Pick<Scrobble, "scrobbleDate"> & {
+  trackName: Track["name"];
+  artistName: Artist["name"];
 };
 
-function toProjectedTrack(row: {
-  trackSpotifyUri?: string | null;
-  trackName?: string | null;
-  artistName?: string | null;
-  coverArtUrl?: string | null;
-  track?: {
-    name: string;
-    imageUrl: string;
-    spotifyUri: string;
-    trackArtists: { position: number; artist: { name: string; spotifyUri: string } }[];
-  } | null;
-}): ProjectedTrack {
+function toProjectedTrack(
+  row: Partial<Pick<Scrobble, "trackSpotifyUri" | "trackName" | "artistName" | "coverArtUrl">> & {
+    track?:
+      | (Pick<Track, "name" | "imageUrl" | "spotifyUri"> & {
+          trackArtists: { position: number; artist: Pick<Artist, "name" | "spotifyUri"> }[];
+        })
+      | null;
+  },
+): ProjectedTrack {
   if (row.track) {
     return {
       name: row.track.name,
@@ -121,17 +111,15 @@ function toProjectedTrack(row: {
   };
 }
 
-function toProjectedAlbum(row: {
-  albumSpotifyUri?: string | null;
-  albumName?: string | null;
-  coverArtUrl?: string | null;
-  album?: {
-    name: string;
-    imageUrl: string;
-    spotifyUri: string;
-    albumArtists?: { position: number; artist: { name: string; spotifyUri: string } }[];
-  } | null;
-}): ProjectedAlbum {
+function toProjectedAlbum(
+  row: Partial<Pick<Scrobble, "albumSpotifyUri" | "albumName" | "coverArtUrl">> & {
+    album?:
+      | (Pick<Album, "name" | "imageUrl" | "spotifyUri"> & {
+          albumArtists?: { position: number; artist: Pick<Artist, "name" | "spotifyUri"> }[];
+        })
+      | null;
+  },
+): ProjectedAlbum {
   if (row.album) {
     return {
       name: row.album.name,
