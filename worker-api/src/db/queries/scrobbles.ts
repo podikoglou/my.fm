@@ -5,6 +5,7 @@ import { and, count, eq, isNotNull, max, min, sql } from "drizzle-orm";
 import type { Database } from "../index.ts";
 
 import { monthsBetween } from "../../time-zone.ts";
+import { FEED_VISIBLE_USER } from "../../visibility.ts";
 import {
   albumArtists,
   albums,
@@ -448,7 +449,7 @@ export async function findPublicFeed(
 ): Promise<FeedItem[]> {
   const rows = await db.query.scrobbles.findMany({
     where: {
-      user: { isPrivate: false, onboarded: true },
+      user: FEED_VISIBLE_USER,
       scrobbleDate: { isNotNull: true as const },
       RAW: (table: typeof scrobbles) =>
         cursor

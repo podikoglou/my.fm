@@ -13,12 +13,8 @@ import {
   recentScrobblesInput,
   scrobbleMonthsInput,
 } from "../services/scrobble-reads.ts";
-import {
-  getMeForMcp,
-  getUserById,
-  getUserByUsername,
-  toMcpPublicUser,
-} from "../services/user-reads.ts";
+import { getMeForMcp } from "../services/user-reads.ts";
+import { viewProfileById, viewProfileByUsername } from "../visibility.ts";
 
 const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true };
 
@@ -64,12 +60,15 @@ export function createMcpServer(env: WorkerEnv, userId: string) {
       limited(async () => {
         const result =
           username !== undefined
-            ? await getUserByUsername(db, username, userId)
-            : await getUserById(db, id ?? "", userId);
+            ? await viewProfileByUsername(db, username, userId)
+            : await viewProfileById(db, id ?? "", userId);
 
-        return result.error !== undefined
-          ? toolError(result.error)
-          : toolData(toMcpPublicUser(result.data));
+        if ("error" in result) return toolError(result.error);
+
+        // MCP clients render text; the avatar is a browser concern.
+        const { avatarUrl: _, ...user } = result.data;
+
+        return toolData(user);
       }),
   );
   server.registerTool(

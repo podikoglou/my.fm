@@ -9,13 +9,8 @@ import { nameSchema, usernameSchema } from "../data/validators.ts";
 import { createDatabase } from "../db/index.ts";
 import { onboardUser, updateUserSettings } from "../db/queries/users.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
-import {
-  getUserByUsername,
-  getUserById,
-  toMeUser,
-  userByUsernameInput,
-  userByIdInput,
-} from "../services/user-reads.ts";
+import { toMeUser, userByUsernameInput, userByIdInput } from "../services/user-reads.ts";
+import { viewProfileById, viewProfileByUsername } from "../visibility.ts";
 
 export default new Hono<AppEnv>()
   .use("/byUsername", rateLimit("PUBLIC_READ_RATE_LIMIT"))
@@ -29,7 +24,12 @@ export default new Hono<AppEnv>()
   })
   .get("/byUsername", zValidator("query", userByUsernameInput), async (c) => {
     const { username } = c.req.valid("query");
-    const result = await getUserByUsername(createDatabase(c.env.DB), username, c.get("user")?.id);
+
+    const result = await viewProfileByUsername(
+      createDatabase(c.env.DB),
+      username,
+      c.get("user")?.id,
+    );
 
     if ("error" in result) return c.json({ error: result.error }, result.status);
 
@@ -37,7 +37,7 @@ export default new Hono<AppEnv>()
   })
   .get("/byId", zValidator("query", userByIdInput), async (c) => {
     const { id } = c.req.valid("query");
-    const result = await getUserById(createDatabase(c.env.DB), id, c.get("user")?.id);
+    const result = await viewProfileById(createDatabase(c.env.DB), id, c.get("user")?.id);
 
     if ("error" in result) return c.json({ error: result.error }, result.status);
 

@@ -5,7 +5,7 @@ import type { User } from "../db/schema.ts";
 
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
 import { isTimeZone } from "../time-zone.ts";
-import { getUserByUsername } from "./user-reads.ts";
+import { viewProfileByUsername } from "../visibility.ts";
 
 export const recentScrobblesInput = z.object({
   username: z.string(),
@@ -31,11 +31,11 @@ export async function getRecentScrobbles(
   viewerUserId?: User["id"],
 ) {
   const { username, offset, limit, before } = recentScrobblesInput.parse(input);
-  const user = await getUserByUsername(db, username, viewerUserId);
+  const profile = await viewProfileByUsername(db, username, viewerUserId);
 
-  if ("error" in user) return { error: user.error, status: user.status };
+  if ("error" in profile) return { error: profile.error, status: profile.status };
 
-  const scrobbles = await findRecentScrobblesByUserId(db, user.data.id, {
+  const scrobbles = await findRecentScrobblesByUserId(db, profile.data.id, {
     before: before === undefined ? undefined : new Date(before * 1000),
     offset,
     limit,
@@ -50,9 +50,9 @@ export async function getScrobbleMonths(
   viewerUserId?: User["id"],
 ) {
   const { username, timeZone } = scrobbleMonthsInput.parse(input);
-  const user = await getUserByUsername(db, username, viewerUserId);
+  const profile = await viewProfileByUsername(db, username, viewerUserId);
 
-  if ("error" in user) return { error: user.error, status: user.status };
+  if ("error" in profile) return { error: profile.error, status: profile.status };
 
-  return { data: await countScrobblesByMonth(db, user.data.id, { timeZone }) };
+  return { data: await countScrobblesByMonth(db, profile.data.id, { timeZone }) };
 }
