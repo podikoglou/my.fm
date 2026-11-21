@@ -13,8 +13,6 @@ const cursorPayload = z.tuple([
 ]);
 
 function encodeCursor(row: Pick<FeedItem, "id" | "scrobbleDate">) {
-  if (!row.scrobbleDate) return null;
-
   const seconds = Math.floor(row.scrobbleDate.getTime() / 1000);
   const bytes = btoa(JSON.stringify([CURSOR_VERSION, seconds, row.id]));
 

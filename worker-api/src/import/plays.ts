@@ -93,10 +93,6 @@ export async function withoutRecordedPlays(
   const recordedTimes = new Map<string, number[]>();
 
   for (const { scrobbleDate, trackName, artistName } of recorded) {
-    if (!scrobbleDate) {
-      continue;
-    }
-
     const { normTrackKey } = await computeNormKeys(artistName, trackName);
 
     recordedTimes.set(normTrackKey, [

@@ -67,7 +67,8 @@ export type ProjectedScrobble = Pick<Scrobble, "id" | "scrobbleDate"> & {
   album: ProjectedAlbum;
 };
 
-export type FeedItem = Pick<Scrobble, "id" | "scrobbleDate"> & {
+export type FeedItem = Pick<Scrobble, "id"> & {
+  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
   user: Pick<User, "username" | "name" | "avatarUrl">;
   track: ProjectedTrack;
   album: Pick<Album, "name"> & {
@@ -75,7 +76,8 @@ export type FeedItem = Pick<Scrobble, "id" | "scrobbleDate"> & {
   };
 };
 
-export type RecordedPlay = Pick<Scrobble, "scrobbleDate"> & {
+export type RecordedPlay = {
+  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
   trackName: Track["name"];
   artistName: Artist["name"];
 };
@@ -328,20 +330,26 @@ export async function findPublicFeed(
     },
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    scrobbleDate: row.scrobbleDate,
-    user: {
-      username: row.user.username,
-      name: row.user.name,
-      avatarUrl: row.user.avatarUrl,
-    },
-    track: toProjectedTrack(row),
-    album: {
-      name: row.album?.name ?? row.albumName ?? "",
-      spotifyUri: row.album?.spotifyUri ?? row.albumSpotifyUri ?? undefined,
-    },
-  }));
+  return rows.flatMap((row) => {
+    if (!row.scrobbleDate) return [];
+
+    return [
+      {
+        id: row.id,
+        scrobbleDate: row.scrobbleDate,
+        user: {
+          username: row.user.username,
+          name: row.user.name,
+          avatarUrl: row.user.avatarUrl,
+        },
+        track: toProjectedTrack(row),
+        album: {
+          name: row.album?.name ?? row.albumName ?? "",
+          spotifyUri: row.album?.spotifyUri ?? row.albumSpotifyUri ?? undefined,
+        },
+      },
+    ];
+  });
 }
 
 /**
