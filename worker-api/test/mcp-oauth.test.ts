@@ -242,6 +242,23 @@ test("discovers the public origin and challenges unauthenticated MCP requests", 
   expect((await request("/api/oauth/authorize")).status).toBe(401);
 });
 
+test("stateless MCP does not offer a standalone SSE stream or session deletion", async () => {
+  const owner = await signIn({ id: "oauth-methods", email: "methods@example.com" });
+  const accessToken = await token(owner.cookie);
+
+  for (const method of ["GET", "DELETE"]) {
+    const response = await request("/mcp", {
+      method,
+      headers: { authorization: "Bearer " + accessToken, accept: "text/event-stream" },
+    });
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get("Allow")).toBe("POST");
+    expect(await response.text()).toBe("");
+    expect(response.headers.has("mcp-session-id")).toBe(false);
+  }
+});
+
 test("denies consent safely, rejects invalid requests and enforces PKCE", async () => {
   const owner = await signIn({ id: "oauth-owner", email: "owner@example.com" });
   const clientId = await register();

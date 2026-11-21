@@ -9,6 +9,10 @@ const oauthProps = z.object({ userId: z.string().min(1) });
 
 export const mcpApiHandler = {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext) {
+    if (request.method !== "POST") {
+      return new Response(null, { status: 405, headers: { Allow: "POST" } });
+    }
+
     const { userId } = oauthProps.parse(ctx.props);
 
     const server = createMcpServer(env, userId);
