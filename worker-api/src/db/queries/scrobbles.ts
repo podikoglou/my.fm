@@ -106,7 +106,7 @@ export async function persistPlays(
  * Build D1 statements for a single play in foreign-key dependency order:
  * artists, album, album artists, track, track artists, scrobble.
  */
-export function buildPlayStatements(db: Database, play: PlayRecord): BatchItem<"sqlite">[] {
+function buildPlayStatements(db: Database, play: PlayRecord): BatchItem<"sqlite">[] {
   const statements: BatchItem<"sqlite">[] = [];
 
   const trackArtistsList = play.track?.artists ?? [];

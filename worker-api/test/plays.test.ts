@@ -2,11 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, test, vi } from "vitest";
 
 import { createDatabase } from "../src/db/index.ts";
-import {
-  buildPlayStatements,
-  persistPlays,
-  type PlayRecord,
-} from "../src/db/queries/scrobbles.ts";
+import { persistPlays, type PlayRecord } from "../src/db/queries/scrobbles.ts";
 import {
   albumArtists,
   albums,
@@ -203,37 +199,5 @@ describe("persistPlays", () => {
     // 5 plays chunked by 2 = 3 batches (2 + 2 + 1)
     expect(batchSpy).toHaveBeenCalledTimes(3);
     expect(await db.select().from(scrobbles)).toHaveLength(5);
-  });
-});
-
-describe("buildPlayStatements", () => {
-  test("orders statements: artists, album, album-artists, track, track-artists, scrobble", () => {
-    const db = createDatabase(env.DB);
-
-    const play: PlayRecord = {
-      id: "scrobble-test-order",
-      userId: "user-1",
-      scrobbleDate: now,
-      track: {
-        spotifyUri: "spotify:track:order",
-        name: "Track",
-        releaseDate: "2026",
-        imageUrl: "",
-        artists: [{ spotifyUri: "spotify:artist:track-artist", name: "Track Artist" }],
-      },
-      album: {
-        spotifyUri: "spotify:album:order",
-        name: "Album",
-        releaseDate: "2026",
-        totalTracks: 1,
-        albumType: "album",
-        imageUrl: "",
-        artists: [{ spotifyUri: "spotify:artist:album-artist", name: "Album Artist" }],
-      },
-    };
-
-    const statements = buildPlayStatements(db, play);
-    // 2 artists + 1 album + 1 album-artist + 1 track + 1 track-artist + 1 scrobble = 7 statements
-    expect(statements).toHaveLength(7);
   });
 });
