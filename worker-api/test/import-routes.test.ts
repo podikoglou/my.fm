@@ -313,6 +313,7 @@ describe("import routes", () => {
   test("keeps a D1 insert failure private", async () => {
     const app = createApp();
     const { cookie } = await signIn({ id: "insert-failure", email: "failure@example.com" });
+
     const message =
       "D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_FOREIGNKEY)";
 
