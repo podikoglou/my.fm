@@ -3,7 +3,7 @@ import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import type { WorkerEnv } from "./alchemy.ts";
 
 import { createApp } from "./app.ts";
-import { runImportIngestion } from "./ingestion/import.ts";
+import { runImportTick } from "./import/run.ts";
 import { runIngestion } from "./ingestion/run.ts";
 import { mcpApiHandler } from "./mcp/handler.ts";
 import { RATE_LIMITS } from "./rate-limits.ts";
@@ -49,6 +49,6 @@ export default {
   },
   async scheduled(controller: ScheduledController, env: WorkerEnv, _ctx: ExecutionContext) {
     await runIngestion(env, undefined, new Date(controller.scheduledTime));
-    await runImportIngestion(env);
+    await runImportTick(env);
   },
 } satisfies ExportedHandler<WorkerEnv>;

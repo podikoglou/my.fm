@@ -7,7 +7,7 @@ import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
 import { insertImport } from "../src/db/queries/imports.ts";
 import { imports } from "../src/db/schema.ts";
-import { runImportIngestion } from "../src/ingestion/import.ts";
+import { runImportTick } from "../src/import/run.ts";
 import { createFailingInsertDatabase, D1_WRITE_LIMIT_MESSAGE } from "./d1.ts";
 import { network } from "./network.ts";
 
@@ -370,7 +370,7 @@ describe("import routes", () => {
     };
 
     for (let i = 0; i < 3; i++) {
-      await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+      await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
     }
 
     const latestResponse = await app.request(
