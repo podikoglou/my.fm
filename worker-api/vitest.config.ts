@@ -15,6 +15,8 @@ export default defineConfig({
       main: "./src/worker.ts",
       miniflare: {
         compatibilityDate: "2026-11-02",
+        compatibilityFlags: ["global_fetch_strictly_public"],
+        kvNamespaces: ["OAUTH_KV"],
         d1Databases: ["DB"],
         r2Buckets: ["IMPORTS_BUCKET"],
         ratelimits: Object.fromEntries(

@@ -17,6 +17,9 @@ import {
   tracks,
   users,
 } from "../src/db/schema.ts";
+import { getPublicFeed } from "../src/services/feed-reads.ts";
+import { getRecentScrobbles, getScrobbleMonths } from "../src/services/scrobble-reads.ts";
+import { getMeForMcp, getUserByUsername, toMcpPublicUser } from "../src/services/user-reads.ts";
 import { network } from "./network.ts";
 
 const baseUrl = "http://app.test";
@@ -93,6 +96,53 @@ async function seed() {
 }
 
 describe("user queries", () => {
+  test("omits sensitive fields from MCP projections, including the owner's private profile", async () => {
+    const { db } = await seed();
+    await db.update(users).set({ isPrivate: true }).where(eq(users.id, userId));
+    expect(await getMeForMcp(db, userId)).toEqual({
+      data: { id: userId, username: "alex", name: "Alex", onboarded: true, isPrivate: true },
+    });
+    const profile = await getUserByUsername(db, "alex", userId);
+
+    if ("error" in profile) throw new Error(profile.error);
+    expect(toMcpPublicUser(profile.data)).toEqual({ id: userId, username: "alex", name: "Alex" });
+    expect(await getUserByUsername(db, "alex", "other")).toEqual({
+      error: "Profile is private",
+      status: 403,
+    });
+    expect(await getRecentScrobbles(db, { username: "alex", offset: 0 }, "other")).toEqual({
+      error: "Profile is private",
+      status: 403,
+    });
+    expect(await getScrobbleMonths(db, { username: "alex" }, "other")).toEqual({
+      error: "Profile is private",
+      status: 403,
+    });
+    const recent = await getRecentScrobbles(db, { username: "alex", offset: 0 }, userId);
+    expect(recent.data).toHaveLength(2);
+    expect(await getPublicFeed(db, {})).toEqual({ data: { items: [], nextCursor: null } });
+  });
+
+  test("reports missing users and validates service inputs without a route", async () => {
+    const db = createDatabase(env.DB);
+    expect(await getMeForMcp(db, userId)).toEqual({ error: "User not found", status: 404 });
+    expect(await getUserByUsername(db, "missing")).toEqual({
+      error: "User not found",
+      status: 404,
+    });
+    await expect(
+      getRecentScrobbles(db, { username: "alex", offset: 0, limit: 9 }),
+    ).rejects.toThrow();
+    await expect(
+      getScrobbleMonths(db, { username: "alex", timeZone: "invalid" }),
+    ).rejects.toThrow();
+    await expect(getPublicFeed(db, { limit: 51 })).rejects.toThrow();
+    expect(await getPublicFeed(db, { cursor: "invalid" })).toEqual({
+      error: "Invalid cursor",
+      status: 400,
+    });
+  });
+
   test("limits public lookups to the public columns", async () => {
     const { db } = await seed();
 

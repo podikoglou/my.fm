@@ -4,12 +4,15 @@ import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 import { API_DEV_URL, APP_DEV_PORT, DEV_APP_HOST } from "../dev";
-import { API_HEALTH_PATH, API_PATH_PREFIXES } from "./api-paths";
+import { API_EXACT_PATHS, API_PATH_PREFIXES } from "./api-paths";
 
 const apiDevUrl = process.env.API_DEV_URL ?? API_DEV_URL;
 
 // Path-segment patterns. A key that starts with `^` is a regular expression.
-const apiPaths = [...API_PATH_PREFIXES.map((prefix) => `^${prefix}`), `^${API_HEALTH_PATH}$`];
+const apiPaths = [
+  ...API_PATH_PREFIXES.map((prefix) => `^${prefix.replaceAll(".", String.raw`\.`)}`),
+  ...API_EXACT_PATHS.map((path) => `^${path}$`),
+];
 
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],

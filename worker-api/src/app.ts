@@ -12,6 +12,7 @@ import { rateLimit } from "./rate-limit-middleware.ts";
 import feed from "./routes/feed.ts";
 import importRoute from "./routes/import.ts";
 import notifications from "./routes/notifications.ts";
+import oauth from "./routes/oauth.ts";
 import scrobble from "./routes/scrobble.ts";
 import user from "./routes/user.ts";
 
@@ -30,7 +31,8 @@ function createApi() {
     .route("/scrobble", scrobble)
     .route("/feed", feed)
     .route("/import", importRoute)
-    .route("/notifications", notifications);
+    .route("/notifications", notifications)
+    .route("/oauth", oauth);
 }
 
 export function createApp() {

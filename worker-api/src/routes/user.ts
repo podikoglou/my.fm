@@ -7,15 +7,15 @@ import type { AppEnv } from "../types.ts";
 import { requireSession, sessionMiddleware } from "../auth-middleware.ts";
 import { nameSchema, usernameSchema } from "../data/validators.ts";
 import { createDatabase } from "../db/index.ts";
-import {
-  canViewProfile,
-  findUserByIdPublic,
-  findUserByUsernamePublic,
-  onboardUser,
-  toPublicUser,
-  updateUserSettings,
-} from "../db/queries/users.ts";
+import { onboardUser, updateUserSettings } from "../db/queries/users.ts";
 import { rateLimit } from "../rate-limit-middleware.ts";
+import {
+  getUserByUsername,
+  getUserById,
+  toMeUser,
+  userByUsernameInput,
+  userByIdInput,
+} from "../services/user-reads.ts";
 
 export default new Hono<AppEnv>()
   .use("/byUsername", rateLimit("PUBLIC_READ_RATE_LIMIT"))
@@ -25,38 +25,23 @@ export default new Hono<AppEnv>()
   .use("/settings", requireSession)
   .use("/onboard", requireSession)
   .get("/me", async (c) => {
-    const { id, username, name, email, avatarUrl, onboarded, isPrivate } =
-      await c.get("getUserData")();
-
-    return c.json({ id, username, name, email, avatarUrl, onboarded, isPrivate }, 200);
+    return c.json(toMeUser(await c.get("getUserData")()), 200);
   })
-  .get("/byUsername", zValidator("query", z.object({ username: z.string() })), async (c) => {
+  .get("/byUsername", zValidator("query", userByUsernameInput), async (c) => {
     const { username } = c.req.valid("query");
-    const user = await findUserByUsernamePublic(createDatabase(c.env.DB), username);
+    const result = await getUserByUsername(createDatabase(c.env.DB), username, c.get("user")?.id);
 
-    if (!user) {
-      return c.json({ error: "User not found" }, 404);
-    }
+    if ("error" in result) return c.json({ error: result.error }, result.status);
 
-    if (!canViewProfile(user, c.get("user")?.id)) {
-      return c.json({ error: "Profile is private" }, 403);
-    }
-
-    return c.json(toPublicUser(user), 200);
+    return c.json(result.data, 200);
   })
-  .get("/byId", zValidator("query", z.object({ id: z.nanoid() })), async (c) => {
+  .get("/byId", zValidator("query", userByIdInput), async (c) => {
     const { id } = c.req.valid("query");
-    const user = await findUserByIdPublic(createDatabase(c.env.DB), id);
+    const result = await getUserById(createDatabase(c.env.DB), id, c.get("user")?.id);
 
-    if (!user) {
-      return c.json({ error: "User not found" }, 404);
-    }
+    if ("error" in result) return c.json({ error: result.error }, result.status);
 
-    if (!canViewProfile(user, c.get("user")?.id)) {
-      return c.json({ error: "Profile is private" }, 403);
-    }
-
-    return c.json(toPublicUser(user), 200);
+    return c.json(result.data, 200);
   })
   .patch("/settings", zValidator("json", z.object({ isPrivate: z.boolean() })), async (c) => {
     const { id } = await c.get("getUserData")();

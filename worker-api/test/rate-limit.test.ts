@@ -1,8 +1,10 @@
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { createApp } from "../src/app.ts";
 import { RATE_LIMITS, type RateLimitBindingName } from "../src/rate-limits.ts";
+import worker from "../src/worker.ts";
 
 const clientIp = "203.0.113.7";
 
@@ -118,6 +120,52 @@ describe("rate limits", () => {
 });
 
 describe("auth rate limit", () => {
+  test("limits registration and token writes before OAuth handling, by IP or the shared fallback", async () => {
+    async function registerOrToken(path: string, ip?: string) {
+      const ctx = createExecutionContext();
+      const headers = new Headers({ "content-type": "application/json" });
+
+      if (ip) headers.set("cf-connecting-ip", ip);
+
+      const response = await worker.fetch(
+        new Request("https://app.test" + path, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            client_name: "Rate limited client",
+            redirect_uris: ["https://client.example/callback"],
+            token_endpoint_auth_method: "none",
+          }),
+        }),
+        env,
+        ctx,
+      );
+
+      await waitOnExecutionContext(ctx);
+
+      return response;
+    }
+
+    for (const ip of [undefined, clientIp]) {
+      await spendBudget("AUTH_RATE_LIMIT", 1, ip);
+      expect((await registerOrToken("/register", ip)).status).toBe(201);
+      const keys = await env.OAUTH_KV.list();
+
+      for (const path of ["/register", "/token"]) {
+        const response = await registerOrToken(path, ip);
+
+        expect(response.status).toBe(429);
+        expect(await response.json()).toEqual({ error: "Too many requests" });
+        expect(response.headers.get("Retry-After")).toBe("60");
+        expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      }
+
+      expect(await env.OAUTH_KV.list()).toEqual(keys);
+    }
+
+    expect((await registerOrToken("/register", "198.51.100.4")).status).toBe(201);
+  });
+
   test("limits the auth mount", async () => {
     await spendBudget("AUTH_RATE_LIMIT", 1);
     const app = createApp();

@@ -17,4 +17,5 @@ export default [
 
     route(AUTH_ERROR_ROUTE, "routes/auth-error.tsx"),
   ]),
+  route("oauth/authorize", "routes/oauth-authorize.tsx"),
 ] satisfies RouteConfig;
