@@ -3,7 +3,6 @@ import z from "zod";
 import type { Database } from "../db/index.ts";
 
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../db/queries/scrobbles.ts";
-import { unlinkedAlbum, unlinkedTrack } from "../import/unlinked.ts";
 import { isTimeZone } from "../time-zone.ts";
 import { getUserByUsername } from "./user-reads.ts";
 
@@ -41,46 +40,7 @@ export async function getRecentScrobbles(
     limit,
   });
 
-  return {
-    data: scrobbles.map((scrobble) => {
-      const { id, track, album, scrobbleDate } = scrobble;
-
-      const resolvedTrack = track
-        ? {
-            ...track,
-            trackArtists: undefined, // this is set by the drizzle query, it's just a bad name so we're using 'artists' instead
-            artists: track.trackArtists
-              .map((artist) => ({
-                ...artist.artist,
-                position: artist.position,
-              }))
-              .sort((a, b) => a.position - b.position)
-              .map(({ position: _, ...rest }) => rest),
-          }
-        : unlinkedTrack(scrobble);
-
-      const resolvedAlbum = album
-        ? {
-            ...album,
-            albumArtists: undefined,
-            artists: album.albumArtists
-              .map((artist) => ({
-                ...artist.artist,
-                position: artist.position,
-              }))
-              .sort((a, b) => a.position - b.position)
-              .map(({ position: _, ...rest }) => rest),
-          }
-        : unlinkedAlbum(scrobble);
-
-      return {
-        id,
-        track: resolvedTrack,
-        album: resolvedAlbum,
-        scrobbleDate,
-      };
-    }),
-  };
+  return { data: scrobbles };
 }
 
 export async function getScrobbleMonths(

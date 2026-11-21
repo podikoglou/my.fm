@@ -92,14 +92,12 @@ export async function withoutRecordedPlays(
 
   const recordedTimes = new Map<string, number[]>();
 
-  for (const { scrobbleDate, track } of recorded) {
-    const [first] = track?.trackArtists.toSorted((a, b) => a.position - b.position) ?? [];
-
-    if (!scrobbleDate || !track || !first) {
+  for (const { scrobbleDate, trackName, artistName } of recorded) {
+    if (!scrobbleDate) {
       continue;
     }
 
-    const { normTrackKey } = await computeNormKeys(first.artist.name, track.name);
+    const { normTrackKey } = await computeNormKeys(artistName, trackName);
 
     recordedTimes.set(normTrackKey, [
       ...(recordedTimes.get(normTrackKey) ?? []),

@@ -40,6 +40,120 @@ export function insertScrobble(db: Database, values: ScrobbleValues) {
   return db.insert(scrobbles).values(values).onConflictDoNothing().returning();
 }
 
+export type ProjectedArtist = {
+  name: string;
+  spotifyUri?: string;
+};
+
+export type ProjectedTrack = {
+  name: string;
+  imageUrl: string;
+  spotifyUri?: string;
+  artists: ProjectedArtist[];
+};
+
+export type ProjectedAlbum = {
+  name: string;
+  imageUrl: string;
+  spotifyUri?: string;
+  artists: ProjectedArtist[];
+};
+
+export type ProjectedScrobble = {
+  id: string;
+  scrobbleDate: Date | null;
+  track: ProjectedTrack;
+  album: ProjectedAlbum;
+};
+
+export type FeedItem = {
+  id: string;
+  scrobbleDate: Date | null;
+  user: {
+    username: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+  track: ProjectedTrack;
+  album: {
+    name: string;
+    spotifyUri?: string;
+  };
+};
+
+export type RecordedPlay = {
+  scrobbleDate: Date | null;
+  trackName: string;
+  artistName: string;
+};
+
+function toProjectedTrack(row: {
+  trackSpotifyUri?: string | null;
+  trackName?: string | null;
+  artistName?: string | null;
+  coverArtUrl?: string | null;
+  track?: {
+    name: string;
+    imageUrl: string;
+    spotifyUri: string;
+    trackArtists: { position: number; artist: { name: string; spotifyUri: string } }[];
+  } | null;
+}): ProjectedTrack {
+  if (row.track) {
+    return {
+      name: row.track.name,
+      imageUrl: row.track.imageUrl,
+      spotifyUri: row.track.spotifyUri,
+      artists: row.track.trackArtists
+        .toSorted((a, b) => a.position - b.position)
+        .map(({ artist }) => ({
+          name: artist.name,
+          spotifyUri: artist.spotifyUri,
+        })),
+    };
+  }
+
+  return {
+    spotifyUri: row.trackSpotifyUri ?? undefined,
+    name: row.trackName ?? "Unknown Track",
+    imageUrl: row.coverArtUrl ?? "",
+    artists: row.artistName ? [{ name: row.artistName, spotifyUri: undefined }] : [],
+  };
+}
+
+function toProjectedAlbum(row: {
+  albumSpotifyUri?: string | null;
+  albumName?: string | null;
+  coverArtUrl?: string | null;
+  album?: {
+    name: string;
+    imageUrl: string;
+    spotifyUri: string;
+    albumArtists?: { position: number; artist: { name: string; spotifyUri: string } }[];
+  } | null;
+}): ProjectedAlbum {
+  if (row.album) {
+    return {
+      name: row.album.name,
+      imageUrl: row.album.imageUrl,
+      spotifyUri: row.album.spotifyUri,
+      artists: (row.album.albumArtists ?? [])
+        .toSorted((a, b) => a.position - b.position)
+        .map(({ artist }) => ({
+          name: artist.name,
+          spotifyUri: artist.spotifyUri,
+        })),
+    };
+  }
+
+  return {
+    spotifyUri: row.albumSpotifyUri ?? undefined,
+    name: row.albumName ?? "",
+    imageUrl: row.coverArtUrl ?? "",
+    artists: [],
+  };
+}
+
 /**
  * The plays that ingestion recorded for a user between two times, with each
  * track's name and artists. Imported plays are left out.
@@ -49,8 +163,8 @@ export async function findRecordedPlaysBetween(
   userId: User["id"],
   from: Date,
   to: Date,
-) {
-  return await db.query.scrobbles.findMany({
+): Promise<RecordedPlay[]> {
+  const rows = await db.query.scrobbles.findMany({
     where: { userId, importId: { isNull: true }, scrobbleDate: { gte: from, lte: to } },
     columns: { scrobbleDate: true },
     with: {
@@ -60,10 +174,23 @@ export async function findRecordedPlaysBetween(
           trackArtists: {
             columns: { position: true },
             with: { artist: { columns: { name: true } } },
+            orderBy: { position: "asc" },
           },
         },
       },
     },
+  });
+
+  return rows.flatMap((row) => {
+    const [first] = (row.track?.trackArtists ?? []).toSorted((a, b) => a.position - b.position);
+    const artistName = first?.artist.name;
+    const trackName = row.track?.name;
+
+    if (!row.scrobbleDate || !trackName || !artistName) {
+      return [];
+    }
+
+    return [{ scrobbleDate: row.scrobbleDate, trackName, artistName }];
   });
 }
 
@@ -72,33 +199,68 @@ export async function findRecentScrobblesByUserId(
   db: Database,
   userId: User["id"],
   { before, offset, limit }: { before?: Date; offset: number; limit: number },
-) {
-  return await db.query.scrobbles.findMany({
+): Promise<ProjectedScrobble[]> {
+  const rows = await db.query.scrobbles.findMany({
     where: before ? { userId, scrobbleDate: { lt: before } } : { userId },
     orderBy: { scrobbleDate: "desc", id: "desc" },
     offset,
     limit,
+    columns: {
+      id: true,
+      scrobbleDate: true,
+      trackSpotifyUri: true,
+      albumSpotifyUri: true,
+      coverArtUrl: true,
+      artistName: true,
+      albumName: true,
+      trackName: true,
+    },
     with: {
       track: {
+        columns: {
+          name: true,
+          imageUrl: true,
+          spotifyUri: true,
+        },
         with: {
           trackArtists: {
+            columns: { position: true },
             with: {
-              artist: true,
+              artist: {
+                columns: { name: true, spotifyUri: true },
+              },
             },
+            orderBy: { position: "asc" },
           },
         },
       },
       album: {
+        columns: {
+          name: true,
+          imageUrl: true,
+          spotifyUri: true,
+        },
         with: {
           albumArtists: {
+            columns: { position: true },
             with: {
-              artist: true,
+              artist: {
+                columns: { name: true, spotifyUri: true },
+              },
             },
+            orderBy: { position: "asc" },
           },
         },
       },
     },
   });
+
+  return rows.map((row) => ({
+    id: row.id,
+    scrobbleDate: row.scrobbleDate,
+    track: toProjectedTrack(row),
+    album: toProjectedAlbum(row),
+  }));
 }
 
 export type FeedCursor = {
@@ -116,8 +278,8 @@ export type FeedCursor = {
 export async function findPublicFeed(
   db: Database,
   { cursor, limit }: { cursor?: FeedCursor; limit: number },
-) {
-  return await db.query.scrobbles.findMany({
+): Promise<FeedItem[]> {
+  const rows = await db.query.scrobbles.findMany({
     where: {
       user: { isPrivate: false, onboarded: true },
       scrobbleDate: { isNotNull: true as const },
@@ -174,9 +336,22 @@ export async function findPublicFeed(
       },
     },
   });
-}
 
-export type FeedRow = Awaited<ReturnType<typeof findPublicFeed>>[number];
+  return rows.map((row) => ({
+    id: row.id,
+    scrobbleDate: row.scrobbleDate,
+    user: {
+      username: row.user.username,
+      name: row.user.name,
+      avatarUrl: row.user.avatarUrl,
+    },
+    track: toProjectedTrack(row),
+    album: {
+      name: row.album?.name ?? row.albumName ?? "",
+      spotifyUri: row.album?.spotifyUri ?? row.albumSpotifyUri ?? undefined,
+    },
+  }));
+}
 
 /**
  * Count one user's scrobbles per calendar month in the viewer's time zone,
