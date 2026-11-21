@@ -43,27 +43,38 @@ bun run db:generate
 
 ## Routes
 
-The API is mounted at `/api`. Routes marked "session" answer `401` without a
-signed-in user.
+The API is mounted at `/api`. OAuth 2.1 protocol endpoints and the read-only MCP
+server sit at the root. Routes marked "session" answer `401` without a
+signed-in user, and `/mcp` answers `401` without a valid OAuth bearer token.
 
-| Route                                        | Access  | Purpose                                     |
-| -------------------------------------------- | ------- | ------------------------------------------- |
-| `POST`, `GET` `/api/auth/*`                  | public  | Better Auth sign-in, callback and sign-out  |
-| `GET /api/user/me`                           | session | The signed-in user                          |
-| `GET /api/user/byUsername`, `/byId`          | public  | A profile, unless it is private             |
-| `PATCH /api/user/settings`                   | session | Update the profile settings                 |
-| `PUT /api/user/onboard`                      | session | Set the name and username                   |
-| `GET /api/scrobble/getRecent`                | public  | A user's recent scrobbles                   |
-| `GET /api/scrobble/getMonths`                | public  | A user's scrobble counts by month           |
-| `GET /api/feed`                              | public  | The latest scrobbles from everyone          |
-| `GET /api/import/latest`, `POST /api/import` | session | The latest history import, and a new upload |
-| `GET /api/notifications`                     | session | The user's unacknowledged notifications     |
-| `POST /api/notifications/:id/acknowledge`    | session | Acknowledge one of the user's notifications |
-| `GET /health`, `GET /health/ingestion`       | public  | Uptime checks                               |
+| Route                                         | Access  | Purpose                                     |
+| --------------------------------------------- | ------- | ------------------------------------------- |
+| `POST`, `GET` `/api/auth/*`                   | public  | Better Auth sign-in, callback and sign-out  |
+| `GET /api/user/me`                            | session | The signed-in user                          |
+| `GET /api/user/byUsername`, `/byId`           | public  | A profile, unless it is private             |
+| `PATCH /api/user/settings`                    | session | Update the profile settings                 |
+| `PUT /api/user/onboard`                       | session | Set the name and username                   |
+| `GET /api/scrobble/getRecent`                 | public  | A user's recent scrobbles                   |
+| `GET /api/scrobble/getMonths`                 | public  | A user's scrobble counts by month           |
+| `GET /api/feed`                               | public  | The latest scrobbles from everyone          |
+| `GET /api/import/latest`, `POST /api/import`  | session | The latest history import, and a new upload |
+| `GET /api/notifications`                      | session | The user's unacknowledged notifications     |
+| `POST /api/notifications/:id/acknowledge`     | session | Acknowledge one of the user's notifications |
+| `GET /api/oauth/authorize`                    | session | Parse authorization request and client info |
+| `POST /api/oauth/authorize`                   | session | Record allow or deny consent decision       |
+| `POST /register`                              | public  | Dynamic client registration                 |
+| `POST /token`                                 | public  | OAuth code and refresh exchange             |
+| `POST /mcp`                                   | bearer  | Read-only Model Context Protocol server     |
+| `GET /.well-known/oauth-authorization-server` | public  | Authorization server metadata               |
+| `GET /.well-known/oauth-protected-resource/*` | public  | Resource server metadata                    |
+| `GET /health`, `GET /health/ingestion`        | public  | Uptime checks                               |
 
 `POST /api/notifications/:id/acknowledge` answers `404` for an ID that belongs
 to another user, the same as for one that does not exist. Acknowledging twice
 keeps the first time.
+
+`POST /mcp` is stateless JSON-RPC over Streamable HTTP; GET or DELETE answers
+`405`.
 
 ## Data model
 
@@ -76,6 +87,7 @@ The Drizzle schema in `src/db/schema.ts` defines the D1 tables, and
   and `album_artists` describe them.
 - `imports` tracks history uploads; `docs/IMPORT-DESIGN.md` describes them.
 - `ingestion_runs` records the cron's runs.
+- `OAUTH_KV` stores client registrations, authorization codes, and refresh tokens.
 - `notifications` holds messages for one user: `id`, `userId`, `type`,
   `title`, `body`, `createdAt` and `acknowledgedAt`. A notification is unacknowledged
   while `acknowledgedAt` is null, and the app shows it until the user clicks
@@ -125,12 +137,15 @@ Two Cloudflare Rate Limiting bindings count requests per client address. The
 budgets are declared in `src/rate-limits.ts` and enforced by
 `src/rate-limit-middleware.ts`.
 
-| Routes                                           | Binding                  | Budget               |
-| ------------------------------------------------ | ------------------------ | -------------------- |
-| `POST`, `GET` `/api/auth/*`                      | `AUTH_RATE_LIMIT`        | 60 per 60 s          |
-| `GET /api/feed`                                  | `PUBLIC_READ_RATE_LIMIT` | 120 per 60 s         |
-| `GET /api/user/byUsername`, `GET /api/user/byId` | `PUBLIC_READ_RATE_LIMIT` | shared with the feed |
-| `GET /api/scrobble/getRecent`                    | `PUBLIC_READ_RATE_LIMIT` | shared with the feed |
+| Routes                                           | Binding                  | Budget                |
+| ------------------------------------------------ | ------------------------ | --------------------- |
+| `POST`, `GET` `/api/auth/*`                      | `AUTH_RATE_LIMIT`        | 60 per 60 s           |
+| `POST /register`, `POST /token`                  | `AUTH_RATE_LIMIT`        | shared with auth      |
+| `GET`, `POST` `/api/oauth/authorize`             | `AUTH_RATE_LIMIT`        | shared with auth      |
+| `GET /api/feed`                                  | `PUBLIC_READ_RATE_LIMIT` | 120 per 60 s          |
+| `GET /api/user/byUsername`, `GET /api/user/byId` | `PUBLIC_READ_RATE_LIMIT` | shared with the feed  |
+| `GET /api/scrobble/getRecent`                    | `PUBLIC_READ_RATE_LIMIT` | shared with the feed  |
+| `POST /mcp` (tool reads)                         | `PUBLIC_READ_RATE_LIMIT` | 120 per 60 s per user |
 
 The key is `CF-Connecting-IP`, which Cloudflare sets at the edge and overwrites
 if the caller sends one. A request without it, which local development sends,
@@ -142,6 +157,10 @@ of the window is left, so the header states the whole window.
 
 - `GET /health` and `GET /health/ingestion` are never limited: an uptime
   monitor depends on them.
+- `POST /register` and `POST /token` are rate limited per client address before
+  reaching `OAuthProvider`.
+- Tool executions under `POST /mcp` consume `PUBLIC_READ_RATE_LIMIT` keyed by
+  the authenticated user ID rather than IP address.
 - The authenticated routes are not limited: a session attributes them to a
   user, and these budgets cover anonymous callers. The import routes keep their
   own per-user limit instead, which `docs/IMPORT-DESIGN.md` describes.
