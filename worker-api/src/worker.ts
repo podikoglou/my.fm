@@ -45,7 +45,7 @@ export default {
       resourceMetadata: { resource: new URL("/mcp", request.url).href },
     });
 
-    return provider.fetch(request, env, ctx);
+    return provider.fetch(request, { ...env }, ctx);
   },
   async scheduled(controller: ScheduledController, env: WorkerEnv, _ctx: ExecutionContext) {
     await runIngestion(env, undefined, new Date(controller.scheduledTime));

@@ -28,34 +28,38 @@ const toolResponse = z.object({
   }),
 });
 
-async function request(path: string, init?: RequestInit) {
+async function request(path: string, init?: RequestInit, requestOrigin = origin) {
   const ctx = createExecutionContext();
-  const response = await worker.fetch(new Request(origin + path, init), env, ctx);
+  const response = await worker.fetch(new Request(requestOrigin + path, init), env, ctx);
   await waitOnExecutionContext(ctx);
 
   return response;
 }
 
-async function register() {
-  const response = await request("/register", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_name: "Test MCP client",
-      client_uri: "https://client.example",
-      redirect_uris: [redirectUri],
-      grant_types: ["authorization_code", "refresh_token"],
-      response_types: ["code"],
-      token_endpoint_auth_method: "none",
-    }),
-  });
+async function register(requestOrigin = origin) {
+  const response = await request(
+    "/register",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        client_name: "Test MCP client",
+        client_uri: "https://client.example",
+        redirect_uris: [redirectUri],
+        grant_types: ["authorization_code", "refresh_token"],
+        response_types: ["code"],
+        token_endpoint_auth_method: "none",
+      }),
+    },
+    requestOrigin,
+  );
 
   expect(response.status).toBe(201);
 
   return z.object({ client_id: z.string() }).parse(await response.json()).client_id;
 }
 
-async function authorizationQuery(clientId: string) {
+async function authorizationQuery(clientId: string, requestOrigin = origin) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
 
   const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
@@ -71,29 +75,44 @@ async function authorizationQuery(clientId: string) {
     state: "original-state",
     code_challenge: challenge,
     code_challenge_method: "S256",
-    resource: origin + "/mcp",
+    resource: requestOrigin + "/mcp",
   }).toString();
 }
 
-async function decide(cookie: string, query: string, decision: "allow" | "deny") {
-  return request("/api/oauth/authorize", {
-    method: "POST",
-    headers: { cookie, "content-type": "application/json" },
-    body: JSON.stringify({ query, decision }),
-  });
+async function decide(
+  cookie: string,
+  query: string,
+  decision: "allow" | "deny",
+  requestOrigin = origin,
+) {
+  return request(
+    "/api/oauth/authorize",
+    {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ query, decision }),
+    },
+    requestOrigin,
+  );
 }
 
-async function authorize(cookie: string) {
-  const clientId = await register();
-  const query = await authorizationQuery(clientId);
-  const info = await request("/api/oauth/authorize?" + query, { headers: { cookie } });
+async function authorize(cookie: string, requestOrigin = origin) {
+  const clientId = await register(requestOrigin);
+  const query = await authorizationQuery(clientId, requestOrigin);
+
+  const info = await request(
+    "/api/oauth/authorize?" + query,
+    { headers: { cookie } },
+    requestOrigin,
+  );
+
   expect(info.status).toBe(200);
   expect(await info.json()).toEqual({
     client: { clientId, clientName: "Test MCP client", clientUri: "https://client.example" },
     scope: ["read"],
   });
 
-  const allowed = await decide(cookie, query, "allow");
+  const allowed = await decide(cookie, query, "allow", requestOrigin);
   expect(allowed.status).toBe(200);
   const { redirectTo } = z.object({ redirectTo: z.string() }).parse(await allowed.json());
   const redirect = new URL(redirectTo);
@@ -103,24 +122,33 @@ async function authorize(cookie: string) {
   return { clientId, code: z.string().parse(redirect.searchParams.get("code")) };
 }
 
-async function exchange(clientId: string, code: string, codeVerifier = verifier) {
-  return request("/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: clientId,
-      code,
-      code_verifier: codeVerifier,
-      redirect_uri: redirectUri,
-      resource: origin + "/mcp",
-    }),
-  });
+async function exchange(
+  clientId: string,
+  code: string,
+  codeVerifier = verifier,
+  requestOrigin = origin,
+) {
+  return request(
+    "/token",
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: clientId,
+        code,
+        code_verifier: codeVerifier,
+        redirect_uri: redirectUri,
+        resource: requestOrigin + "/mcp",
+      }),
+    },
+    requestOrigin,
+  );
 }
 
-async function token(cookie: string) {
-  const { clientId, code } = await authorize(cookie);
-  const response = await exchange(clientId, code);
+async function token(cookie: string, requestOrigin = origin) {
+  const { clientId, code } = await authorize(cookie, requestOrigin);
+  const response = await exchange(clientId, code, verifier, requestOrigin);
   expect(response.status).toBe(200);
 
   return z.object({ access_token: z.string() }).parse(await response.json()).access_token;
@@ -155,6 +183,36 @@ async function callTool(
 function text(result: z.infer<typeof toolResponse>["result"]) {
   return z.string().parse(result.content[0]?.text);
 }
+
+test("keeps authorization helpers and token audiences local to each request origin", async () => {
+  const owner = await signIn({ id: "oauth-origins", email: "origins@example.com" });
+
+  for (const requestOrigin of [origin, "https://second.test"]) {
+    const accessToken = await token(owner.cookie, requestOrigin);
+
+    const response = await request(
+      "/mcp",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + accessToken,
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "get_me" },
+        }),
+      },
+      requestOrigin,
+    );
+
+    expect(response.status).toBe(200);
+    expect(toolResponse.parse(await response.json()).result.isError).not.toBe(true);
+  }
+});
 
 test("discovers the public origin and challenges unauthenticated MCP requests", async () => {
   const metadata = await request("/.well-known/oauth-authorization-server");
