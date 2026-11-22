@@ -20,6 +20,13 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
 
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnostics": false
+      }
+    ],
+
     "types": ["bun", "@cloudflare/workers-types"]
   },
   "include": ["alchemy.run.ts"],
