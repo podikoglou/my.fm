@@ -311,11 +311,13 @@ export const resolveTracksWaterfallEffect = Effect.fn("import.resolveTracksWater
   const resolved = new Map<string, ResolvedTrackMetadata>();
 
   for (const item of uniqueItems) {
-    const gqlTrack = pass1Results.get(item.key) ?? pass2Results.get(item.key) ?? null;
+    const pass1Track = pass1Results.get(item.key);
+    const gqlTrack = pass1Track ?? pass2Results.get(item.key) ?? null;
+    const fallbackAlbum = pass1Track ? (item.album ?? null) : null;
 
     resolved.set(
       item.key,
-      extractResolvedMetadata(item.artist, item.title, item.album ?? null, gqlTrack),
+      extractResolvedMetadata(item.artist, item.title, fallbackAlbum, gqlTrack),
     );
   }
 
