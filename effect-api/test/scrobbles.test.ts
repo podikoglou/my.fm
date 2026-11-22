@@ -165,14 +165,8 @@ describe("scrobble service visibility and validation", () => {
         new Request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=0&limit=9`),
         env,
       ),
-      worker.fetch(
-        new Request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=-1`),
-        env,
-      ),
-      worker.fetch(
-        new Request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=1.5`),
-        env,
-      ),
+      worker.fetch(new Request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=-1`), env),
+      worker.fetch(new Request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=1.5`), env),
       worker.fetch(
         new Request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=0&limit=0`),
         env,
