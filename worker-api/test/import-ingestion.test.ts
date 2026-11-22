@@ -17,8 +17,8 @@ import {
   users,
 } from "../src/db/schema.ts";
 import { getImportR2Key } from "../src/import/csv.ts";
+import { runImportTick } from "../src/import/run.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
-import { runImportIngestion } from "../src/ingestion/import.ts";
 import { createBatchWriteLimitDatabase, createStatementWriteLimitDatabase } from "./d1.ts";
 import { captureLogs } from "./logs.ts";
 
@@ -97,7 +97,7 @@ function throwingFetchBatch() {
 
 describe("import ingestion cron processor", () => {
   test("returns idle when no active import exists", async () => {
-    const result = await runImportIngestion(env);
+    const result = await runImportTick(env);
 
     expect(result.status).toBe("idle");
     expect(result.processed).toBe(0);
@@ -126,7 +126,7 @@ describe("import ingestion cron processor", () => {
       updatedAt: new Date(),
     });
 
-    const result = await runImportIngestion(env);
+    const result = await runImportTick(env);
 
     expect(result.status).toBe("failed");
 
@@ -195,7 +195,7 @@ describe("import ingestion cron processor", () => {
       return response;
     };
 
-    const runResult = await runImportIngestion(env, {
+    const runResult = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: mockFetch,
@@ -302,7 +302,7 @@ describe("import ingestion cron processor", () => {
       },
     });
 
-    const runResult = await runImportIngestion(env, {
+    const runResult = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: mockFetch,
@@ -329,7 +329,7 @@ describe("import ingestion cron processor", () => {
       createdAt: new Date(),
     });
 
-    const result = await runImportIngestion(env, {
+    const result = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
@@ -359,7 +359,7 @@ describe("import ingestion cron processor", () => {
     // about the track's length.
     await seedRecordedPlay(db, "user-overlapping", new Date(1_644_436_588_000 + 210_000));
 
-    const result = await runImportIngestion(env, {
+    const result = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: async () => ({ q0: null }) satisfies Record<string, GqlTrack | null>,
@@ -400,7 +400,7 @@ describe("import ingestion cron processor", () => {
 
     await seedRecordedPlay(db, "user-repeat", new Date(1_644_436_588_000 + 210_000));
 
-    const result = await runImportIngestion(env, {
+    const result = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: async () => ({ q0: null }) satisfies Record<string, GqlTrack | null>,
@@ -432,7 +432,7 @@ describe("import ingestion cron processor", () => {
     await seedRecordedPlay(db, "user-nearest", new Date(firstStart + 3 * 60_000));
     await seedRecordedPlay(db, "user-nearest", new Date(secondStart + 3 * 60_000));
 
-    const result = await runImportIngestion(env, {
+    const result = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: async () => ({ q0: null }) satisfies Record<string, GqlTrack | null>,
@@ -454,7 +454,7 @@ describe("import ingestion cron processor", () => {
 
     await seedRecordedPlay(db, "user-replayed", new Date(1_644_436_588_000 - 24 * 60 * 60 * 1000));
 
-    const result = await runImportIngestion(env, {
+    const result = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
@@ -476,8 +476,8 @@ describe("import ingestion cron processor", () => {
 
     const fetchBatch = throwingFetchBatch();
 
-    await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
-    await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+    await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+    await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
 
     const [row] = await db.select().from(imports);
 
@@ -500,7 +500,7 @@ describe("import ingestion cron processor", () => {
     const fetchBatch = throwingFetchBatch();
 
     for (let i = 0; i < 3; i++) {
-      await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+      await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
     }
 
     const [row] = await db.select().from(imports);
@@ -539,11 +539,11 @@ describe("import ingestion cron processor", () => {
       return { q0: null, q1: null } satisfies Record<string, GqlTrack | null>;
     };
 
-    await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+    await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
 
     failing = false;
 
-    const result = await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+    const result = await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
 
     expect(result.status).toBe("completed");
     expect(result.processed).toBe(2);
@@ -575,7 +575,7 @@ describe("import ingestion cron processor", () => {
     const failingBatch = throwingFetchBatch();
 
     for (let i = 0; i < 3; i++) {
-      await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch: failingBatch });
+      await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch: failingBatch });
     }
 
     // The oldest import gave up, so the cron queue must now hold the next one.
@@ -583,7 +583,7 @@ describe("import ingestion cron processor", () => {
 
     expect(active?.id).toBe("import-next");
 
-    const result = await runImportIngestion(env, {
+    const result = await runImportTick(env, {
       batchLimit: 500,
       throttleMs: 0,
       fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
@@ -619,14 +619,14 @@ describe("import ingestion cron processor", () => {
       if (!overlapped) {
         overlapped = true;
 
-        await runImportIngestion(env, { batchLimit: 1, throttleMs: 0, fetchBatch: noMatch });
-        await runImportIngestion(env, { batchLimit: 1, throttleMs: 0, fetchBatch: noMatch });
+        await runImportTick(env, { batchLimit: 1, throttleMs: 0, fetchBatch: noMatch });
+        await runImportTick(env, { batchLimit: 1, throttleMs: 0, fetchBatch: noMatch });
       }
 
       return noMatch();
     };
 
-    const late = await runImportIngestion(env, {
+    const late = await runImportTick(env, {
       batchLimit: 1,
       throttleMs: 0,
       fetchBatch: slowBatch,
@@ -641,7 +641,7 @@ describe("import ingestion cron processor", () => {
     expect(row?.processedRows).toBe(2);
     expect(await db.select().from(scrobbles)).toHaveLength(2);
 
-    const next = await runImportIngestion(env, {
+    const next = await runImportTick(env, {
       batchLimit: 1,
       throttleMs: 0,
       fetchBatch: noMatch,
@@ -663,7 +663,7 @@ describe("import ingestion cron processor", () => {
     });
 
     try {
-      const result = await runImportIngestion(limited, {
+      const result = await runImportTick(limited, {
         batchLimit: 500,
         throttleMs: 0,
         fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,
@@ -703,7 +703,7 @@ describe("import ingestion cron processor", () => {
 
     try {
       for (let i = 0; i < 3; i++) {
-        const result = await runImportIngestion(limited, {
+        const result = await runImportTick(limited, {
           batchLimit: 500,
           throttleMs: 0,
           fetchBatch,
@@ -740,7 +740,7 @@ describe("import ingestion cron processor", () => {
     });
 
     try {
-      const result = await runImportIngestion(limited, {
+      const result = await runImportTick(limited, {
         batchLimit: 500,
         throttleMs: 0,
         fetchBatch: async () => ({ q0: null, q1: null }) satisfies Record<string, GqlTrack | null>,

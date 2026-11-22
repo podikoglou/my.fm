@@ -7,7 +7,7 @@ import { createApp } from "../src/app.ts";
 import { createDatabase } from "../src/db/index.ts";
 import { insertImport } from "../src/db/queries/imports.ts";
 import { imports } from "../src/db/schema.ts";
-import { runImportIngestion } from "../src/ingestion/import.ts";
+import { runImportTick } from "../src/import/run.ts";
 import { createFailingInsertDatabase, D1_WRITE_LIMIT_MESSAGE } from "./d1.ts";
 import { network } from "./network.ts";
 
@@ -253,6 +253,44 @@ describe("import routes", () => {
     expect(second.status).toBe(409);
   });
 
+  test("rejects an upload within an hour of the user's last import", async () => {
+    const app = createApp();
+    const { cookie, userId } = await signIn({ id: "user-9", email: "user9@example.com" });
+
+    await insertImport(createDatabase(env.DB), {
+      id: "import-recent",
+      userId,
+      filename: "export.csv",
+      status: "completed",
+      cursor: 3,
+      totalLines: 3,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new File(["Artist;Album;Track;Date#user\nA;B;C;1644436588000"], "export.csv"),
+    );
+
+    const response = await app.request(
+      `${baseUrl}/api/import`,
+      {
+        method: "POST",
+        headers: { cookie },
+        body: formData,
+      },
+      env,
+    );
+
+    expect(response.status).toBe(429);
+
+    const body = z.object({ error: z.string() }).parse(await response.json());
+
+    expect(body.error).toContain("1 import per hour");
+  });
+
   test("accepts one of two uploads that arrive together", async () => {
     const app = createApp();
     const { cookie } = await signIn({ id: "user-7", email: "user7@example.com" });
@@ -370,7 +408,7 @@ describe("import routes", () => {
     };
 
     for (let i = 0; i < 3; i++) {
-      await runImportIngestion(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
+      await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
     }
 
     const latestResponse = await app.request(
