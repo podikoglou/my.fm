@@ -48,10 +48,18 @@ export class ScrobbleGroup extends HttpApiGroup.make("scrobble")
   .add(
     HttpApiEndpoint.get("getRecent", "/getRecent", {
       query: {
-        username: Schema.String,
-        offset: Schema.FiniteFromString,
-        limit: Schema.optionalKey(Schema.FiniteFromString.check(Schema.isLessThanOrEqualTo(8))),
-        before: Schema.optionalKey(Schema.FiniteFromString.check(Schema.isInt())),
+        username: Schema.String.check(Schema.isMinLength(1)),
+        offset: Schema.FiniteFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+        limit: Schema.optionalKey(
+          Schema.FiniteFromString.check(
+            Schema.isInt(),
+            Schema.isGreaterThanOrEqualTo(1),
+            Schema.isLessThanOrEqualTo(8),
+          ),
+        ),
+        before: Schema.optionalKey(
+          Schema.FiniteFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+        ),
       },
       success: Schema.Array(ProjectedScrobbleSchema),
       error: [UserNotFoundApiError, ProfilePrivateApiError, ServiceUnavailableApiError],
@@ -62,7 +70,7 @@ export class ScrobbleGroup extends HttpApiGroup.make("scrobble")
   .add(
     HttpApiEndpoint.get("getMonths", "/getMonths", {
       query: {
-        username: Schema.String,
+        username: Schema.String.check(Schema.isMinLength(1)),
         timeZone: Schema.optionalKey(TimeZoneSchema),
       },
       success: Schema.Array(MonthlyScrobbleCountSchema),

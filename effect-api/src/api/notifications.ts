@@ -29,7 +29,7 @@ export class NotificationsGroup extends HttpApiGroup.make("notifications")
   )
   .add(
     HttpApiEndpoint.post("acknowledge", "/notifications/:id/acknowledge", {
-      params: { id: Schema.String },
+      params: { id: Schema.String.check(Schema.isMinLength(1)) },
       success: AcknowledgeNotificationResponse,
       error: [NotificationNotFoundApiError, ServiceUnavailableApiError],
     }).middleware(RequireSessionMiddleware),
