@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import worker from "../src/worker.ts";
 import { network } from "./network.ts";
 
-const baseUrl = "http://app.test";
+const baseUrl = "https://app.test";
 
 const SocialSignInResponse = Schema.Struct({ url: Schema.String, redirect: Schema.Boolean });
 

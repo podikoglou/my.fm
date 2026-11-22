@@ -2,6 +2,7 @@ import { Effect, Layer } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 
 import {
+  AuthRateLimitMiddleware,
   CurrentUser,
   OptionalSession,
   OptionalSessionMiddleware,
@@ -98,6 +99,38 @@ export const PublicReadRateLimitMiddlewareLive = Layer.effect(
         const ip = request.headers["cf-connecting-ip"] ?? "unknown";
 
         const allowed = yield* rateLimiter.check("PUBLIC_READ_RATE_LIMIT", ip).pipe(
+          Effect.as(true),
+          Effect.catchTag("RateLimitExceededError", () => Effect.succeed(false)),
+          Effect.orDie,
+        );
+
+        if (!allowed) {
+          return HttpServerResponse.jsonUnsafe(
+            { error: "Too many requests" },
+            {
+              status: 429,
+              headers: { "retry-after": String(period) },
+            },
+          );
+        }
+
+        return yield* httpEffect;
+      });
+  }),
+);
+
+export const AuthRateLimitMiddlewareLive = Layer.effect(
+  AuthRateLimitMiddleware,
+  Effect.gen(function* () {
+    const rateLimiter = yield* RateLimiter;
+    const { period } = RATE_LIMITS.AUTH_RATE_LIMIT;
+
+    return (httpEffect) =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const ip = request.headers["cf-connecting-ip"] ?? "unknown";
+
+        const allowed = yield* rateLimiter.check("AUTH_RATE_LIMIT", ip).pipe(
           Effect.as(true),
           Effect.catchTag("RateLimitExceededError", () => Effect.succeed(false)),
           Effect.orDie,

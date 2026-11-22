@@ -1,13 +1,13 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import { Config, Effect, Layer, Redacted } from "effect";
-import { HttpRouter } from "effect/http";
+import { HttpServerRequest, HttpServerResponse } from "effect/http";
 
 import { AuthConfig } from "./auth/service.ts";
 import { Db } from "./db/service.ts";
-import { HttpAppLayer } from "./http/app.ts";
 import { Imports } from "./import/service.ts";
 import { Ingestion } from "./ingestion/service.ts";
+import { handleOAuthEdgeRequest } from "./oauth/edge.ts";
 import { RateLimiter } from "./rate-limit/service.ts";
 import { RATE_LIMITS, type RateLimitBindingName } from "./rate-limits.ts";
 import { ImportsStorage } from "./storage/service.ts";
@@ -53,6 +53,7 @@ export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>(
   Effect.gen(function* () {
     const dbClient = yield* Cloudflare.D1.QueryDatabase(EffectDatabase);
     const importsBucket = yield* Cloudflare.R2.ReadWriteBucket(EffectImportsBucket);
+    const oauthKv = yield* Cloudflare.KV.ReadWriteNamespace(EffectOAuthKv);
     // The module-scope values from `rateLimitResource` are already the
     // binding values: yield them directly. Re-calling the constructor with the
     // binding as its `name` arg crashes, since `props` is then undefined.
@@ -108,19 +109,24 @@ export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>(
     return {
       fetch: Effect.gen(function* () {
         const infraLayer = yield* makeInfraLayer;
+        const rawKv = yield* oauthKv.raw;
+        const workerCtx = yield* Cloudflare.Workers.WorkerExecutionContext;
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const webRequest = yield* HttpServerRequest.toWeb(request).pipe(Effect.orDie);
 
-        const httpEffect = yield* HttpRouter.toHttpEffect(
-          HttpAppLayer.pipe(Layer.provide(infraLayer)),
+        const webResponse = yield* Effect.promise(() =>
+          handleOAuthEdgeRequest(webRequest, rawKv, workerCtx.raw, infraLayer),
         );
 
-        return yield* httpEffect;
-      }).pipe(Effect.scoped),
+        return HttpServerResponse.fromWeb(webResponse);
+      }),
     };
   }).pipe(
     Effect.provide(
       Layer.mergeAll(
         Cloudflare.D1.QueryDatabaseBinding,
         Cloudflare.R2.ReadWriteBucketBinding,
+        Cloudflare.KV.ReadWriteNamespaceBinding,
         Cloudflare.Workers.RateLimitBinding,
         Cloudflare.Workers.CronEventSourceLive,
       ),

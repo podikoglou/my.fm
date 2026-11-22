@@ -53,3 +53,11 @@ export class PublicReadRateLimitMiddleware extends HttpApiMiddleware.Service<
     requires: never;
   }
 >()("@my.fm/effect-api/api/PublicReadRateLimitMiddleware") {}
+
+export class AuthRateLimitMiddleware extends HttpApiMiddleware.Service<
+  AuthRateLimitMiddleware,
+  {
+    provides: never;
+    requires: never;
+  }
+>()("@my.fm/effect-api/api/AuthRateLimitMiddleware") {}

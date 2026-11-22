@@ -4,10 +4,12 @@ import { FeedGroup } from "./feed.ts";
 import { HealthGroup } from "./health.ts";
 import { ImportGroup } from "./import.ts";
 import { NotificationsGroup } from "./notifications.ts";
+import { OAuthGroup } from "./oauth.ts";
 import { ScrobbleGroup } from "./scrobble.ts";
 import { UserGroup } from "./user.ts";
 
 export {
+  AuthRateLimitMiddleware,
   CurrentUser,
   OptionalSession,
   OptionalSessionMiddleware,
@@ -67,6 +69,19 @@ export {
 } from "./notifications.ts";
 
 export {
+  InvalidOAuthApiRequestError,
+  InvalidOAuthRequestApiError,
+  OAuthAppSchema,
+  OAuthAppsResponse,
+  OAuthAuthorizeDetailsResponse,
+  OAuthClientSummarySchema,
+  OAuthDecideInput,
+  OAuthDecideResponse,
+  OAuthGroup,
+  RevokeOAuthAppResponse,
+} from "./oauth.ts";
+
+export {
   MonthlyScrobbleCountSchema,
   ProjectedAlbumSchema,
   ProjectedArtistSchema,
@@ -99,4 +114,5 @@ export class MyFmApi extends HttpApi.make("my-fm")
   .add(ScrobbleGroup)
   .add(FeedGroup)
   .add(NotificationsGroup)
-  .add(ImportGroup) {}
+  .add(ImportGroup)
+  .add(OAuthGroup) {}
