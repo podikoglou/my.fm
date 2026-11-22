@@ -93,10 +93,16 @@ export type BetterAuthInstance = ReturnType<typeof createBetterAuth>;
 
 export type AuthSession = NonNullable<Awaited<ReturnType<BetterAuthInstance["api"]["getSession"]>>>;
 
+export interface AccessTokenInput {
+  readonly accountId: string;
+  readonly userId: string;
+}
+
 export interface AuthServiceApi {
   readonly raw: BetterAuthInstance;
   readonly handler: (request: Request) => Effect.Effect<Response, AuthError>;
   readonly getSession: (headers: Headers) => Effect.Effect<AuthSession | null, AuthError>;
+  readonly getAccessToken: (input: AccessTokenInput) => Effect.Effect<string | null, AuthError>;
 }
 
 export class AuthService extends Context.Service<AuthService, AuthServiceApi>()(
@@ -123,10 +129,25 @@ export class AuthService extends Context.Service<AuthService, AuthServiceApi>()(
         });
       });
 
+      const getAccessToken = Effect.fn("AuthService.getAccessToken")(function* (
+        input: AccessTokenInput,
+      ) {
+        const result = yield* Effect.tryPromise({
+          try: () =>
+            auth.api.getAccessToken({
+              body: { accountId: input.accountId, userId: input.userId },
+            }),
+          catch: (cause) => new AuthError({ cause }),
+        });
+
+        return result?.accessToken || null;
+      });
+
       return AuthService.of({
         raw: auth,
         handler,
         getSession,
+        getAccessToken,
       });
     }),
   );
