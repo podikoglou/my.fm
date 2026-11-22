@@ -12,7 +12,6 @@ import {
   users,
 } from "../src/db/schema.ts";
 import { createDatabase } from "../src/db/service.ts";
-import { RATE_LIMITS } from "../src/rate-limits.ts";
 import worker from "../src/worker.ts";
 import { baseUrl } from "./session.ts";
 
@@ -293,26 +292,5 @@ describe("profile stats", () => {
 
     expect((await get("getSummary?username=alex")).status).toBe(403);
     expect((await get("getSummary?username=missing")).status).toBe(404);
-  });
-
-  test("spends a stats budget smaller than the public-read one", async () => {
-    await seed();
-
-    const ip = "203.0.113.9";
-    const periodMs = RATE_LIMITS.STATS_RATE_LIMIT.period * 1000;
-    const remainingMs = periodMs - (Date.now() % periodMs);
-
-    // Miniflare's wall-clock windows must leave room for every request.
-    if (remainingMs < 5000) {
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, remainingMs);
-      });
-    }
-
-    for (let count = 0; count < RATE_LIMITS.STATS_RATE_LIMIT.limit; count += 1) {
-      expect((await get("getSample?username=alex&size=1", ip)).status).toBe(200);
-    }
-
-    expect((await get("getSample?username=alex&size=1", ip)).status).toBe(429);
   });
 });

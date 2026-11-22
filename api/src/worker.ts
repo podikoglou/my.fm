@@ -29,7 +29,6 @@ export type WorkerBindings = {
   readonly OAUTH_KV: KVNamespace;
   readonly AUTH_RATE_LIMIT: RateLimitBinding;
   readonly PUBLIC_READ_RATE_LIMIT: RateLimitBinding;
-  readonly STATS_RATE_LIMIT: RateLimitBinding;
   readonly BETTER_AUTH_SECRET: string;
   readonly SPOTIFY_CLIENT_ID: string;
   readonly SPOTIFY_CLIENT_SECRET: string;
@@ -49,7 +48,6 @@ export function makeWorkerInfraLayer(env: WorkerBindings): Layer.Layer<AppServic
     RateLimiter.layerFromBindings({
       AUTH_RATE_LIMIT: env.AUTH_RATE_LIMIT,
       PUBLIC_READ_RATE_LIMIT: env.PUBLIC_READ_RATE_LIMIT,
-      STATS_RATE_LIMIT: env.STATS_RATE_LIMIT,
     }),
     AuthConfig.layer({
       betterAuthSecret: env.BETTER_AUTH_SECRET,

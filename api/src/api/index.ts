@@ -17,7 +17,6 @@ export {
   PublicReadRateLimitMiddleware,
   RequireSessionMiddleware,
   SessionUserSchema,
-  StatsRateLimitMiddleware,
   type OptionalSessionValue,
   type SessionUser,
 } from "./auth.ts";

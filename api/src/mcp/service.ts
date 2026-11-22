@@ -211,9 +211,6 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
         const withRateLimit = (userId: string, run: () => Effect.Effect<CallToolResult>) =>
           withPolicy("PUBLIC_READ_RATE_LIMIT", userId, run);
 
-        const withStatsRateLimit = (userId: string, run: () => Effect.Effect<CallToolResult>) =>
-          withRateLimit(userId, () => withPolicy("STATS_RATE_LIMIT", userId, run));
-
         const profileErrors = {
           UserNotFoundError: () => Effect.succeed(toolError("User not found")),
           ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
@@ -387,7 +384,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                 return toolError(String(decoded.failure));
               }
 
-              return yield* withStatsRateLimit(userId, () =>
+              return yield* withRateLimit(userId, () =>
                 stats
                   .getSummary(decoded.success, userId)
                   .pipe(Effect.map(toolData), Effect.catchTags(profileErrors)),
@@ -403,7 +400,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
 
               const input = decoded.success;
 
-              return yield* withStatsRateLimit(userId, () =>
+              return yield* withRateLimit(userId, () =>
                 stats
                   .getTop({ ...input, limit: input.limit ?? DEFAULT_TOP_LIMIT }, userId)
                   .pipe(Effect.map(toolData), Effect.catchTags(profileErrors)),
@@ -419,7 +416,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
 
               const input = decoded.success;
 
-              return yield* withStatsRateLimit(userId, () =>
+              return yield* withRateLimit(userId, () =>
                 stats.getTimeline({ ...input, timeZone: input.timeZone ?? "UTC" }, userId).pipe(
                   Effect.map(toolData),
                   Effect.catchTags({
@@ -439,7 +436,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
 
               const input = decoded.success;
 
-              return yield* withStatsRateLimit(userId, () =>
+              return yield* withRateLimit(userId, () =>
                 stats
                   .getSample(
                     { ...input, size: input.size ?? DEFAULT_SAMPLE_SIZE, seed: input.seed ?? 0 },

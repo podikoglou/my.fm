@@ -54,14 +54,6 @@ export class PublicReadRateLimitMiddleware extends HttpApiMiddleware.Service<
   }
 >()("@my.fm/api/api/PublicReadRateLimitMiddleware") {}
 
-export class StatsRateLimitMiddleware extends HttpApiMiddleware.Service<
-  StatsRateLimitMiddleware,
-  {
-    provides: never;
-    requires: never;
-  }
->()("@my.fm/api/api/StatsRateLimitMiddleware") {}
-
 export class AuthRateLimitMiddleware extends HttpApiMiddleware.Service<
   AuthRateLimitMiddleware,
   {

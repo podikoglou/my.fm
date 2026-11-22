@@ -10,7 +10,7 @@ export class RateLimitExceededError extends Schema.TaggedError<
 >()(
   "RateLimitExceededError",
   {
-    policy: Schema.Literals(["AUTH_RATE_LIMIT", "PUBLIC_READ_RATE_LIMIT", "STATS_RATE_LIMIT"]),
+    policy: Schema.Literals(["AUTH_RATE_LIMIT", "PUBLIC_READ_RATE_LIMIT"]),
     retryAfterSeconds: Schema.Finite,
   },
   { httpApiStatus: 429 },
@@ -20,7 +20,7 @@ export class RateLimitCheckError extends Schema.TaggedError<
   RateLimitCheckError,
   { readonly brand: unique symbol }
 >()("RateLimitCheckError", {
-  policy: Schema.Literals(["AUTH_RATE_LIMIT", "PUBLIC_READ_RATE_LIMIT", "STATS_RATE_LIMIT"]),
+  policy: Schema.Literals(["AUTH_RATE_LIMIT", "PUBLIC_READ_RATE_LIMIT"]),
   message: Schema.String,
 }) {}
 

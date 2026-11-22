@@ -105,7 +105,12 @@ function entitiesOf(kind: TopKind): SQL {
 export async function findTopEntities(
   db: DrizzleDatabase,
   userId: User["id"],
-  { kinds, limit, since, until }: ScrobbleRange & { kinds: readonly [TopKind, ...TopKind[]]; limit: number },
+  {
+    kinds,
+    limit,
+    since,
+    until,
+  }: ScrobbleRange & { kinds: readonly [TopKind, ...TopKind[]]; limit: number },
 ): Promise<RankedEntities> {
   // The totals row joins every ranked row, and stands alone when nothing ranks,
   // so the play total survives a range without any entity of these kinds.

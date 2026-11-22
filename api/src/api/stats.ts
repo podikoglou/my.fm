@@ -1,11 +1,7 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 
-import {
-  OptionalSessionMiddleware,
-  PublicReadRateLimitMiddleware,
-  StatsRateLimitMiddleware,
-} from "./auth.ts";
+import { OptionalSessionMiddleware, PublicReadRateLimitMiddleware } from "./auth.ts";
 import {
   ProfilePrivateApiError,
   ServiceUnavailableApiError,
@@ -16,7 +12,7 @@ import { TimeZoneSchema } from "./scrobble.ts";
 /**
  * Profile statistics. Each aggregate reads a profile's history in one call,
  * so these bounds keep a request cheap whichever surface (HTTP or MCP) serves
- * it, and every route also spends the stricter `STATS_RATE_LIMIT`.
+ * it.
  */
 
 export const MAX_TIMELINE_BUCKETS = 400;
@@ -158,7 +154,6 @@ export class StatsGroup extends HttpApiGroup.make("stats")
       error: profileErrors,
     }),
   )
-  .middleware(StatsRateLimitMiddleware)
   .middleware(PublicReadRateLimitMiddleware)
   .middleware(OptionalSessionMiddleware)
   .prefix("/api/stats") {}

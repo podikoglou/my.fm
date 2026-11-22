@@ -21,7 +21,6 @@ import {
   OptionalSessionMiddlewareLive,
   PublicReadRateLimitMiddlewareLive,
   RequireSessionMiddlewareLive,
-  StatsRateLimitMiddlewareLive,
 } from "./auth.ts";
 import { FeedCacheMiddlewareLive, FeedHandlers } from "./feed.ts";
 import { HealthHandlers } from "./health.ts";
@@ -54,7 +53,6 @@ const MiddlewareLayer = Layer.mergeAll(
   OptionalSessionMiddlewareLive,
   RequireSessionMiddlewareLive,
   PublicReadRateLimitMiddlewareLive,
-  StatsRateLimitMiddlewareLive,
   AuthRateLimitMiddlewareLive,
   FeedCacheMiddlewareLive,
 );
