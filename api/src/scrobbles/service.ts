@@ -68,7 +68,7 @@ export interface ScrobblesApi {
 }
 
 export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
-  "@my.fm/effect-api/scrobbles/Scrobbles",
+  "@my.fm/api/scrobbles/Scrobbles",
 ) {
   static readonly layer: Layer.Layer<Scrobbles, never, Db | Users> = Layer.effect(
     Scrobbles,

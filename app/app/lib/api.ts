@@ -1,4 +1,4 @@
-import { MyFmApi } from "@my.fm/effect-api";
+import { MyFmApi } from "@my.fm/api";
 import { Cause, Effect, Exit, Layer, Option, Predicate } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { HttpApiClient } from "effect/http-api";

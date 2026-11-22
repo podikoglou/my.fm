@@ -63,7 +63,7 @@ const authorizeRequest = (requestUrl: string, query: string) => {
 };
 
 export class OAuthProviderService extends Context.Service<OAuthProviderService, OAuthProviderApi>()(
-  "@my.fm/effect-api/oauth/OAuthProviderService",
+  "@my.fm/api/oauth/OAuthProviderService",
 ) {
   static readonly layerFromHelpers = (helpers: OAuthHelpers): Layer.Layer<OAuthProviderService> =>
     Layer.succeed(

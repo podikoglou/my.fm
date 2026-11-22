@@ -35,7 +35,7 @@ export class FeedCacheMiddleware extends HttpApiMiddleware.Service<
     provides: never;
     requires: never;
   }
->()("@my.fm/effect-api/api/FeedCacheMiddleware") {}
+>()("@my.fm/api/api/FeedCacheMiddleware") {}
 
 export class FeedGroup extends HttpApiGroup.make("feed")
   .add(

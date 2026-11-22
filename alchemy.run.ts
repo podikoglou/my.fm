@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 import { fileURLToPath } from "node:url";
 
 import { API_RUN_WORKER_FIRST } from "./app/api-paths.ts";
-import Worker, { Database, ImportsBucket } from "./effect-api/src/alchemy.ts";
+import Worker, { Database, ImportsBucket } from "./api/src/alchemy.ts";
 
 const appDir = fileURLToPath(new URL("./app/", import.meta.url));
 

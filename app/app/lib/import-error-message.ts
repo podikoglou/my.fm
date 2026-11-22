@@ -6,7 +6,7 @@ import {
   ImportUnprocessableError,
   InternalServerError,
   ServiceUnavailableError,
-} from "@my.fm/effect-api";
+} from "@my.fm/api";
 import { HttpClientError } from "effect/http";
 
 function isImportApiError(

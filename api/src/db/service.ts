@@ -46,7 +46,7 @@ export class Db extends Context.Service<
     readonly query: <A>(fn: (client: DrizzleDatabase) => Promise<A>) => Effect.Effect<A, DbError>;
     readonly ping: Effect.Effect<boolean, DbError>;
   }
->()("@my.fm/effect-api/db/Db") {
+>()("@my.fm/api/db/Db") {
   static readonly layerFromBinding = (database: D1Database): Layer.Layer<Db> =>
     Layer.sync(Db, () => makeDbService(database));
 }

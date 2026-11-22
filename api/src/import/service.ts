@@ -74,7 +74,7 @@ export class Imports extends Context.Service<
     >;
     readonly runTick: (options?: ImportTickOptions) => Effect.Effect<ImportTickResult>;
   }
->()("@my.fm/effect-api/import/Imports") {
+>()("@my.fm/api/import/Imports") {
   static readonly layer: Layer.Layer<Imports, never, Db | ImportsStorage> = Layer.effect(
     Imports,
     Effect.gen(function* () {

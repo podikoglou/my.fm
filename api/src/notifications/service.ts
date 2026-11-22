@@ -40,7 +40,7 @@ export interface NotificationsApi {
 }
 
 export class Notifications extends Context.Service<Notifications, NotificationsApi>()(
-  "@my.fm/effect-api/notifications/Notifications",
+  "@my.fm/api/notifications/Notifications",
 ) {
   static makeLayer(
     sources: ReadonlyArray<NotificationSource>,

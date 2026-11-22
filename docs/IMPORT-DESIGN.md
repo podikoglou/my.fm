@@ -8,7 +8,7 @@ Imports use an R2 bucket and a cursor to avoid D1 write bursts:
 
 ```
 +-------------+  POST CSV (< 10 MB)   +----------------+  Store in R2   +--------------------+
-| User Client | --------------------> | effect-api     | -------------> | R2: imports/<id>   |
+| User Client | --------------------> | api     | -------------> | R2: imports/<id>   |
 +-------------+                       +----------------+                +--------------------+
        ^                                      |
        | 202 Accepted (< 300 ms)              | 1 row insert

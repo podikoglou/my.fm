@@ -41,7 +41,7 @@ export interface UsersService {
   ) => Effect.Effect<{ readonly ok: true }, UserNotFoundError | AlreadyOnboardedError | DbError>;
 }
 
-export class Users extends Context.Service<Users, UsersService>()("@my.fm/effect-api/users/Users") {
+export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/users/Users") {
   static readonly layer = Layer.effect(
     Users,
     Effect.gen(function* () {

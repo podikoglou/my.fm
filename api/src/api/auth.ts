@@ -22,10 +22,10 @@ export interface OptionalSessionValue {
 export class OptionalSession extends Context.Service<
   OptionalSession,
   OptionalSessionValue | null
->()("@my.fm/effect-api/api/OptionalSession") {}
+>()("@my.fm/api/api/OptionalSession") {}
 
 export class CurrentUser extends Context.Service<CurrentUser, SessionUser>()(
-  "@my.fm/effect-api/api/CurrentUser",
+  "@my.fm/api/api/CurrentUser",
 ) {}
 
 export class OptionalSessionMiddleware extends HttpApiMiddleware.Service<
@@ -34,7 +34,7 @@ export class OptionalSessionMiddleware extends HttpApiMiddleware.Service<
     provides: OptionalSession;
     requires: never;
   }
->()("@my.fm/effect-api/api/OptionalSessionMiddleware") {}
+>()("@my.fm/api/api/OptionalSessionMiddleware") {}
 
 export class RequireSessionMiddleware extends HttpApiMiddleware.Service<
   RequireSessionMiddleware,
@@ -42,7 +42,7 @@ export class RequireSessionMiddleware extends HttpApiMiddleware.Service<
     provides: CurrentUser;
     requires: never;
   }
->()("@my.fm/effect-api/api/RequireSessionMiddleware", {
+>()("@my.fm/api/api/RequireSessionMiddleware", {
   error: [UnauthorizedApiError, ServiceUnavailableApiError],
 }) {}
 
@@ -52,7 +52,7 @@ export class PublicReadRateLimitMiddleware extends HttpApiMiddleware.Service<
     provides: never;
     requires: never;
   }
->()("@my.fm/effect-api/api/PublicReadRateLimitMiddleware") {}
+>()("@my.fm/api/api/PublicReadRateLimitMiddleware") {}
 
 export class AuthRateLimitMiddleware extends HttpApiMiddleware.Service<
   AuthRateLimitMiddleware,
@@ -60,4 +60,4 @@ export class AuthRateLimitMiddleware extends HttpApiMiddleware.Service<
     provides: never;
     requires: never;
   }
->()("@my.fm/effect-api/api/AuthRateLimitMiddleware") {}
+>()("@my.fm/api/api/AuthRateLimitMiddleware") {}

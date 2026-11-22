@@ -20,7 +20,7 @@ export interface AuthConfigValue {
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigValue>()(
-  "@my.fm/effect-api/auth/AuthConfig",
+  "@my.fm/api/auth/AuthConfig",
 ) {
   static readonly layer = (config: AuthConfigValue) => Layer.succeed(AuthConfig, config);
 }
@@ -106,7 +106,7 @@ export interface AuthServiceApi {
 }
 
 export class AuthService extends Context.Service<AuthService, AuthServiceApi>()(
-  "@my.fm/effect-api/auth/AuthService",
+  "@my.fm/api/auth/AuthService",
 ) {
   static readonly layer = Layer.effect(
     AuthService,

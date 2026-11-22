@@ -107,7 +107,7 @@ export interface McpServiceApi {
 }
 
 export class McpService extends Context.Service<McpService, McpServiceApi>()(
-  "@my.fm/effect-api/mcp/McpService",
+  "@my.fm/api/mcp/McpService",
 ) {
   static readonly layer: Layer.Layer<McpService, never, Users | Scrobbles | RateLimiter> =
     Layer.effect(

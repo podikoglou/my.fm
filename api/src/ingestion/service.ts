@@ -61,7 +61,7 @@ function deduplicateByUserId<T extends { readonly userId: string }>(
 }
 
 export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
-  "@my.fm/effect-api/ingestion/Ingestion",
+  "@my.fm/api/ingestion/Ingestion",
 ) {
   static readonly layer: Layer.Layer<
     Ingestion,

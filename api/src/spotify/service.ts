@@ -147,7 +147,7 @@ function makeSdkUserClient(clientId: string, accessToken: string): SpotifyUserCl
 }
 
 export class SpotifyClient extends Context.Service<SpotifyClient, SpotifyClientApi>()(
-  "@my.fm/effect-api/spotify/SpotifyClient",
+  "@my.fm/api/spotify/SpotifyClient",
 ) {
   static readonly layer: Layer.Layer<SpotifyClient, never, AuthConfig> = Layer.effect(
     SpotifyClient,

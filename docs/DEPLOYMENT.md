@@ -41,7 +41,7 @@ strings.
 
 The Worker declares Cloudflare Rate Limiting bindings. The budget is part of the
 Worker script, so a deploy changes it and there is no resource to destroy. The
-budgets are in `effect-api/src/rate-limits.ts`.
+budgets are in `api/src/rate-limits.ts`.
 
 The binding counts per Cloudflare location and approximately, so it blunts abuse
 rather than enforcing a quota. Counters are keyed by namespace id, which is

@@ -1,4 +1,4 @@
-import { ProfilePrivateApiError } from "@my.fm/effect-api";
+import { ProfilePrivateApiError } from "@my.fm/api";
 import { useQuery } from "@tanstack/react-query";
 import { Schema } from "effect";
 import { Lock, Settings, UserX } from "lucide-react";

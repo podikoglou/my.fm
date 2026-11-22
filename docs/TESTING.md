@@ -13,7 +13,7 @@ bun run fmt:check
 ```
 
 Turbo runs each package's `vitest run` script. For watch mode, use
-`bun run --cwd effect-api vitest --watch` or `bun run --cwd app vitest --watch`.
+`bun run --cwd api vitest --watch` or `bun run --cwd app vitest --watch`.
 
 ## The Workers runtime is real
 
@@ -22,7 +22,7 @@ The API suite runs in workerd through Cloudflare's official
 Vitest is pinned to 4.1.x. This package replaces the deprecated
 `@cloudflare/vitest-pool-workers`; see the [official integration docs](https://developers.cloudflare.com/workers/testing/vitest-integration/).
 
-`effect-api/vitest.config.ts` declares local Miniflare D1, R2, KV and Rate
+`api/vitest.config.ts` declares local Miniflare D1, R2, KV and Rate
 Limiting bindings and test-only secrets. Rate limits use the production policies
 from `src/rate-limits.ts`. Tests import `env` from `cloudflare:workers` and call
 the Effect HTTP API or Worker handlers, not a SQLite shim or an in-memory rate

@@ -54,7 +54,7 @@ export default defineConfig({
   overrides: [
     ...(cloudflare.overrides ?? []),
     {
-      files: ["alchemy.run.ts", "effect-api/**/*.{ts,js,mts,mjs,cts,cjs}"],
+      files: ["alchemy.run.ts", "api/**/*.{ts,js,mts,mjs,cts,cjs}"],
       rules: {
         "anti-slop-effect/no-manual-effect-error-tag": "error",
         "anti-slop-effect/no-manual-tag-comparison": "error",
@@ -89,7 +89,7 @@ export default defineConfig({
       },
     },
     {
-      files: ["app/test/**/*.test.ts", "effect-api/test/**/*.test.ts"],
+      files: ["app/test/**/*.test.ts", "api/test/**/*.test.ts"],
       rules: {
         // Test-local fixtures and stubs are easier to read next to their callers.
         "unicorn/consistent-function-scoping": "off",
@@ -100,7 +100,7 @@ export default defineConfig({
       rules: { "@nkzw/no-instanceof": "off" }, // Narrow platform Request values.
     },
     {
-      files: ["effect-api/test/env.d.ts"],
+      files: ["api/test/env.d.ts"],
       rules: {
         "typescript/consistent-type-imports": ["error", { disallowTypeAnnotations: false }],
       },

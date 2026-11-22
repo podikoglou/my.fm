@@ -64,7 +64,7 @@ export class RateLimiter extends Context.Service<
       key: string,
     ) => Effect.Effect<void, RateLimitError>;
   }
->()("@my.fm/effect-api/rate-limit/RateLimiter") {
+>()("@my.fm/api/rate-limit/RateLimiter") {
   static readonly layerFromBindings = (bindings: RateLimitBindings): Layer.Layer<RateLimiter> =>
     Layer.sync(RateLimiter, () => makeRateLimiterService(bindings));
 }

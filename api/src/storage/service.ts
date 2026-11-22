@@ -84,7 +84,7 @@ export class ImportsStorage extends Context.Service<
     readonly delete: (key: string) => Effect.Effect<void, ImportsStorageError>;
     readonly head: (key: string) => Effect.Effect<R2Object | null, ImportsStorageError>;
   }
->()("@my.fm/effect-api/storage/ImportsStorage") {
+>()("@my.fm/api/storage/ImportsStorage") {
   static readonly layerFromBinding = (bucket: R2Bucket): Layer.Layer<ImportsStorage> =>
     Layer.sync(ImportsStorage, () => makeImportsStorageService(bucket));
 }

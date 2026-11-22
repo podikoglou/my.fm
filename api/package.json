@@ -1,5 +1,5 @@
 {
-  "name": "@my.fm/effect-api",
+  "name": "@my.fm/api",
   "private": true,
   "type": "module",
   "exports": {
