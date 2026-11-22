@@ -1,7 +1,7 @@
 import { Context, Schema } from "effect";
 import { HttpApiMiddleware } from "effect/http-api";
 
-import { UnauthorizedApiError } from "./errors.ts";
+import { ServiceUnavailableApiError, UnauthorizedApiError } from "./errors.ts";
 
 export const SessionUserSchema = Schema.Struct({
   id: Schema.String,
@@ -43,7 +43,7 @@ export class RequireSessionMiddleware extends HttpApiMiddleware.Service<
     requires: never;
   }
 >()("@my.fm/effect-api/api/RequireSessionMiddleware", {
-  error: UnauthorizedApiError,
+  error: [UnauthorizedApiError, ServiceUnavailableApiError],
 }) {}
 
 export class PublicReadRateLimitMiddleware extends HttpApiMiddleware.Service<

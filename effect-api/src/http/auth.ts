@@ -7,8 +7,10 @@ import {
   OptionalSessionMiddleware,
   PublicReadRateLimitMiddleware,
   RequireSessionMiddleware,
+  ServiceUnavailableError,
 } from "../api/index.ts";
 import { AuthService } from "../auth/service.ts";
+import { getD1QuotaError } from "../db/errors.ts";
 import { RateLimiter } from "../rate-limit/service.ts";
 import { RATE_LIMITS } from "../rate-limits.ts";
 import { Users } from "../users/service.ts";
@@ -56,9 +58,15 @@ export const RequireSessionMiddlewareLive = Layer.effect(
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
 
-        const session = yield* auth
-          .getSession(toWebHeaders(request))
-          .pipe(Effect.orElseSucceed(() => null));
+        const session = yield* auth.getSession(toWebHeaders(request)).pipe(
+          Effect.catchTag("AuthError", (error) => {
+            if (error.cause instanceof Error && getD1QuotaError(error.cause) !== null) {
+              return Effect.fail(new ServiceUnavailableError({ error: error.cause.message }));
+            }
+
+            return Effect.die(error);
+          }),
+        );
 
         if (!session) {
           return yield* Effect.fail({ error: "" as const });
@@ -67,7 +75,8 @@ export const RequireSessionMiddlewareLive = Layer.effect(
         const user = yield* users.getMe(session.user.id).pipe(
           Effect.catchTags({
             UserNotFoundError: () => Effect.fail({ error: "" as const }),
-            D1QuotaExceededError: (error) => Effect.die(error),
+            D1QuotaExceededError: (error) =>
+              Effect.fail(new ServiceUnavailableError({ error: error.message })),
             D1QueryError: (error) => Effect.die(error),
           }),
         );
