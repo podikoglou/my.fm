@@ -33,6 +33,9 @@ export type ErrorDescription = {
   causes: string[];
 };
 
+export const D1_QUOTA_ERROR_MESSAGE =
+  "Service is temporarily unavailable. Please try again tomorrow.";
+
 /** Typed Effect error raised when D1 refuses a query due to the daily free-tier quota. */
 export class D1QuotaExceededError extends Schema.TaggedError<
   D1QuotaExceededError,
@@ -44,7 +47,11 @@ export class D1QuotaExceededError extends Schema.TaggedError<
     message: Schema.String,
     causes: Schema.Array(Schema.String),
   }),
-}) {}
+}) {
+  override get message(): string {
+    return D1_QUOTA_ERROR_MESSAGE;
+  }
+}
 
 /** Typed Effect error raised when a D1 query fails for a non-quota reason. */
 export class D1QueryError extends Schema.TaggedError<

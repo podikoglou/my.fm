@@ -25,6 +25,24 @@ export const NotificationNotFoundApiError = Schema.Struct({
   error: Schema.Literal("Notification not found"),
 }).pipe(HttpApiSchema.status(404));
 
+export class InternalServerError extends Schema.TaggedError<InternalServerError>()(
+  "InternalServerError",
+  { error: Schema.String },
+) {}
+
+export const InternalServerApiError = Schema.Struct({
+  error: Schema.String,
+}).pipe(
+  Schema.decodeTo(
+    Schema.toType(InternalServerError),
+    SchemaTransformation.transform({
+      decode: (input) => new InternalServerError({ error: input.error }),
+      encode: (err) => ({ error: err.error }),
+    }),
+  ),
+  HttpApiSchema.status(500),
+);
+
 export class ServiceUnavailableError extends Schema.TaggedError<ServiceUnavailableError>()(
   "ServiceUnavailableError",
   { error: Schema.String },

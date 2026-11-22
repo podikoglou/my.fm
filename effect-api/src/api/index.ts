@@ -2,6 +2,7 @@ import { HttpApi } from "effect/http-api";
 
 import { FeedGroup } from "./feed.ts";
 import { HealthGroup } from "./health.ts";
+import { ImportGroup } from "./import.ts";
 import { NotificationsGroup } from "./notifications.ts";
 import { ScrobbleGroup } from "./scrobble.ts";
 import { UserGroup } from "./user.ts";
@@ -19,6 +20,8 @@ export {
 
 export {
   AlreadyOnboardedApiError,
+  InternalServerApiError,
+  InternalServerError,
   InvalidCursorApiError,
   NotificationNotFoundApiError,
   ProfilePrivateApiError,
@@ -38,6 +41,24 @@ export {
   IngestionHealthOkResponse,
   IngestionHealthStaleResponse,
 } from "./health.ts";
+
+export {
+  AcceptedImportResponse,
+  ImportBadRequestApiError,
+  ImportBadRequestError,
+  ImportConflictApiError,
+  ImportConflictError,
+  ImportGroup,
+  ImportPayloadTooLargeApiError,
+  ImportPayloadTooLargeError,
+  ImportSchema,
+  ImportStatusSchema,
+  ImportTooManyRequestsApiError,
+  ImportTooManyRequestsError,
+  ImportUnprocessableApiError,
+  ImportUnprocessableError,
+  LatestImportResponse,
+} from "./import.ts";
 
 export {
   AcknowledgeNotificationResponse,
@@ -77,4 +98,5 @@ export class MyFmApi extends HttpApi.make("my-fm")
   .add(UserGroup)
   .add(ScrobbleGroup)
   .add(FeedGroup)
-  .add(NotificationsGroup) {}
+  .add(NotificationsGroup)
+  .add(ImportGroup) {}
