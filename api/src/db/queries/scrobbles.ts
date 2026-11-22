@@ -1,6 +1,6 @@
 import type { BatchItem } from "drizzle-orm/batch";
 
-import { and, count, eq, isNotNull, max, min, sql } from "drizzle-orm";
+import { and, eq, isNotNull, max, min, sql } from "drizzle-orm";
 
 import type { DrizzleDatabase } from "../service.ts";
 
@@ -536,19 +536,25 @@ export async function countScrobblesByMonth(
 
   const months = monthsBetween(earliest.date, latest.date, timeZone);
 
-  const month = sql<string>`CASE ${sql.join(
-    months.map(
-      ({ month, start }) =>
-        sql`WHEN ${scrobbles.scrobbleDate} >= ${sql.raw(String(start))} THEN ${sql.raw(`'${month}'`)}`,
+  const bounds = sql.join(
+    months.map(({ month, start }, index) =>
+      sql.raw(`('${month}', ${start}, ${months[index - 1]?.start ?? Number.MAX_SAFE_INTEGER})`),
     ),
-    sql` `,
-  )} END`;
+    sql`, `,
+  );
 
-  const counts = await db
-    .select({ month, count: count() })
-    .from(scrobbles)
-    .where(where)
-    .groupBy(sql`1`);
+  // One index range count per month reads each scrobble once. Grouping by a
+  // CASE expression reads every scrobble a second time to sort the groups.
+  const counts = await db.all<MonthlyScrobbleCount>(sql`
+    WITH bounds(month, since, until) AS (VALUES ${bounds})
+    SELECT month, (
+      SELECT count(*) FROM ${scrobbles}
+      WHERE ${scrobbles.userId} = ${userId}
+        AND ${scrobbles.scrobbleDate} >= bounds.since
+        AND ${scrobbles.scrobbleDate} < bounds.until
+    ) AS count
+    FROM bounds
+  `);
 
-  return months.flatMap(({ month }) => counts.filter((row) => row.month === month));
+  return counts.filter((row) => row.count > 0);
 }
