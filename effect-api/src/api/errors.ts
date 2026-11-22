@@ -17,6 +17,14 @@ export const AlreadyOnboardedApiError = Schema.Struct({
   error: Schema.Literal("Already onboarded"),
 }).pipe(HttpApiSchema.status(400));
 
+export const InvalidCursorApiError = Schema.Struct({
+  error: Schema.Literal("Invalid cursor"),
+}).pipe(HttpApiSchema.status(400));
+
+export const NotificationNotFoundApiError = Schema.Struct({
+  error: Schema.Literal("Notification not found"),
+}).pipe(HttpApiSchema.status(404));
+
 export class ServiceUnavailableError extends Schema.TaggedError<ServiceUnavailableError>()(
   "ServiceUnavailableError",
   { error: Schema.String },

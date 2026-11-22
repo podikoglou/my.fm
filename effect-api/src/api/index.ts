@@ -1,6 +1,9 @@
 import { HttpApi } from "effect/http-api";
 
+import { FeedGroup } from "./feed.ts";
 import { HealthGroup } from "./health.ts";
+import { NotificationsGroup } from "./notifications.ts";
+import { ScrobbleGroup } from "./scrobble.ts";
 import { UserGroup } from "./user.ts";
 
 export {
@@ -16,12 +19,16 @@ export {
 
 export {
   AlreadyOnboardedApiError,
+  InvalidCursorApiError,
+  NotificationNotFoundApiError,
   ProfilePrivateApiError,
   ServiceUnavailableApiError,
   ServiceUnavailableError,
   UnauthorizedApiError,
   UserNotFoundApiError,
 } from "./errors.ts";
+
+export { FeedCacheMiddleware, FeedGroup, FeedItemSchema, PublicFeedPageSchema } from "./feed.ts";
 
 export {
   HealthGroup,
@@ -31,6 +38,22 @@ export {
   IngestionHealthOkResponse,
   IngestionHealthStaleResponse,
 } from "./health.ts";
+
+export {
+  AcknowledgeNotificationResponse,
+  NotificationSchema,
+  NotificationsGroup,
+} from "./notifications.ts";
+
+export {
+  MonthlyScrobbleCountSchema,
+  ProjectedAlbumSchema,
+  ProjectedArtistSchema,
+  ProjectedScrobbleSchema,
+  ProjectedTrackSchema,
+  ScrobbleGroup,
+  TimeZoneSchema,
+} from "./scrobble.ts";
 
 export {
   OnboardInput,
@@ -49,4 +72,9 @@ export { NameSchema, NanoidSchema, UsernameSchema } from "./validators.ts";
  * Groups are added here across the migration PRs so the frontend can consume
  * one typed `HttpApiClient` without importing server implementation code.
  */
-export class MyFmApi extends HttpApi.make("my-fm").add(HealthGroup).add(UserGroup) {}
+export class MyFmApi extends HttpApi.make("my-fm")
+  .add(HealthGroup)
+  .add(UserGroup)
+  .add(ScrobbleGroup)
+  .add(FeedGroup)
+  .add(NotificationsGroup) {}

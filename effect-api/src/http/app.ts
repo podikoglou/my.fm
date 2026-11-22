@@ -9,6 +9,8 @@ import type { ImportsStorage } from "../storage/service.ts";
 
 import { MyFmApi } from "../api/index.ts";
 import { AuthService } from "../auth/service.ts";
+import { Notifications } from "../notifications/service.ts";
+import { Scrobbles } from "../scrobbles/service.ts";
 import { Users } from "../users/service.ts";
 import {
   BetterAuthRoutes,
@@ -16,22 +18,39 @@ import {
   PublicReadRateLimitMiddlewareLive,
   RequireSessionMiddlewareLive,
 } from "./auth.ts";
+import { FeedCacheMiddlewareLive, FeedHandlers } from "./feed.ts";
 import { HealthHandlers } from "./health.ts";
 import { DefaultCacheControlMiddleware } from "./middleware.ts";
+import { NotificationsHandlers } from "./notifications.ts";
+import { ScrobbleHandlers } from "./scrobble.ts";
 import { UserHandlers } from "./user.ts";
 
 export type AppServices = Db | ImportsStorage | RateLimiter | AuthConfig;
 
-const DomainLayer = Layer.mergeAll(AuthService.layer, Users.layer);
+const BaseDomainLayer = Layer.mergeAll(AuthService.layer, Users.layer, Notifications.layer);
+
+const DomainLayer = Layer.mergeAll(
+  BaseDomainLayer,
+  Scrobbles.layer.pipe(Layer.provide(BaseDomainLayer)),
+);
 
 const MiddlewareLayer = Layer.mergeAll(
   OptionalSessionMiddlewareLive,
   RequireSessionMiddlewareLive,
   PublicReadRateLimitMiddlewareLive,
+  FeedCacheMiddlewareLive,
 );
 
 const ApiRoutes = HttpApiBuilder.layer(MyFmApi).pipe(
-  Layer.provide(Layer.mergeAll(HealthHandlers, UserHandlers)),
+  Layer.provide(
+    Layer.mergeAll(
+      HealthHandlers,
+      UserHandlers,
+      ScrobbleHandlers,
+      FeedHandlers,
+      NotificationsHandlers,
+    ),
+  ),
   Layer.provide(MiddlewareLayer),
 );
 
