@@ -41,8 +41,11 @@ export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>(
   Effect.gen(function* () {
     const dbClient = yield* Cloudflare.D1.QueryDatabase(EffectDatabase);
     const importsBucket = yield* Cloudflare.R2.ReadWriteBucket(EffectImportsBucket);
-    const authLimiter = yield* Cloudflare.Workers.RateLimit(AuthRateLimit);
-    const publicReadLimiter = yield* Cloudflare.Workers.RateLimit(PublicReadRateLimit);
+    // The module-scope values from `rateLimitResource` are already the
+    // binding values: yield them directly. Re-calling the constructor with the
+    // binding as its `name` arg crashes, since `props` is then undefined.
+    const authLimiter = yield* AuthRateLimit;
+    const publicReadLimiter = yield* PublicReadRateLimit;
 
     return {
       fetch: Effect.gen(function* () {
