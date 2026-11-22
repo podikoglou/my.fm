@@ -215,13 +215,21 @@ export const effectSqlAdapter = (client: SqlClient.SqlClient) =>
       supportsJSON: false,
       customTransformInput: ({ data, fieldAttributes, field, model }) => {
         if (fieldAttributes.type === "date") {
-          const date = Schema.decodeUnknownSync(Schema.NullOr(Schema.Date))(data);
+          const date = Schema.decodeUnknownSync(Schema.UndefinedOr(Schema.NullOr(Schema.Date)))(
+            data,
+          );
+
+          if (date === undefined) return undefined;
 
           return date === null ? null : toEpoch(model, field, date);
         }
 
         if (fieldAttributes.type === "boolean") {
-          const boolean = Schema.decodeUnknownSync(Schema.NullOr(Schema.Boolean))(data);
+          const boolean = Schema.decodeUnknownSync(
+            Schema.UndefinedOr(Schema.NullOr(Schema.Boolean)),
+          )(data);
+
+          if (boolean === undefined) return undefined;
 
           return boolean === null ? null : toBooleanInt(boolean);
         }
@@ -230,7 +238,11 @@ export const effectSqlAdapter = (client: SqlClient.SqlClient) =>
       },
       customTransformOutput: ({ data, fieldAttributes, field, model }) => {
         if (fieldAttributes.type === "date") {
-          const timestamp = Schema.decodeUnknownSync(Schema.NullOr(Schema.Int))(data);
+          const timestamp = Schema.decodeUnknownSync(Schema.UndefinedOr(Schema.NullOr(Schema.Int)))(
+            data,
+          );
+
+          if (timestamp === undefined) return undefined;
 
           return timestamp === null
             ? null
@@ -238,7 +250,11 @@ export const effectSqlAdapter = (client: SqlClient.SqlClient) =>
         }
 
         if (fieldAttributes.type === "boolean") {
-          const integer = Schema.decodeUnknownSync(Schema.NullOr(Schema.Int))(data);
+          const integer = Schema.decodeUnknownSync(Schema.UndefinedOr(Schema.NullOr(Schema.Int)))(
+            data,
+          );
+
+          if (integer === undefined) return undefined;
 
           return integer === null ? null : toBoolean(integer);
         }

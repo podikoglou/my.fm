@@ -1,9 +1,10 @@
 import { env } from "cloudflare:workers";
-import { Schema } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import { http } from "msw";
 import { describe, expect, test } from "vitest";
 
-import worker from "../src/worker.ts";
+import { AuthService } from "../src/auth/service.ts";
+import worker, { makeWorkerInfraLayer } from "../src/worker.ts";
 import { queryRows } from "./d1.ts";
 import { network } from "./network.ts";
 
@@ -122,5 +123,25 @@ describe("auth routes", () => {
     expect(timestamps!.userCreatedAt).toBeLessThan(10_000_000_000);
     expect(timestamps!.sessionCreatedAt).toBeGreaterThan(10_000_000_000);
     expect(timestamps!.expiresAt).toBeGreaterThan(timestamps!.sessionCreatedAt);
+
+    const projectedSessions = await Effect.runPromise(
+      Effect.gen(function* () {
+        const auth = yield* AuthService;
+
+        return yield* Effect.promise(async () => {
+          const context = await auth.raw.$context;
+
+          return context.adapter.findMany<{ id: string }>({
+            model: "sessions",
+            where: [],
+            limit: 1,
+            select: ["id"],
+          });
+        });
+      }).pipe(Effect.provide(AuthService.layer.pipe(Layer.provide(makeWorkerInfraLayer(env))))),
+    );
+
+    expect(projectedSessions).toHaveLength(1);
+    expect(projectedSessions[0]?.id).toBeTypeOf("string");
   });
 });
