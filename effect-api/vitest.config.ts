@@ -3,10 +3,8 @@ import { defineConfig } from "vitest/config";
 
 import { RATE_LIMITS } from "./src/rate-limits.ts";
 
-// Until PR 7 moves drizzle/ into effect-api/, reuse the checked-in migrations
-// from worker-api/ so both packages run against the exact same schema.
 const migrations = await readD1Migrations({
-  projectPath: import.meta.dirname + "/../worker-api",
+  projectPath: import.meta.dirname,
   migrationsDir: "drizzle",
   migrationsPattern: "drizzle/*/migration.sql",
 });

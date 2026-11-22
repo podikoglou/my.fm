@@ -29,7 +29,7 @@ function makeImportsStorageService(bucket: R2Bucket): ImportsStorage["Service"] 
 
   const put = (
     key: string,
-    value: string | ArrayBuffer | ArrayBufferView | ReadableStream,
+    value: string | ArrayBuffer | ArrayBufferView,
     options?: R2PutOptions,
   ): Effect.Effect<R2Object | null, ImportsStorageError> =>
     Effect.tryPromise({
@@ -78,7 +78,7 @@ export class ImportsStorage extends Context.Service<
     readonly get: (key: string) => Effect.Effect<R2ObjectBody | null, ImportsStorageError>;
     readonly put: (
       key: string,
-      value: string | ArrayBuffer | ArrayBufferView | ReadableStream,
+      value: string | ArrayBuffer | ArrayBufferView,
       options?: R2PutOptions,
     ) => Effect.Effect<R2Object | null, ImportsStorageError>;
     readonly delete: (key: string) => Effect.Effect<void, ImportsStorageError>;

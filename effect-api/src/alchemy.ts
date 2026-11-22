@@ -2,7 +2,9 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import { Config, Effect, Layer, Redacted } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
+import { fileURLToPath } from "node:url";
 
+import { API_DEV_PORT } from "../../dev.ts";
 import { AuthConfig } from "./auth/service.ts";
 import { Db } from "./db/service.ts";
 import { Imports } from "./import/service.ts";
@@ -13,10 +15,18 @@ import { RATE_LIMITS, type RateLimitBindingName } from "./rate-limits.ts";
 import { ImportsStorage } from "./storage/service.ts";
 import { IngestionLive } from "./worker.ts";
 
-export const EffectDatabase = Cloudflare.D1.Database("EffectDatabase");
-export const EffectImportsBucket = Cloudflare.R2.Bucket("EffectImportsBucket");
-export const EffectOAuthKv = Cloudflare.KV.Namespace("EffectOAuthKv");
+/** D1 database with the drizzle-kit migrations. */
+export const Database = Cloudflare.D1.Database("Database", {
+  migrations: fileURLToPath(new URL("../drizzle/", import.meta.url).href),
+});
 
+export const ImportsBucket = Cloudflare.R2.Bucket("ImportsBucket");
+export const OAuthKv = Cloudflare.KV.Namespace("OAuthKv");
+
+/**
+ * Minted once and kept in stack state. A new value would invalidate every
+ * session that Better Auth has issued.
+ */
 const BetterAuthSecret = Alchemy.makeRandom("BetterAuthSecret");
 
 function rateLimitResource(name: RateLimitBindingName) {
@@ -31,17 +41,17 @@ export const PublicReadRateLimit = rateLimitResource("PUBLIC_READ_RATE_LIMIT");
 /**
  * Effectful Alchemy Cloudflare Worker definition.
  *
- * The outer Effect binds Cloudflare resources (D1, R2, rate limits, secrets)
- * and registers the one-minute Cron trigger at deploy and cold-start time.
- * The inner `fetch` and `cron` Effects resolve request-scoped bindings from
- * `RuntimeContext` into typed Effect service Layers. Not yet wired into root
- * `alchemy.run.ts` until PR 7 cutover.
+ * The outer Effect binds Cloudflare resources (D1, R2, KV, rate limits,
+ * secrets) and registers the one-minute Cron trigger at deploy and cold-start
+ * time. The inner `fetch` and `cron` Effects resolve request-scoped bindings
+ * into typed Effect service Layers.
  */
-export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>()(
-  "EffectApiWorker",
+export class Worker extends Cloudflare.Workers.Worker<Worker>()(
+  "Worker",
   {
     main: import.meta.url,
     compatibility: { date: "2026-11-02", flags: ["global_fetch_strictly_public"] },
+    dev: { port: API_DEV_PORT, strictPort: true },
     cache: { enabled: true },
     observability: { enabled: true, issues: { enabled: true } },
     env: {
@@ -51,9 +61,9 @@ export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>(
     },
   },
   Effect.gen(function* () {
-    const dbClient = yield* Cloudflare.D1.QueryDatabase(EffectDatabase);
-    const importsBucket = yield* Cloudflare.R2.ReadWriteBucket(EffectImportsBucket);
-    const oauthKv = yield* Cloudflare.KV.ReadWriteNamespace(EffectOAuthKv);
+    const dbClient = yield* Cloudflare.D1.QueryDatabase(Database);
+    const importsBucket = yield* Cloudflare.R2.ReadWriteBucket(ImportsBucket);
+    const oauthKv = yield* Cloudflare.KV.ReadWriteNamespace(OAuthKv);
     // The module-scope values from `rateLimitResource` are already the
     // binding values: yield them directly. Re-calling the constructor with the
     // binding as its `name` arg crashes, since `props` is then undefined.

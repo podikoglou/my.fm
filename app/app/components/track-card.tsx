@@ -17,7 +17,7 @@ export function Track({
   trackSpotifyUri,
 }: {
   artist?: string;
-  artists?: { name: string; spotifyUri?: string }[];
+  artists?: readonly { readonly name: string; readonly spotifyUri?: string }[];
   title: string;
   extra?: ReactNode;
   imageUrl?: string;

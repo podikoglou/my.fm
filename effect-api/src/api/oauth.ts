@@ -61,6 +61,7 @@ export const RevokeOAuthAppResponse = Schema.Struct({
 });
 
 const getAuthorize = HttpApiEndpoint.get("getAuthorize", "/authorize", {
+  query: Schema.Record(Schema.String, Schema.String),
   success: OAuthAuthorizeDetailsResponse,
   error: [InvalidOAuthRequestApiError],
 });

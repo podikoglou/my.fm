@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 
 async function fetchLatestImport() {
-  return parseResponse(apiClient.import.latest.$get());
+  return runApi(apiClient.import.latest());
 }
 
 const IMPORT_POLL_INTERVAL_MS = 15 * 1000;

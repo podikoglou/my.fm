@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 import { useForm } from "react-hook-form";
 import { redirect, useLoaderData, useNavigate } from "react-router";
 import { z } from "zod";
@@ -16,7 +15,7 @@ import {
   FormMessage,
 } from "~/components/ui/form";
 import { Input } from "~/components/ui/input";
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 import { requireAuth } from "~/lib/auth-guard";
 import { authReturnPath } from "~/lib/auth-return";
 import { queryClient } from "~/lib/query";
@@ -53,7 +52,7 @@ export default function OnboardPage() {
   });
 
   const onboard = useMutation({
-    mutationFn: (data: FormValues) => parseResponse(apiClient.user.onboard.$put({ form: data })),
+    mutationFn: (data: FormValues) => runApi(apiClient.user.onboard({ payload: data })),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
       void navigate(returnTo);

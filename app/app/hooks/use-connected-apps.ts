@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 
 async function fetchConnectedApps() {
-  return parseResponse(apiClient.oauth.apps.$get());
+  return runApi(apiClient.oauth.listApps());
 }
 
 export type ConnectedAppsData = Awaited<ReturnType<typeof fetchConnectedApps>>;

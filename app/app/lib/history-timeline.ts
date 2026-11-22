@@ -18,7 +18,7 @@ export type Month = {
 
 export type HistoryPage = { month: Month; page: number };
 
-export function toMonths(counts: { month: string; count: number }[]) {
+export function toMonths(counts: readonly { readonly month: string; readonly count: number }[]) {
   let start = 0;
 
   return counts.map(({ month, count }): Month => {

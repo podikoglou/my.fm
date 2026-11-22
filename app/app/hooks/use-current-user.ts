@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 
 async function fetchCurrentUser() {
-  return parseResponse(apiClient.user.me.$get());
+  return runApi(apiClient.user.me());
 }
 
 export type CurrentUser = Awaited<ReturnType<typeof fetchCurrentUser>>;

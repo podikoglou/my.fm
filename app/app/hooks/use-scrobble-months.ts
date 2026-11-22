@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 import { toMonths } from "~/lib/history-timeline";
 
 export function useScrobbleMonths(username: string) {
@@ -9,8 +8,8 @@ export function useScrobbleMonths(username: string) {
     queryKey: ["scrobble-months", username],
     queryFn: async () =>
       toMonths(
-        await parseResponse(
-          apiClient.scrobble.getMonths.$get({
+        await runApi(
+          apiClient.scrobble.getMonths({
             query: { username, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
           }),
         ),

@@ -1,12 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 import { redirect, useLoaderData } from "react-router";
 
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { CardLayout } from "~/components/ui/card-layout";
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 import { requireAuth } from "~/lib/auth-guard";
 import { onboardingPath } from "~/lib/auth-return";
 
@@ -24,8 +23,8 @@ export async function clientLoader({ request }: { request: Request }) {
   if (!user.onboarded) throw redirect(onboardingPath(returnTo));
 
   try {
-    const consent = await parseResponse(
-      apiClient.oauth.authorize.$get({ query: Object.fromEntries(url.searchParams) }),
+    const consent = await runApi(
+      apiClient.oauth.getAuthorize({ query: Object.fromEntries(url.searchParams) }),
     );
 
     return { consent, query: url.search, error: null };
@@ -44,7 +43,7 @@ export default function OAuthAuthorizePage() {
 
   const decision = useMutation({
     mutationFn: (value: "allow" | "deny") =>
-      parseResponse(apiClient.oauth.authorize.$post({ json: { decision: value, query } })),
+      runApi(apiClient.oauth.decideAuthorize({ payload: { decision: value, query } })),
     onSuccess: ({ redirectTo }) => window.location.assign(redirectTo),
   });
 

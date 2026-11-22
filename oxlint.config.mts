@@ -54,11 +54,7 @@ export default defineConfig({
   overrides: [
     ...(cloudflare.overrides ?? []),
     {
-      files: [
-        "alchemy.run.ts",
-        "effect-api/**/*.{ts,js,mts,mjs,cts,cjs}",
-        "worker-api/**/*.{ts,js,mts,mjs,cts,cjs}",
-      ],
+      files: ["alchemy.run.ts", "effect-api/**/*.{ts,js,mts,mjs,cts,cjs}"],
       rules: {
         "anti-slop-effect/no-manual-effect-error-tag": "error",
         "anti-slop-effect/no-manual-tag-comparison": "error",
@@ -66,10 +62,6 @@ export default defineConfig({
         "anti-slop-effect/no-service-constructor-imports": "error",
         "anti-slop-effect/prefer-effect-match": "error",
       },
-    },
-    {
-      files: ["worker-api/**/*.{ts,js,mts,mjs,cts,cjs}"],
-      rules: { "no-unused-expressions": "off" },
     },
     {
       files: ["app/app/**/*.tsx"],
@@ -97,31 +89,18 @@ export default defineConfig({
       },
     },
     {
-      files: [
-        "app/test/**/*.test.ts",
-        "effect-api/test/**/*.test.ts",
-        "worker-api/test/**/*.test.ts",
-      ],
+      files: ["app/test/**/*.test.ts", "effect-api/test/**/*.test.ts"],
       rules: {
         // Test-local fixtures and stubs are easier to read next to their callers.
         "unicorn/consistent-function-scoping": "off",
       },
     },
     {
-      files: ["app/test/worker.test.ts", "worker-api/src/routes/import.ts"],
-      rules: { "@nkzw/no-instanceof": "off" }, // Narrow platform Request and File values.
+      files: ["app/test/worker.test.ts"],
+      rules: { "@nkzw/no-instanceof": "off" }, // Narrow platform Request values.
     },
     {
-      files: [
-        "worker-api/src/import/graphql.ts",
-        "worker-api/src/import/normalize.ts",
-        "worker-api/test/d1.ts",
-        "worker-api/test/ingestion.test.ts",
-      ],
-      rules: { "typescript/no-unsafe-type-assertion": "off" }, // Still requires a SAFETY comment.
-    },
-    {
-      files: ["effect-api/test/env.d.ts", "worker-api/test/env.d.ts"],
+      files: ["effect-api/test/env.d.ts"],
       rules: {
         "typescript/consistent-type-imports": ["error", { disallowTypeAnnotations: false }],
       },
