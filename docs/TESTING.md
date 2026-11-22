@@ -28,7 +28,7 @@ from `src/rate-limits.ts`. Tests import `env` from `cloudflare:workers` and call
 the Effect HTTP API or Worker handlers, not a SQLite shim or an in-memory rate
 counter.
 
-The config reads checked-in `drizzle/<timestamp>/migration.sql` files on the
+The config reads checked-in `migrations/<timestamp>/migration.sql` files on the
 Node side using `readD1Migrations`, sorts them by name, and passes them through
 the `TEST_MIGRATIONS` binding. The setup file applies them with
 `applyD1Migrations`. A passing test runs production SQL against real D1,
@@ -58,11 +58,13 @@ factories, so a test supplies a real substitute without one.
 
 ## A route
 
-Build the app, seed through the real tables with Drizzle inserts, then call the
-app with a path and the test environment, and assert the status and the body.
-Seed the real tables, because a fixture that bypasses the schema cannot catch a
+Build the app, seed through the real tables with D1 SQL, then call the app with
+a path and the test environment, and assert the status and the body. Seed the
+real tables, because a fixture that bypasses the schema cannot catch a
 constraint that production enforces. The tests use their own host, which matters
-for cookies and for the OAuth callback.
+for cookies and for the OAuth callback. New schema changes use handwritten SQL
+migrations in `api/migrations/<timestamp>_<name>/migration.sql`; existing
+migration files are immutable.
 
 ## The app package
 

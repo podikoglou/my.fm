@@ -4,8 +4,8 @@ import { http } from "msw";
 import { expect } from "vitest";
 
 import { SPOTIFY_SCOPES } from "../src/auth/service.ts";
-import { createDatabase } from "../src/db/service.ts";
 import worker from "../src/worker.ts";
+import { queryRows } from "./d1.ts";
 import { network } from "./network.ts";
 
 export const baseUrl = "https://app.test";
@@ -79,9 +79,9 @@ export async function signIn(spotify: {
     .getAll("set-cookie")
     .map((cookie) => cookie.split(";")[0]);
 
-  const user = await createDatabase(env.DB).query.users.findFirst({
-    where: { email: spotify.email },
-  });
+  const [user] = await queryRows<{ id: string }>(env.DB, "SELECT id FROM users WHERE email = ?", [
+    spotify.email,
+  ]);
 
   if (!user) {
     throw new Error("The Spotify callback did not create a user");

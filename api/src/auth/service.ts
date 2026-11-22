@@ -1,10 +1,9 @@
-import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { betterAuth } from "better-auth";
 import { Context, Effect, Layer, Schema } from "effect";
 import { nanoid } from "nanoid";
+import { SqlClient } from "effect/sql";
 
-import * as schema from "../db/schema.ts";
-import { Db, type DrizzleDatabase } from "../db/service.ts";
+import { effectSqlAdapter } from "./adapter.ts";
 
 export const SPOTIFY_SCOPES = [
   "user-read-private",
@@ -29,18 +28,13 @@ export class AuthError extends Schema.TaggedError<AuthError>()("AuthError", {
   cause: Schema.Defect(),
 }) {}
 
-function createBetterAuth(db: DrizzleDatabase, config: AuthConfigValue) {
+function createBetterAuth(
+  database: Parameters<typeof effectSqlAdapter>[0],
+  config: AuthConfigValue,
+) {
   return betterAuth({
     secret: config.betterAuthSecret,
-    database: drizzleAdapter(db, {
-      provider: "sqlite",
-      schema: {
-        user: schema.users,
-        account: schema.accounts,
-        session: schema.sessions,
-        verification: schema.verification,
-      },
-    }),
+    database: effectSqlAdapter(database),
     socialProviders: {
       spotify: {
         clientId: config.spotifyClientId,
@@ -49,8 +43,11 @@ function createBetterAuth(db: DrizzleDatabase, config: AuthConfigValue) {
       },
     },
     user: {
+      modelName: "users",
       fields: {
         image: "avatarUrl",
+        emailVerified: "email_verified",
+        updatedAt: "updated_at",
       },
       additionalFields: {
         username: {
@@ -58,6 +55,40 @@ function createBetterAuth(db: DrizzleDatabase, config: AuthConfigValue) {
           required: true,
           defaultValue: () => nanoid(),
         },
+      },
+    },
+    session: {
+      modelName: "sessions",
+      fields: {
+        expiresAt: "expires_at",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+        ipAddress: "ip_address",
+        userAgent: "user_agent",
+        userId: "user_id",
+      },
+    },
+    account: {
+      modelName: "accounts",
+      fields: {
+        accountId: "account_id",
+        providerId: "provider_id",
+        userId: "user_id",
+        accessToken: "access_token",
+        refreshToken: "refresh_token",
+        idToken: "id_token",
+        accessTokenExpiresAt: "access_token_expires_at",
+        refreshTokenExpiresAt: "refresh_token_expires_at",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    verification: {
+      modelName: "verification",
+      fields: {
+        expiresAt: "expires_at",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
       },
     },
     advanced: { database: { generateId: () => nanoid() } },
@@ -111,9 +142,9 @@ export class AuthService extends Context.Service<AuthService, AuthServiceApi>()(
   static readonly layer = Layer.effect(
     AuthService,
     Effect.gen(function* () {
-      const db = yield* Db;
+      const database = yield* SqlClient.SqlClient;
       const config = yield* AuthConfig;
-      const auth = createBetterAuth(db.drizzle, config);
+      const auth = createBetterAuth(database, config);
 
       const handler = Effect.fn("AuthService.handler")(function* (request: Request) {
         return yield* Effect.tryPromise({

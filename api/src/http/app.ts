@@ -1,9 +1,9 @@
-import { Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 
 import type { AuthConfig } from "../auth/service.ts";
-import type { Db } from "../db/service.ts";
+import type { DatabaseRequirements } from "../db/service.ts";
 import type { RateLimiter } from "../rate-limit/service.ts";
 import type { ImportsStorage } from "../storage/service.ts";
 
@@ -32,7 +32,7 @@ import { ScrobbleHandlers } from "./scrobble.ts";
 import { StatsHandlers } from "./stats.ts";
 import { UserHandlers } from "./user.ts";
 
-export type AppServices = Db | ImportsStorage | RateLimiter | AuthConfig;
+export type AppServices = DatabaseRequirements | ImportsStorage | RateLimiter | AuthConfig;
 
 export type HttpAppServices = AppServices | OAuthProviderService;
 
@@ -75,7 +75,7 @@ const ApiRoutes = HttpApiBuilder.layer(MyFmApi).pipe(
 
 /**
  * Full HTTP router layer for my.fm, requiring only typed infrastructure
- * services (`Db`, `ImportsStorage`, `RateLimiter`, `AuthConfig`) and
+ * services (the D1/SQL clients, `ImportsStorage`, `RateLimiter`, `AuthConfig`) and
  * `OAuthProviderService`.
  */
 export const HttpAppLayer = Layer.mergeAll(
@@ -93,7 +93,7 @@ export function makeWebHandler(
   oauthLayer: Layer.Layer<OAuthProviderService> = OAuthProviderService.unavailableLayer,
 ) {
   return HttpRouter.toWebHandler(
-    HttpAppLayer.pipe(Layer.provide(Layer.mergeAll(infraLayer, oauthLayer))),
+    HttpAppLayer.pipe(Layer.provideMerge(Layer.mergeAll(infraLayer, oauthLayer))),
     {
       disableLogger: true,
     },
@@ -115,7 +115,7 @@ export async function handleWebRequest(
   const { handler, dispose } = makeWebHandler(infraLayer, oauthLayer);
 
   try {
-    const response = await handler(request);
+    const response = await handler(request, Context.empty());
 
     if (response.headers.has("cache-control")) {
       return response;

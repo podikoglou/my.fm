@@ -5,8 +5,8 @@ import { RATE_LIMITS } from "./src/rate-limits.ts";
 
 const migrations = await readD1Migrations({
   projectPath: import.meta.dirname,
-  migrationsDir: "drizzle",
-  migrationsPattern: "drizzle/*/migration.sql",
+  migrationsDir: "migrations",
+  migrationsPattern: "migrations/*/migration.sql",
 });
 
 export default defineConfig({

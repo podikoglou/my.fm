@@ -1,32 +1,12 @@
-import type { BatchItem } from "drizzle-orm/batch";
+import { D1Client } from "@effect/sql-d1/D1Client";
+import { Effect, Option, Schema } from "effect";
+import { SqlClient, SqlSchema } from "effect/sql";
 
-import { and, eq, gte, isNotNull, lt, max, min, sql } from "drizzle-orm";
-
-import type { DrizzleDatabase } from "../service.ts";
-
+import { DateFromEpochSeconds } from "../columns.ts";
+import { asDbError } from "../service.ts";
+import type { Album, Artist, Scrobble, Track, User } from "../schema.ts";
 import { monthsBetween } from "../../time-zone.ts";
-import { FEED_VISIBLE_USER } from "../../users/visibility.ts";
-import {
-  albumArtists,
-  albums,
-  artists,
-  scrobbles,
-  trackArtists,
-  tracks,
-  type Album,
-  type Artist,
-  type Scrobble,
-  type Track,
-  type User,
-} from "../schema.ts";
 
-/**
- * Derive a deterministic scrobble ID from the user and the play time.
- *
- * A re-fetched play must get the same ID, so `onConflictDoNothing` can stop a
- * duplicate. The ID keeps the first 16 bytes of the SHA-256 digest as 32
- * lowercase hex characters.
- */
 export async function createScrobbleId(userId: User["id"], scrobbleDate: Date) {
   const key = `${userId}:${scrobbleDate.toISOString()}`;
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key));
@@ -74,142 +54,127 @@ export type PersistPlaysOptions = {
 
 const DEFAULT_PLAYS_PER_BATCH = 10;
 
-/**
- * Persist plays and their canonical catalog entities in dependency order.
- */
-export async function persistPlays(
-  db: DrizzleDatabase,
+export const persistPlays = Effect.fn("scrobbles.persistPlays")(function* (
   plays: ReadonlyArray<PlayRecord>,
   options?: PersistPlaysOptions,
-): Promise<void> {
+) {
+  const sql = yield* SqlClient.SqlClient;
+  const d1 = yield* D1Client;
   const batchSize = options?.batchSize ?? DEFAULT_PLAYS_PER_BATCH;
 
   for (let start = 0; start < plays.length; start += batchSize) {
     const chunk = plays.slice(start, start + batchSize);
-    const statements: BatchItem<"sqlite">[] = [];
+    const statements = chunk.flatMap((play) => buildPlayStatements(sql, play));
 
-    for (const play of chunk) {
-      statements.push(...buildPlayStatements(db, play));
-    }
-
-    const [first, ...rest] = statements;
-
-    if (first) {
-      await db.batch([first, ...rest]);
+    if (statements.length > 0) {
+      yield* asDbError(d1.batch(statements));
     }
   }
-}
+});
 
-function buildPlayStatements(db: DrizzleDatabase, play: PlayRecord): BatchItem<"sqlite">[] {
-  const statements: BatchItem<"sqlite">[] = [];
+function buildPlayStatements(sql: SqlClient.SqlClient, play: PlayRecord) {
+  const statements = [];
+  const trackArtists = play.track?.artists ?? [];
+  const albumArtists = play.album?.artists ?? [];
+  const insertedArtistUris = new Set<string>();
 
-  const trackArtistsList = play.track?.artists ?? [];
-  const albumArtistsList = play.album?.artists ?? [];
+  for (const artist of [...trackArtists, ...albumArtists]) {
+    if (insertedArtistUris.has(artist.spotifyUri)) continue;
 
-  const insertedUris = new Set<PlayArtist["spotifyUri"]>();
-
-  for (const artist of [...trackArtistsList, ...albumArtistsList]) {
-    if (insertedUris.has(artist.spotifyUri)) continue;
-
-    insertedUris.add(artist.spotifyUri);
-    statements.push(
-      db
-        .insert(artists)
-        .values({
-          spotifyUri: artist.spotifyUri,
-          name: artist.name,
-          imageUrl: artist.imageUrl ?? null,
-        })
-        .onConflictDoNothing(),
-    );
+    insertedArtistUris.add(artist.spotifyUri);
+    statements.push(sql`
+      INSERT INTO artists (spotifyUri, name, imageUrl)
+      VALUES (${artist.spotifyUri}, ${artist.name}, ${artist.imageUrl ?? null})
+      ON CONFLICT(spotifyUri) DO NOTHING
+    `);
   }
 
   if (play.album) {
-    statements.push(
-      db
-        .insert(albums)
-        .values({
-          spotifyUri: play.album.spotifyUri,
-          name: play.album.name,
-          releaseDate: play.album.releaseDate,
-          totalTracks: play.album.totalTracks,
-          albumType: play.album.albumType,
-          imageUrl: play.album.imageUrl,
-        })
-        .onConflictDoNothing(),
-    );
+    statements.push(sql`
+      INSERT INTO albums (spotifyUri, name, releaseDate, totalTracks, albumType, imageUrl)
+      VALUES (
+        ${play.album.spotifyUri},
+        ${play.album.name},
+        ${play.album.releaseDate},
+        ${play.album.totalTracks},
+        ${play.album.albumType},
+        ${play.album.imageUrl}
+      )
+      ON CONFLICT(spotifyUri) DO NOTHING
+    `);
 
-    for (let position = 0; position < albumArtistsList.length; position++) {
-      const artist = albumArtistsList[position];
+    for (let position = 0; position < albumArtists.length; position += 1) {
+      const artist = albumArtists[position];
 
-      if (artist) {
-        statements.push(
-          db
-            .insert(albumArtists)
-            .values({
-              albumSpotifyUri: play.album.spotifyUri,
-              artistSpotifyUri: artist.spotifyUri,
-              position,
-            })
-            .onConflictDoNothing(),
-        );
-      }
+      if (!artist) continue;
+
+      statements.push(sql`
+        INSERT INTO album_artists (album_spotify_uri, artist_spotify_uri, position)
+        VALUES (${play.album.spotifyUri}, ${artist.spotifyUri}, ${position})
+        ON CONFLICT(album_spotify_uri, artist_spotify_uri) DO NOTHING
+      `);
     }
   }
 
   if (play.track) {
-    statements.push(
-      db
-        .insert(tracks)
-        .values({
-          spotifyUri: play.track.spotifyUri,
-          name: play.track.name,
-          trackNumber: play.track.trackNumber ?? null,
-          releaseDate: play.track.releaseDate,
-          imageUrl: play.track.imageUrl,
-          explicit: play.track.explicit ?? false,
-          duration: play.track.duration ?? 0,
-        })
-        .onConflictDoNothing(),
-    );
+    statements.push(sql`
+      INSERT INTO tracks (spotifyUri, name, trackNumber, releaseDate, imageUrl, explicit, duration)
+      VALUES (
+        ${play.track.spotifyUri},
+        ${play.track.name},
+        ${play.track.trackNumber ?? null},
+        ${play.track.releaseDate},
+        ${play.track.imageUrl},
+        ${play.track.explicit === undefined ? 0 : play.track.explicit ? 1 : 0},
+        ${play.track.duration ?? 0}
+      )
+      ON CONFLICT(spotifyUri) DO NOTHING
+    `);
 
-    for (let position = 0; position < trackArtistsList.length; position++) {
-      const artist = trackArtistsList[position];
+    for (let position = 0; position < trackArtists.length; position += 1) {
+      const artist = trackArtists[position];
 
-      if (artist) {
-        statements.push(
-          db
-            .insert(trackArtists)
-            .values({
-              trackSpotifyUri: play.track.spotifyUri,
-              artistSpotifyUri: artist.spotifyUri,
-              position,
-            })
-            .onConflictDoNothing(),
-        );
-      }
+      if (!artist) continue;
+
+      statements.push(sql`
+        INSERT INTO track_artists (track_spotify_uri, artist_spotify_uri, position)
+        VALUES (${play.track.spotifyUri}, ${artist.spotifyUri}, ${position})
+        ON CONFLICT(track_spotify_uri, artist_spotify_uri) DO NOTHING
+      `);
     }
   }
 
-  statements.push(
-    db
-      .insert(scrobbles)
-      .values({
-        id: play.id,
-        userId: play.userId,
-        trackSpotifyUri: play.track?.spotifyUri ?? null,
-        albumSpotifyUri: play.album?.spotifyUri ?? null,
-        coverArtUrl: play.coverArtUrl ?? null,
-        artistName: play.artistName ?? null,
-        albumName: play.albumName ?? null,
-        trackName: play.trackName ?? null,
-        normArtistKey: play.normArtistKey ?? null,
-        normTrackKey: play.normTrackKey ?? null,
-        scrobbleDate: play.scrobbleDate ?? null,
-        importId: play.importId ?? null,
-      })
-      .onConflictDoNothing(),
-  );
+  statements.push(sql`
+    INSERT INTO scrobbles (
+      id,
+      userId,
+      trackSpotifyUri,
+      albumSpotifyUri,
+      coverArtUrl,
+      artistName,
+      albumName,
+      trackName,
+      normArtistKey,
+      normTrackKey,
+      scrobbleDate,
+      importId
+    )
+    VALUES (
+      ${play.id},
+      ${play.userId},
+      ${play.track?.spotifyUri ?? null},
+      ${play.album?.spotifyUri ?? null},
+      ${play.coverArtUrl ?? null},
+      ${play.artistName ?? null},
+      ${play.albumName ?? null},
+      ${play.trackName ?? null},
+      ${play.normArtistKey ?? null},
+      ${play.normTrackKey ?? null},
+      ${play.scrobbleDate ? Math.floor(play.scrobbleDate.getTime() / 1000) : null},
+      ${play.importId ?? null}
+    )
+    ON CONFLICT(id) DO NOTHING
+  `);
 
   return statements;
 }
@@ -253,26 +218,166 @@ export type MonthlyScrobbleCount = {
   count: number;
 };
 
-function toProjectedTrack(
-  row: Partial<Pick<Scrobble, "trackSpotifyUri" | "trackName" | "artistName" | "coverArtUrl">> & {
-    track?:
-      | (Pick<Track, "name" | "imageUrl" | "spotifyUri"> & {
-          trackArtists: { position: number; artist: Pick<Artist, "name" | "spotifyUri"> }[];
-        })
-      | null;
-  },
-): ProjectedTrack {
-  if (row.track) {
+const RecordedPlayRow = Schema.Struct({
+  scrobbleDate: Schema.NullOr(DateFromEpochSeconds),
+  trackName: Schema.NullOr(Schema.String),
+  artistName: Schema.NullOr(Schema.String),
+});
+
+export const findRecordedPlaysBetween = Effect.fn("scrobbles.findRecordedPlaysBetween")(function* (
+  userId: User["id"],
+  from: NonNullable<Scrobble["scrobbleDate"]>,
+  to: NonNullable<Scrobble["scrobbleDate"]>,
+) {
+  const sql = yield* SqlClient.SqlClient;
+
+  const find = SqlSchema.findAll({
+    Request: Schema.Struct({
+      userId: Schema.String,
+      from: Schema.Int,
+      to: Schema.Int,
+    }),
+    Result: RecordedPlayRow,
+    execute: ({ userId, from, to }) => sql`
+        SELECT
+          s.scrobbleDate AS scrobbleDate,
+          t.name AS trackName,
+          (
+            SELECT a.name
+            FROM track_artists AS ta
+            JOIN artists AS a ON a.spotifyUri = ta.artist_spotify_uri
+            WHERE ta.track_spotify_uri = t.spotifyUri
+            ORDER BY ta.position
+            LIMIT 1
+          ) AS artistName
+        FROM scrobbles AS s
+        LEFT JOIN tracks AS t ON t.spotifyUri = s.trackSpotifyUri
+        WHERE s.userId = ${userId}
+          AND s.importId IS NULL
+          AND s.scrobbleDate >= ${from}
+          AND s.scrobbleDate <= ${to}
+      `,
+  });
+
+  const rows = yield* asDbError(
+    find({
+      userId,
+      from: Math.floor(from.getTime() / 1000),
+      to: Math.floor(to.getTime() / 1000),
+    }),
+  );
+
+  return rows.flatMap((row) => {
+    if (!row.scrobbleDate || !row.trackName || !row.artistName) return [];
+
+    return [
+      {
+        scrobbleDate: row.scrobbleDate,
+        trackName: row.trackName,
+        artistName: row.artistName,
+      },
+    ];
+  });
+});
+
+export type FeedCursor = Pick<Scrobble, "id"> & {
+  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
+};
+
+const ScrobbleProjectionRow = Schema.Struct({
+  id: Schema.String,
+  scrobbleDate: Schema.NullOr(DateFromEpochSeconds),
+  trackSpotifyUri: Schema.NullOr(Schema.String),
+  albumSpotifyUri: Schema.NullOr(Schema.String),
+  coverArtUrl: Schema.NullOr(Schema.String),
+  artistName: Schema.NullOr(Schema.String),
+  albumName: Schema.NullOr(Schema.String),
+  trackName: Schema.NullOr(Schema.String),
+  trackNameFromTrack: Schema.NullOr(Schema.String),
+  trackImageUrl: Schema.NullOr(Schema.String),
+  trackUriFromTrack: Schema.NullOr(Schema.String),
+  albumNameFromAlbum: Schema.NullOr(Schema.String),
+  albumImageUrl: Schema.NullOr(Schema.String),
+  albumUriFromAlbum: Schema.NullOr(Schema.String),
+  trackArtistPosition: Schema.NullOr(Schema.Int),
+  trackArtistName: Schema.NullOr(Schema.String),
+  trackArtistSpotifyUri: Schema.NullOr(Schema.String),
+  albumArtistPosition: Schema.NullOr(Schema.Int),
+  albumArtistName: Schema.NullOr(Schema.String),
+  albumArtistSpotifyUri: Schema.NullOr(Schema.String),
+  userUsername: Schema.NullOr(Schema.String),
+  userName: Schema.NullOr(Schema.String),
+  userAvatarUrl: Schema.NullOr(Schema.String),
+});
+
+type ScrobbleProjectionRow = typeof ScrobbleProjectionRow.Type;
+
+type ScrobbleProjectionGroup = {
+  row: ScrobbleProjectionRow;
+  trackArtists: Array<{ position: number; name: string; spotifyUri: string }>;
+  albumArtists: Array<{ position: number; name: string; spotifyUri: string }>;
+};
+
+function groupProjectionRows(rows: ReadonlyArray<ScrobbleProjectionRow>) {
+  const groups = new Map<string, ScrobbleProjectionGroup>();
+
+  for (const row of rows) {
+    let group = groups.get(row.id);
+
+    if (!group) {
+      group = { row, trackArtists: [], albumArtists: [] };
+      groups.set(row.id, group);
+    }
+
+    if (
+      row.trackArtistPosition !== null &&
+      row.trackArtistName !== null &&
+      row.trackArtistSpotifyUri !== null &&
+      !group.trackArtists.some(
+        (artist) =>
+          artist.position === row.trackArtistPosition &&
+          artist.spotifyUri === row.trackArtistSpotifyUri,
+      )
+    ) {
+      group.trackArtists.push({
+        position: row.trackArtistPosition,
+        name: row.trackArtistName,
+        spotifyUri: row.trackArtistSpotifyUri,
+      });
+    }
+
+    if (
+      row.albumArtistPosition !== null &&
+      row.albumArtistName !== null &&
+      row.albumArtistSpotifyUri !== null &&
+      !group.albumArtists.some(
+        (artist) =>
+          artist.position === row.albumArtistPosition &&
+          artist.spotifyUri === row.albumArtistSpotifyUri,
+      )
+    ) {
+      group.albumArtists.push({
+        position: row.albumArtistPosition,
+        name: row.albumArtistName,
+        spotifyUri: row.albumArtistSpotifyUri,
+      });
+    }
+  }
+
+  return [...groups.values()];
+}
+
+function projectTrack(group: ScrobbleProjectionGroup): ProjectedTrack {
+  const { row } = group;
+
+  if (row.trackUriFromTrack !== null) {
     return {
-      name: row.track.name,
-      imageUrl: row.track.imageUrl,
-      spotifyUri: row.track.spotifyUri,
-      artists: row.track.trackArtists
+      name: row.trackNameFromTrack ?? "",
+      imageUrl: row.trackImageUrl ?? "",
+      spotifyUri: row.trackUriFromTrack,
+      artists: group.trackArtists
         .toSorted((a, b) => a.position - b.position)
-        .map(({ artist }) => ({
-          name: artist.name,
-          spotifyUri: artist.spotifyUri,
-        })),
+        .map(({ name, spotifyUri }) => ({ name, spotifyUri })),
     };
   }
 
@@ -280,30 +385,21 @@ function toProjectedTrack(
     spotifyUri: row.trackSpotifyUri ?? undefined,
     name: row.trackName ?? "Unknown Track",
     imageUrl: row.coverArtUrl ?? "",
-    artists: row.artistName ? [{ name: row.artistName, spotifyUri: undefined }] : [],
+    artists: row.artistName ? [{ name: row.artistName }] : [],
   };
 }
 
-function toProjectedAlbum(
-  row: Partial<Pick<Scrobble, "albumSpotifyUri" | "albumName" | "coverArtUrl">> & {
-    album?:
-      | (Pick<Album, "name" | "imageUrl" | "spotifyUri"> & {
-          albumArtists?: { position: number; artist: Pick<Artist, "name" | "spotifyUri"> }[];
-        })
-      | null;
-  },
-): ProjectedAlbum {
-  if (row.album) {
+function projectAlbum(group: ScrobbleProjectionGroup): ProjectedAlbum {
+  const { row } = group;
+
+  if (row.albumUriFromAlbum !== null) {
     return {
-      name: row.album.name,
-      imageUrl: row.album.imageUrl,
-      spotifyUri: row.album.spotifyUri,
-      artists: (row.album.albumArtists ?? [])
+      name: row.albumNameFromAlbum ?? "",
+      imageUrl: row.albumImageUrl ?? "",
+      spotifyUri: row.albumUriFromAlbum,
+      artists: group.albumArtists
         .toSorted((a, b) => a.position - b.position)
-        .map(({ artist }) => ({
-          name: artist.name,
-          spotifyUri: artist.spotifyUri,
-        })),
+        .map(({ name, spotifyUri }) => ({ name, spotifyUri })),
     };
   }
 
@@ -315,202 +411,174 @@ function toProjectedAlbum(
   };
 }
 
-export async function findRecordedPlaysBetween(
-  db: DrizzleDatabase,
-  userId: User["id"],
-  from: NonNullable<Scrobble["scrobbleDate"]>,
-  to: NonNullable<Scrobble["scrobbleDate"]>,
-): Promise<RecordedPlay[]> {
-  const rows = await db.query.scrobbles.findMany({
-    where: { userId, importId: { isNull: true }, scrobbleDate: { gte: from, lte: to } },
-    columns: { scrobbleDate: true },
-    with: {
-      track: {
-        columns: { name: true },
-        with: {
-          trackArtists: {
-            columns: { position: true },
-            with: { artist: { columns: { name: true } } },
-            orderBy: { position: "asc" },
-          },
-        },
-      },
-    },
-  });
-
-  return rows.flatMap((row) => {
-    const [first] = (row.track?.trackArtists ?? []).toSorted((a, b) => a.position - b.position);
-    const artistName = first?.artist.name;
-    const trackName = row.track?.name;
-
-    if (!row.scrobbleDate || !trackName || !artistName) {
-      return [];
-    }
-
-    return [{ scrobbleDate: row.scrobbleDate, trackName, artistName }];
-  });
-}
-
-/** `offset` pages backwards from the newest scrobble. */
-export async function findRecentScrobblesByUserId(
-  db: DrizzleDatabase,
+export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUserId")(function* (
   userId: User["id"],
   {
     before,
     offset,
     limit,
   }: { before?: NonNullable<Scrobble["scrobbleDate"]>; offset: number; limit: number },
-): Promise<ProjectedScrobble[]> {
-  const rows = await db.query.scrobbles.findMany({
-    where: before ? { userId, scrobbleDate: { lt: before } } : { userId },
-    orderBy: { scrobbleDate: "desc", id: "desc" },
-    offset,
-    limit,
-    columns: {
-      id: true,
-      scrobbleDate: true,
-      trackSpotifyUri: true,
-      albumSpotifyUri: true,
-      coverArtUrl: true,
-      artistName: true,
-      albumName: true,
-      trackName: true,
-    },
-    with: {
-      track: {
-        columns: {
-          name: true,
-          imageUrl: true,
-          spotifyUri: true,
-        },
-        with: {
-          trackArtists: {
-            columns: { position: true },
-            with: {
-              artist: {
-                columns: { name: true, spotifyUri: true },
-              },
-            },
-            orderBy: { position: "asc" },
-          },
-        },
-      },
-      album: {
-        columns: {
-          name: true,
-          imageUrl: true,
-          spotifyUri: true,
-        },
-        with: {
-          albumArtists: {
-            columns: { position: true },
-            with: {
-              artist: {
-                columns: { name: true, spotifyUri: true },
-              },
-            },
-            orderBy: { position: "asc" },
-          },
-        },
-      },
-    },
+) {
+  const sql = yield* SqlClient.SqlClient;
+
+  const beforeFilter = before
+    ? sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`
+    : sql``;
+
+  const find = SqlSchema.findAll({
+    Request: Schema.Struct({
+      userId: Schema.String,
+      limit: Schema.Int,
+      offset: Schema.Int,
+    }),
+    Result: ScrobbleProjectionRow,
+    execute: ({ userId, limit, offset }) => sql`
+        WITH page AS (
+          SELECT s.id, s.scrobbleDate, s.trackSpotifyUri, s.albumSpotifyUri,
+            s.coverArtUrl, s.artistName, s.albumName, s.trackName, s.userId
+          FROM scrobbles AS s
+          WHERE s.userId = ${userId} ${beforeFilter}
+          ORDER BY s.scrobbleDate DESC, s.id DESC
+          LIMIT ${limit} OFFSET ${offset}
+        )
+        SELECT
+          s.id AS id,
+          s.scrobbleDate AS scrobbleDate,
+          s.trackSpotifyUri AS trackSpotifyUri,
+          s.albumSpotifyUri AS albumSpotifyUri,
+          s.coverArtUrl AS coverArtUrl,
+          s.artistName AS artistName,
+          s.albumName AS albumName,
+          s.trackName AS trackName,
+          t.name AS trackNameFromTrack,
+          t.imageUrl AS trackImageUrl,
+          t.spotifyUri AS trackUriFromTrack,
+          album.name AS albumNameFromAlbum,
+          album.imageUrl AS albumImageUrl,
+          album.spotifyUri AS albumUriFromAlbum,
+          trackArtistJoin.position AS trackArtistPosition,
+          trackArtist.name AS trackArtistName,
+          trackArtist.spotifyUri AS trackArtistSpotifyUri,
+          albumArtistJoin.position AS albumArtistPosition,
+          albumArtist.name AS albumArtistName,
+          albumArtist.spotifyUri AS albumArtistSpotifyUri,
+          NULL AS userUsername,
+          NULL AS userName,
+          NULL AS userAvatarUrl
+        FROM page AS s
+        LEFT JOIN tracks AS t ON t.spotifyUri = s.trackSpotifyUri
+        LEFT JOIN albums AS album ON album.spotifyUri = s.albumSpotifyUri
+        LEFT JOIN track_artists AS trackArtistJoin ON trackArtistJoin.track_spotify_uri = t.spotifyUri
+        LEFT JOIN artists AS trackArtist ON trackArtist.spotifyUri = trackArtistJoin.artist_spotify_uri
+        LEFT JOIN album_artists AS albumArtistJoin ON albumArtistJoin.album_spotify_uri = album.spotifyUri
+        LEFT JOIN artists AS albumArtist ON albumArtist.spotifyUri = albumArtistJoin.artist_spotify_uri
+        ORDER BY s.scrobbleDate DESC, s.id DESC,
+          trackArtistJoin.position ASC, albumArtistJoin.position ASC
+      `,
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    scrobbleDate: row.scrobbleDate,
-    track: toProjectedTrack(row),
-    album: toProjectedAlbum(row),
-  }));
-}
+  const rows = yield* asDbError(find({ userId, limit, offset }));
+  const groups = groupProjectionRows(rows);
 
-export type FeedCursor = Pick<Scrobble, "id"> & {
-  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
-};
+  return groups.map(
+    (group): ProjectedScrobble => ({
+      id: group.row.id,
+      scrobbleDate: group.row.scrobbleDate,
+      track: projectTrack(group),
+      album: projectAlbum(group),
+    }),
+  );
+});
 
-export async function findPublicFeed(
-  db: DrizzleDatabase,
-  { cursor, limit }: { cursor?: FeedCursor; limit: number },
-): Promise<FeedItem[]> {
-  const rows = await db.query.scrobbles.findMany({
-    where: {
-      user: FEED_VISIBLE_USER,
-      scrobbleDate: { isNotNull: true as const },
-      RAW: (table: typeof scrobbles) =>
-        cursor
-          ? sql`(${table.scrobbleDate}, ${table.id}) < (${Math.floor(
-              cursor.scrobbleDate.getTime() / 1000,
-            )}, ${cursor.id})`
-          : sql`1 = 1`,
-    },
-    orderBy: { scrobbleDate: "desc", id: "desc" },
-    limit,
-    columns: {
-      id: true,
-      scrobbleDate: true,
-      artistName: true,
-      albumName: true,
-      trackName: true,
-      coverArtUrl: true,
-      trackSpotifyUri: true,
-      albumSpotifyUri: true,
-    },
-    with: {
-      user: {
-        columns: {
-          username: true,
-          name: true,
-          avatarUrl: true,
-        },
-      },
-      album: {
-        columns: {
-          name: true,
-          spotifyUri: true,
-        },
-      },
-      track: {
-        columns: {
-          name: true,
-          imageUrl: true,
-          spotifyUri: true,
-        },
-        with: {
-          trackArtists: {
-            columns: { position: true },
-            with: {
-              artist: {
-                columns: { name: true, spotifyUri: true },
-              },
-            },
-            orderBy: { position: "asc" },
-          },
-        },
-      },
-    },
+export const findPublicFeed = Effect.fn("scrobbles.findPublicFeed")(function* ({
+  cursor,
+  limit,
+}: {
+  cursor?: FeedCursor;
+  limit: number;
+}) {
+  const sql = yield* SqlClient.SqlClient;
+
+  const pageFilter = cursor
+    ? sql`WHERE s.scrobbleDate IS NOT NULL AND u.isPrivate = 0 AND u.onboarded = 1
+        AND (s.scrobbleDate, s.id) < (${Math.floor(cursor.scrobbleDate.getTime() / 1000)}, ${cursor.id})
+        ORDER BY s.scrobbleDate DESC, s.id DESC LIMIT ${limit}`
+    : sql`WHERE s.scrobbleDate IS NOT NULL AND u.isPrivate = 0 AND u.onboarded = 1
+        ORDER BY s.scrobbleDate DESC, s.id DESC LIMIT ${limit}`;
+
+  const find = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: ScrobbleProjectionRow,
+    execute: () => sql`
+      WITH page AS (
+        SELECT s.id, s.scrobbleDate, s.trackSpotifyUri, s.albumSpotifyUri,
+          s.coverArtUrl, s.artistName, s.albumName, s.trackName, s.userId
+        FROM scrobbles AS s
+        JOIN users AS u ON u.id = s.userId
+        ${pageFilter}
+      )
+      SELECT
+        s.id AS id,
+        s.scrobbleDate AS scrobbleDate,
+        s.trackSpotifyUri AS trackSpotifyUri,
+        s.albumSpotifyUri AS albumSpotifyUri,
+        s.coverArtUrl AS coverArtUrl,
+        s.artistName AS artistName,
+        s.albumName AS albumName,
+        s.trackName AS trackName,
+        t.name AS trackNameFromTrack,
+        t.imageUrl AS trackImageUrl,
+        t.spotifyUri AS trackUriFromTrack,
+        album.name AS albumNameFromAlbum,
+        album.imageUrl AS albumImageUrl,
+        album.spotifyUri AS albumUriFromAlbum,
+        trackArtistJoin.position AS trackArtistPosition,
+        trackArtist.name AS trackArtistName,
+        trackArtist.spotifyUri AS trackArtistSpotifyUri,
+        albumArtistJoin.position AS albumArtistPosition,
+        albumArtist.name AS albumArtistName,
+        albumArtist.spotifyUri AS albumArtistSpotifyUri,
+        u.username AS userUsername,
+        u.name AS userName,
+        u.avatarUrl AS userAvatarUrl
+      FROM page AS s
+      JOIN users AS u ON u.id = s.userId
+      LEFT JOIN tracks AS t ON t.spotifyUri = s.trackSpotifyUri
+      LEFT JOIN albums AS album ON album.spotifyUri = s.albumSpotifyUri
+      LEFT JOIN track_artists AS trackArtistJoin ON trackArtistJoin.track_spotify_uri = t.spotifyUri
+      LEFT JOIN artists AS trackArtist ON trackArtist.spotifyUri = trackArtistJoin.artist_spotify_uri
+      LEFT JOIN album_artists AS albumArtistJoin ON albumArtistJoin.album_spotify_uri = album.spotifyUri
+      LEFT JOIN artists AS albumArtist ON albumArtist.spotifyUri = albumArtistJoin.artist_spotify_uri
+      ORDER BY s.scrobbleDate DESC, s.id DESC,
+        trackArtistJoin.position ASC, albumArtistJoin.position ASC
+    `,
   });
 
-  return rows.flatMap((row) => {
-    if (!row.scrobbleDate) return [];
+  const rows = yield* asDbError(find(undefined));
+
+  return groupProjectionRows(rows).flatMap((group): FeedItem[] => {
+    const row = group.row;
+
+    if (!row.scrobbleDate || !row.userUsername || !row.userName) return [];
 
     return [
       {
         id: row.id,
         scrobbleDate: row.scrobbleDate,
         user: {
-          username: row.user.username,
-          name: row.user.name,
-          avatarUrl: row.user.avatarUrl,
+          username: row.userUsername,
+          name: row.userName,
+          avatarUrl: row.userAvatarUrl,
         },
-        track: toProjectedTrack(row),
+        track: projectTrack(group),
         album: {
-          name: row.album?.name ?? row.albumName ?? "",
-          spotifyUri: row.album?.spotifyUri ?? row.albumSpotifyUri ?? undefined,
+          name: row.albumNameFromAlbum ?? row.albumName ?? "",
+          spotifyUri: row.albumUriFromAlbum ?? row.albumSpotifyUri ?? undefined,
         },
       },
     ];
   });
-}
+});
 
 export type ScrobbleRange = {
   /** Unix seconds, inclusive. */
@@ -519,80 +587,106 @@ export type ScrobbleRange = {
   until?: number;
 };
 
+const ScrobbleEdgeRow = Schema.Struct({
+  date: Schema.NullOr(DateFromEpochSeconds),
+});
+
 /** The first and last play time of a user's scrobbles inside `range`. */
-export async function findScrobbleEdges(
-  db: DrizzleDatabase,
+export const findScrobbleEdges = Effect.fn("scrobbles.findEdges")(function* (
   userId: User["id"],
   { since, until }: ScrobbleRange = {},
-): Promise<{ earliest: Date; latest: Date } | null> {
-  const where = and(
-    eq(scrobbles.userId, userId),
-    isNotNull(scrobbles.scrobbleDate),
-    since === undefined ? undefined : gte(scrobbles.scrobbleDate, new Date(since * 1000)),
-    until === undefined ? undefined : lt(scrobbles.scrobbleDate, new Date(until * 1000)),
-  );
+) {
+  const sql = yield* SqlClient.SqlClient;
 
   // SQLite seeks the index edge only for a statement with a single min() or
   // max(). Asking for both in one select reads every scrobble in the range.
-  const [[earliest], [latest]] = await db.batch([
-    db
-      .select({ date: min(scrobbles.scrobbleDate) })
-      .from(scrobbles)
-      .where(where),
-    db
-      .select({ date: max(scrobbles.scrobbleDate) })
-      .from(scrobbles)
-      .where(where),
-  ]);
+  const earliestQuery = SqlSchema.findOneOption({
+    Request: Schema.Struct({ userId: Schema.String }),
+    Result: ScrobbleEdgeRow,
+    execute: ({ userId }) => sql`
+      SELECT MIN(scrobbleDate) AS date
+      FROM scrobbles
+      WHERE userId = ${userId}
+        AND scrobbleDate IS NOT NULL
+        AND (${since ?? null} IS NULL OR scrobbleDate >= ${since ?? 0})
+        AND (${until ?? null} IS NULL OR scrobbleDate < ${until ?? 0})
+    `,
+  });
 
-  if (!earliest?.date || !latest?.date) return null;
+  const latestQuery = SqlSchema.findOneOption({
+    Request: Schema.Struct({ userId: Schema.String }),
+    Result: ScrobbleEdgeRow,
+    execute: ({ userId }) => sql`
+      SELECT MAX(scrobbleDate) AS date
+      FROM scrobbles
+      WHERE userId = ${userId}
+        AND scrobbleDate IS NOT NULL
+        AND (${since ?? null} IS NULL OR scrobbleDate >= ${since ?? 0})
+        AND (${until ?? null} IS NULL OR scrobbleDate < ${until ?? 0})
+    `,
+  });
 
-  return { earliest: earliest.date, latest: latest.date };
-}
+  const [earliest, latest] = yield* asDbError(
+    Effect.all([earliestQuery({ userId }), latestQuery({ userId })], { concurrency: "unbounded" }),
+  );
 
-export async function countScrobblesByMonth(
-  db: DrizzleDatabase,
+  if (
+    Option.isNone(earliest) ||
+    Option.isNone(latest) ||
+    !earliest.value.date ||
+    !latest.value.date
+  ) {
+    return null;
+  }
+
+  return { earliest: earliest.value.date, latest: latest.value.date };
+});
+
+export const countScrobblesByMonth = Effect.fn("scrobbles.countByMonth")(function* (
   userId: User["id"],
   { timeZone }: { timeZone: string },
-): Promise<MonthlyScrobbleCount[]> {
-  const where = and(eq(scrobbles.userId, userId), isNotNull(scrobbles.scrobbleDate));
+) {
+  const sql = yield* SqlClient.SqlClient;
 
-  // SQLite seeks the index edge only for a statement with a single min() or
-  // max(). Asking for both in one select reads every scrobble of the user.
-  const [[earliest], [latest]] = await db.batch([
-    db
-      .select({ date: min(scrobbles.scrobbleDate) })
-      .from(scrobbles)
-      .where(where),
-    db
-      .select({ date: max(scrobbles.scrobbleDate) })
-      .from(scrobbles)
-      .where(where),
-  ]);
+  const edges = yield* findScrobbleEdges(userId);
 
-  if (!earliest?.date || !latest?.date) return [];
+  if (!edges) return [];
 
-  const months = monthsBetween(earliest.date, latest.date, timeZone);
+  const months = monthsBetween(edges.earliest, edges.latest, timeZone);
 
+  // D1 caps bound parameters per statement, so the bounds are inlined as
+  // integers instead of bound.
   const bounds = sql.join(
-    months.map(({ month, start }, index) =>
-      sql.raw(`('${month}', ${start}, ${months[index - 1]?.start ?? Number.MAX_SAFE_INTEGER})`),
+    ", ",
+    false,
+  )(
+    months.map(
+      ({ month, start }, index) =>
+        sql`(${sql.literal(`'${month}'`)}, ${sql.literal(String(start))}, ${sql.literal(
+          String(months[index - 1]?.start ?? Number.MAX_SAFE_INTEGER),
+        )})`,
     ),
-    sql`, `,
   );
 
   // One index range count per month reads each scrobble once. Grouping by a
   // CASE expression reads every scrobble a second time to sort the groups.
-  const counts = await db.all<MonthlyScrobbleCount>(sql`
-    WITH bounds(month, since, until) AS (VALUES ${bounds})
-    SELECT month, (
-      SELECT count(*) FROM ${scrobbles}
-      WHERE ${scrobbles.userId} = ${userId}
-        AND ${scrobbles.scrobbleDate} >= bounds.since
-        AND ${scrobbles.scrobbleDate} < bounds.until
-    ) AS count
-    FROM bounds
-  `);
+  const countQuery = SqlSchema.findAll({
+    Request: Schema.Struct({ userId: Schema.String }),
+    Result: Schema.Struct({ month: Schema.String, count: Schema.Int }),
+    execute: ({ userId }) => sql`
+      WITH bounds(month, since, until) AS (VALUES ${bounds})
+      SELECT month, (
+        SELECT count(*)
+        FROM scrobbles
+        WHERE userId = ${userId}
+          AND scrobbleDate >= bounds.since
+          AND scrobbleDate < bounds.until
+      ) AS count
+      FROM bounds
+    `,
+  });
+
+  const counts = yield* asDbError(countQuery({ userId }));
 
   return counts.filter((row) => row.count > 0);
-}
+});

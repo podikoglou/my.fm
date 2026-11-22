@@ -4,6 +4,7 @@ import { http } from "msw";
 import { describe, expect, test } from "vitest";
 
 import worker from "../src/worker.ts";
+import { queryRows } from "./d1.ts";
 import { network } from "./network.ts";
 
 const baseUrl = "https://app.test";
@@ -91,5 +92,35 @@ describe("auth routes", () => {
 
     expect(row?.username).toBeTypeOf("string");
     expect(row?.username.length).toBeGreaterThan(0);
+
+    const [timestamps] = await queryRows<{
+      userCreatedAtType: string;
+      userCreatedAt: number;
+      sessionCreatedAtType: string;
+      sessionCreatedAt: number;
+      expiresAtType: string;
+      expiresAt: number;
+    }>(
+      env.DB,
+      `SELECT
+        typeof(users.createdAt) AS userCreatedAtType,
+        users.createdAt AS userCreatedAt,
+        typeof(sessions.created_at) AS sessionCreatedAtType,
+        sessions.created_at AS sessionCreatedAt,
+        typeof(sessions.expires_at) AS expiresAtType,
+        sessions.expires_at AS expiresAt
+      FROM users
+      JOIN sessions ON sessions.user_id = users.id
+      WHERE users.email = ?
+      LIMIT 1`,
+      ["spotify@example.com"],
+    );
+
+    expect(timestamps?.userCreatedAtType).toBe("integer");
+    expect(timestamps?.sessionCreatedAtType).toBe("integer");
+    expect(timestamps?.expiresAtType).toBe("integer");
+    expect(timestamps!.userCreatedAt).toBeLessThan(10_000_000_000);
+    expect(timestamps!.sessionCreatedAt).toBeGreaterThan(10_000_000_000);
+    expect(timestamps!.expiresAt).toBeGreaterThan(timestamps!.sessionCreatedAt);
   });
 });

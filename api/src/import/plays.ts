@@ -4,13 +4,13 @@ import type { DbError } from "../db/errors.ts";
 import type { Import, Scrobble, User } from "../db/schema.ts";
 import type { CsvHeaderIndices, ParsedScrobbleRow } from "./csv.ts";
 import type { ResolvedTrackMetadata } from "./graphql.ts";
+import type { DatabaseRequirements } from "../db/service.ts";
 
 import {
   findRecordedPlaysBetween,
   persistPlays,
   type PlayRecord,
 } from "../db/queries/scrobbles.ts";
-import { Db } from "../db/service.ts";
 import { parseScrobbleRow } from "./csv.ts";
 import { computeImportScrobbleId, computeNormKeys } from "./normalize.ts";
 
@@ -69,12 +69,10 @@ export async function readImportedPlays(
 export const withoutRecordedPlays = Effect.fn("import.withoutRecordedPlays")(function* (
   userId: User["id"],
   plays: ReadonlyArray<ImportedPlay>,
-): Effect.fn.Return<ImportedPlay[], DbError, Db> {
+): Effect.fn.Return<ImportedPlay[], DbError, DatabaseRequirements> {
   if (plays.length === 0) {
     return [];
   }
-
-  const db = yield* Db;
 
   let earliest = Number.POSITIVE_INFINITY;
   let latest = Number.NEGATIVE_INFINITY;
@@ -91,13 +89,10 @@ export const withoutRecordedPlays = Effect.fn("import.withoutRecordedPlays")(fun
     }
   }
 
-  const recorded = yield* db.query((client) =>
-    findRecordedPlaysBetween(
-      client,
-      userId,
-      new Date(earliest - RECORDED_PLAY_WINDOW_MS),
-      new Date(latest + RECORDED_PLAY_WINDOW_MS),
-    ),
+  const recorded = yield* findRecordedPlaysBetween(
+    userId,
+    new Date(earliest - RECORDED_PLAY_WINDOW_MS),
+    new Date(latest + RECORDED_PLAY_WINDOW_MS),
   );
 
   if (recorded.length === 0) {
@@ -218,12 +213,10 @@ export const storeImportedPlays = Effect.fn("import.storeImportedPlays")(functio
   { id: importId, userId }: Pick<Import, "id" | "userId">,
   plays: ReadonlyArray<ImportedPlay>,
   resolved: Map<string, ResolvedTrackMetadata>,
-): Effect.fn.Return<void, DbError, Db> {
-  const db = yield* Db;
-
+): Effect.fn.Return<void, DbError, DatabaseRequirements> {
   const records = plays.map((play) =>
     toPlayRecord(importId, userId, play, resolved.get(play.normTrackKey)),
   );
 
-  yield* db.query((client) => persistPlays(client, records, { batchSize: PLAYS_PER_D1_BATCH }));
+  yield* persistPlays(records, { batchSize: PLAYS_PER_D1_BATCH });
 });

@@ -1,4 +1,6 @@
 import { Clock, Context, Effect, Layer } from "effect";
+import { SqlClient } from "effect/sql";
+import type { SqlClient as SqlClientService } from "effect/sql/SqlClient";
 
 import type { DbError } from "../db/errors.ts";
 import type { Notification, User } from "../db/schema.ts";
@@ -11,17 +13,15 @@ import {
   type NotificationDraft,
   type UnacknowledgedNotification,
 } from "../db/queries/notifications.ts";
-import { Db } from "../db/service.ts";
 import { NotificationNotFoundError } from "./errors.ts";
 import { spotifyReauthNotificationSource } from "./spotify-reauth.ts";
 
 export interface NotificationSource {
   readonly type: Notification["type"];
   readonly sync: (
-    db: Db["Service"],
     userId: User["id"],
     nowMs: number,
-  ) => Effect.Effect<void, DbError>;
+  ) => Effect.Effect<void, DbError, SqlClientService>;
 }
 
 export interface NotificationsApi {
@@ -44,17 +44,20 @@ export class Notifications extends Context.Service<Notifications, NotificationsA
 ) {
   static makeLayer(
     sources: ReadonlyArray<NotificationSource>,
-  ): Layer.Layer<Notifications, never, Db> {
+  ): Layer.Layer<Notifications, never, SqlClientService> {
     return Layer.effect(
       Notifications,
       Effect.gen(function* () {
-        const db = yield* Db;
+        const sql = yield* SqlClient.SqlClient;
+
+        const runDb = <A, E>(effect: Effect.Effect<A, E, SqlClientService>) =>
+          effect.pipe(Effect.provideService(SqlClient.SqlClient, sql));
 
         const create = Effect.fn("Notifications.create")(function* (
           userId: User["id"],
           draft: NotificationDraft,
         ) {
-          return yield* db.query((client) => insertNotification(client, userId, draft));
+          return yield* runDb(insertNotification(userId, draft));
         });
 
         const listUnacknowledged = Effect.fn("Notifications.listUnacknowledged")(function* (
@@ -63,10 +66,10 @@ export class Notifications extends Context.Service<Notifications, NotificationsA
           const nowMs = yield* Clock.currentTimeMillis;
 
           for (const source of sources) {
-            yield* source.sync(db, userId, nowMs);
+            yield* runDb(source.sync(userId, nowMs));
           }
 
-          return yield* db.query((client) => findUnacknowledgedNotifications(client, userId));
+          return yield* runDb(findUnacknowledgedNotifications(userId));
         });
 
         const acknowledge = Effect.fn("Notifications.acknowledge")(function* (
@@ -74,10 +77,7 @@ export class Notifications extends Context.Service<Notifications, NotificationsA
           id: Notification["id"],
         ) {
           const nowMs = yield* Clock.currentTimeMillis;
-
-          const found = yield* db.query((client) =>
-            acknowledgeNotification(client, userId, id, nowMs),
-          );
+          const found = yield* runDb(acknowledgeNotification(userId, id, nowMs));
 
           if (!found) {
             return yield* new NotificationNotFoundError({ message: "Notification not found" });
@@ -90,9 +90,7 @@ export class Notifications extends Context.Service<Notifications, NotificationsA
         ) {
           const nowMs = yield* Clock.currentTimeMillis;
 
-          return yield* db.query((client) =>
-            acknowledgeNotificationsByType(client, userId, type, nowMs),
-          );
+          return yield* runDb(acknowledgeNotificationsByType(userId, type, nowMs));
         });
 
         return Notifications.of({
@@ -105,7 +103,6 @@ export class Notifications extends Context.Service<Notifications, NotificationsA
     );
   }
 
-  static readonly layer: Layer.Layer<Notifications, never, Db> = Notifications.makeLayer([
-    spotifyReauthNotificationSource,
-  ]);
+  static readonly layer: Layer.Layer<Notifications, never, SqlClientService> =
+    Notifications.makeLayer([spotifyReauthNotificationSource]);
 }

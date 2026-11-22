@@ -1,79 +1,86 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { Effect, Schema } from "effect";
+import { SqlClient, SqlSchema } from "effect/sql";
 
-import type { DrizzleDatabase } from "../service.ts";
+import { DateFromEpochSeconds } from "../columns.ts";
+import { asDbError } from "../service.ts";
 import type { Notification, User } from "../schema.ts";
 
-import { notifications } from "../schema.ts";
+export type NotificationDraft = Pick<Notification, "type" | "title" | "body">;
 
 export type UnacknowledgedNotification = Pick<
   Notification,
   "id" | "type" | "title" | "body" | "createdAt"
 >;
 
-export type NotificationDraft = Pick<Notification, "type" | "title" | "body">;
+const UnacknowledgedNotificationRow = Schema.Struct({
+  id: Schema.String,
+  type: Schema.String,
+  title: Schema.String,
+  body: Schema.String,
+  createdAt: DateFromEpochSeconds,
+});
 
-export async function findUnacknowledgedNotifications(
-  db: DrizzleDatabase,
-  userId: User["id"],
-): Promise<UnacknowledgedNotification[]> {
-  return await db
-    .select({
-      id: notifications.id,
-      type: notifications.type,
-      title: notifications.title,
-      body: notifications.body,
-      createdAt: notifications.createdAt,
-    })
-    .from(notifications)
-    .where(and(eq(notifications.userId, userId), isNull(notifications.acknowledgedAt)))
-    .orderBy(desc(notifications.createdAt), desc(notifications.id));
-}
+export const findUnacknowledgedNotifications = Effect.fn("notifications.findUnacknowledged")(
+  function* (userId: User["id"]) {
+    const sql = yield* SqlClient.SqlClient;
 
-export async function insertNotification(
-  db: DrizzleDatabase,
+    const find = SqlSchema.findAll({
+      Request: Schema.Struct({ userId: Schema.String }),
+      Result: UnacknowledgedNotificationRow,
+      execute: ({ userId }) =>
+        sql`SELECT id, type, title, body, createdAt FROM notifications WHERE userId = ${userId} AND acknowledgedAt IS NULL ORDER BY createdAt DESC, id DESC`,
+    });
+
+    return yield* asDbError(find({ userId }));
+  },
+);
+
+export const insertNotification = Effect.fn("notifications.insert")(function* (
   userId: User["id"],
   draft: NotificationDraft,
-): Promise<void> {
-  await db
-    .insert(notifications)
-    .values({
-      userId,
-      type: draft.type,
-      title: draft.title,
-      body: draft.body,
-    })
-    .onConflictDoNothing();
-}
+) {
+  const sql = yield* SqlClient.SqlClient;
 
-export async function acknowledgeNotification(
-  db: DrizzleDatabase,
+  yield* asDbError(sql`
+    INSERT INTO notifications (userId, type, title, body)
+    VALUES (${userId}, ${draft.type}, ${draft.title}, ${draft.body})
+    ON CONFLICT DO NOTHING
+  `);
+});
+
+export const acknowledgeNotification = Effect.fn("notifications.acknowledge")(function* (
   userId: User["id"],
   id: Notification["id"],
   nowMs: number,
-): Promise<boolean> {
-  const acknowledged = await db
-    .update(notifications)
-    .set({ acknowledgedAt: sql`coalesce(${notifications.acknowledgedAt}, ${nowMs})` })
-    .where(and(eq(notifications.id, id), eq(notifications.userId, userId)))
-    .returning({ id: notifications.id });
+) {
+  const sql = yield* SqlClient.SqlClient;
 
-  return acknowledged.length > 0;
-}
+  const find = SqlSchema.findAll({
+    Request: Schema.Struct({
+      userId: Schema.String,
+      id: Schema.String,
+      nowMs: Schema.Number,
+    }),
+    Result: Schema.Struct({ id: Schema.String }),
+    execute: ({ userId, id, nowMs }) =>
+      sql`UPDATE notifications SET acknowledgedAt = COALESCE(acknowledgedAt, ${nowMs}) WHERE id = ${id} AND userId = ${userId} RETURNING id`,
+  });
 
-export async function acknowledgeNotificationsByType(
-  db: DrizzleDatabase,
-  userId: User["id"],
-  type: Notification["type"],
-  nowMs: number,
-): Promise<void> {
-  await db
-    .update(notifications)
-    .set({ acknowledgedAt: new Date(nowMs) })
-    .where(
-      and(
-        eq(notifications.userId, userId),
-        eq(notifications.type, type),
-        isNull(notifications.acknowledgedAt),
-      ),
-    );
-}
+  const rows = yield* asDbError(find({ userId, id, nowMs }));
+
+  return rows.length > 0;
+});
+
+export const acknowledgeNotificationsByType = Effect.fn("notifications.acknowledgeByType")(
+  function* (userId: User["id"], type: Notification["type"], nowMs: number) {
+    const sql = yield* SqlClient.SqlClient;
+
+    yield* asDbError(sql`
+    UPDATE notifications
+    SET acknowledgedAt = ${nowMs}
+    WHERE userId = ${userId}
+      AND type = ${type}
+      AND acknowledgedAt IS NULL
+  `);
+  },
+);

@@ -3,13 +3,12 @@ import { Effect, Layer } from "effect";
 import { describe, expect, test } from "vitest";
 
 import { findLatestImportByUserId, insertImport } from "../src/db/queries/imports.ts";
-import { imports } from "../src/db/schema.ts";
-import { createDatabase, Db } from "../src/db/service.ts";
+import { DbLive } from "../src/db/service.ts";
 import { getImportR2Key } from "../src/import/csv.ts";
 import { Imports } from "../src/import/service.ts";
 import { ImportsStorage } from "../src/storage/service.ts";
 import worker, { type WorkerBindings } from "../src/worker.ts";
-import { createFailingInsertDatabase, D1_WRITE_LIMIT_MESSAGE } from "./d1.ts";
+import { createFailingInsertDatabase, D1_WRITE_LIMIT_MESSAGE, runSql, selectRows } from "./d1.ts";
 import { baseUrl, signIn } from "./session.ts";
 
 function csvForm(content: string, filename = "scrobbles.csv"): FormData {
@@ -32,7 +31,7 @@ function runImportTickWithEnv(
   const layer = Imports.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
-        Db.layerFromBinding(targetEnv.DB),
+        DbLive(targetEnv.DB),
         ImportsStorage.layerFromBinding(targetEnv.IMPORTS_BUCKET),
       ),
     ),
@@ -114,8 +113,7 @@ describe("CSV import HTTP routes", () => {
     expect(r2Object).not.toBeNull();
     expect(await r2Object?.text()).toBe(VALID_CSV);
 
-    const db = createDatabase(env.DB);
-    const stored = await findLatestImportByUserId(db, userId);
+    const stored = await runSql(env.DB, findLatestImportByUserId(userId));
 
     expect(stored?.id).toBe(body.id);
     expect(stored?.cursor).toBe(0);
@@ -166,20 +164,21 @@ describe("CSV import HTTP routes", () => {
 
   test("returns 429 when uploading within one hour of a prior completed import", async () => {
     const { cookie, userId } = await signIn({ id: "sp-imp-5", email: "imp5@example.com" });
-    const db = createDatabase(env.DB);
-
-    await insertImport(db, {
-      id: "prior-completed",
-      userId,
-      filename: "old.csv",
-      status: "completed",
-      cursor: 3,
-      totalLines: 3,
-      processedRows: 2,
-      skippedRows: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    await runSql(
+      env.DB,
+      insertImport({
+        id: "prior-completed",
+        userId,
+        filename: "old.csv",
+        status: "completed",
+        cursor: 3,
+        totalLines: 3,
+        processedRows: 2,
+        skippedRows: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
 
     const res = await worker.fetch(
       new Request(`${baseUrl}/api/import`, {
@@ -220,8 +219,7 @@ describe("CSV import HTTP routes", () => {
 
     expect([res1.status, res2.status].sort((a, b) => a - b)).toEqual([202, 409]);
 
-    const db = createDatabase(env.DB);
-    const rows = await db.select().from(imports);
+    const rows = await selectRows(env.DB, "imports");
 
     expect(rows).toHaveLength(1);
 

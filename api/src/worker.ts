@@ -11,7 +11,7 @@ import { Effect, Layer } from "effect";
 import type { RateLimitBinding } from "./rate-limits.ts";
 
 import { AuthConfig, AuthService } from "./auth/service.ts";
-import { Db } from "./db/service.ts";
+import { DbLive, type DatabaseRequirements } from "./db/service.ts";
 import { type AppServices, handleWebRequest } from "./http/app.ts";
 import { Imports } from "./import/service.ts";
 import { Ingestion } from "./ingestion/service.ts";
@@ -39,11 +39,11 @@ export type WorkerBindings = {
  * bindings.
  *
  * D1 bindings are request-scoped in Workers and Miniflare, so every request
- * builds a fresh `Db` layer rather than caching a module-level client.
+ * builds a fresh SQL client rather than caching a module-level client.
  */
 export function makeWorkerInfraLayer(env: WorkerBindings): Layer.Layer<AppServices> {
   return Layer.mergeAll(
-    Db.layerFromBinding(env.DB),
+    DbLive(env.DB),
     ImportsStorage.layerFromBinding(env.IMPORTS_BUCKET),
     RateLimiter.layerFromBindings({
       AUTH_RATE_LIMIT: env.AUTH_RATE_LIMIT,
@@ -57,16 +57,17 @@ export function makeWorkerInfraLayer(env: WorkerBindings): Layer.Layer<AppServic
   );
 }
 
-/** Compose the `Ingestion` service layer on top of `Db` and `AuthConfig`. */
-export const IngestionLive: Layer.Layer<Ingestion, never, Db | AuthConfig> = Ingestion.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      AuthService.layer,
-      Scrobbles.layer.pipe(Layer.provide(Users.layer)),
-      SpotifyClient.layer,
+/** Compose the `Ingestion` service layer on top of auth, scrobbles, and Spotify. */
+export const IngestionLive: Layer.Layer<Ingestion, never, DatabaseRequirements | AuthConfig> =
+  Ingestion.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        AuthService.layer,
+        Scrobbles.layer.pipe(Layer.provide(Users.layer)),
+        SpotifyClient.layer,
+      ),
     ),
-  ),
-);
+  );
 
 /** Execute one scheduled ingestion + import tick with the given infrastructure Layer. */
 export function runScheduledTick(

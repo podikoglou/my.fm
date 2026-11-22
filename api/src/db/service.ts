@@ -1,52 +1,29 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import { D1Client } from "@effect/sql-d1";
+import type { Schema } from "effect";
+import { Effect, Layer } from "effect";
+import { SqlClient } from "effect/sql";
+import type { D1Client as D1ClientService } from "@effect/sql-d1/D1Client";
+import type { SqlClient as SqlClientService } from "effect/sql/SqlClient";
+import type * as SqlError from "effect/sql/SqlError";
 
-import { drizzle } from "drizzle-orm/d1";
-import { Context, Effect, Layer } from "effect";
+import { mapSqlError, type DbError } from "./errors.ts";
 
-import { classifyDbError, type DbError } from "./errors.ts";
-import { relations } from "./schema.ts";
+export type DatabaseRequirements = SqlClientService | D1ClientService;
 
-export function createDatabase(database: D1Database) {
-  return drizzle(database, { relations });
-}
+export const DbLive = (database: D1Database) => D1Client.layer({ db: database }).pipe(Layer.orDie);
 
-export type DrizzleDatabase = ReturnType<typeof createDatabase>;
+export const asDbError = <A, R>(
+  effect: Effect.Effect<A, Schema.SchemaError | SqlError.SqlError, R>,
+): Effect.Effect<A, DbError, R> =>
+  effect.pipe(
+    Effect.catchTag("SchemaError", Effect.die),
+    Effect.catchTag("SqlError", (error) => Effect.fail(mapSqlError(error))),
+  );
 
-function toError(cause: unknown): Error {
-  return cause instanceof Error ? cause : new Error(String(cause));
-}
+export const ping = Effect.fn("Db.ping")(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const rows = yield* sql`SELECT 1 AS ok`.pipe(Effect.mapError(mapSqlError));
 
-function makeDbService(database: D1Database): Db["Service"] {
-  const db = createDatabase(database);
-
-  const query = <A>(fn: (client: DrizzleDatabase) => Promise<A>): Effect.Effect<A, DbError> =>
-    Effect.tryPromise({
-      try: () => fn(db),
-      catch: (cause) => classifyDbError(toError(cause)),
-    });
-
-  const ping: Effect.Effect<boolean, DbError> = Effect.tryPromise({
-    try: () => database.prepare("SELECT 1 AS ok").first<{ ok: number }>(),
-    catch: (cause) => classifyDbError(toError(cause)),
-  }).pipe(Effect.map((row) => row?.ok === 1));
-
-  return Db.of({
-    raw: database,
-    drizzle: db,
-    query,
-    ping,
-  });
-}
-
-export class Db extends Context.Service<
-  Db,
-  {
-    readonly raw: D1Database;
-    readonly drizzle: DrizzleDatabase;
-    readonly query: <A>(fn: (client: DrizzleDatabase) => Promise<A>) => Effect.Effect<A, DbError>;
-    readonly ping: Effect.Effect<boolean, DbError>;
-  }
->()("@my.fm/api/db/Db") {
-  static readonly layerFromBinding = (database: D1Database): Layer.Layer<Db> =>
-    Layer.sync(Db, () => makeDbService(database));
-}
+  return rows.length > 0;
+});

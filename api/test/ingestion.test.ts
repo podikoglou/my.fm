@@ -1,13 +1,11 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 import { http } from "msw";
 import { describe, expect, test, vi } from "vitest";
 
 import { AuthConfig, AuthService } from "../src/auth/service.ts";
 import { findIngestionRun, recordIngestionRun } from "../src/db/queries/ingestionRuns.ts";
-import { accounts, ingestionRuns, scrobbles, users } from "../src/db/schema.ts";
-import { createDatabase, Db, type DrizzleDatabase } from "../src/db/service.ts";
+import { DbLive } from "../src/db/service.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { shouldFetchHistory, shouldFetchUser } from "../src/ingestion/schedule.ts";
 import { Ingestion } from "../src/ingestion/service.ts";
@@ -21,7 +19,15 @@ import {
   type SpotifyUserClient,
 } from "../src/spotify/service.ts";
 import { Users } from "../src/users/service.ts";
-import { createBatchWriteLimitDatabase, createStatementWriteLimitDatabase } from "./d1.ts";
+import {
+  createBatchWriteLimitDatabase,
+  createStatementWriteLimitDatabase,
+  insertRows,
+  queryRows,
+  runSql,
+  selectRows,
+  updateRows,
+} from "./d1.ts";
 import { captureLogs } from "./logs.ts";
 import { network } from "./network.ts";
 
@@ -57,7 +63,7 @@ function makePlay(playedAt: string, trackSuffix = "1"): SpotifyPlay {
 }
 
 async function seedUser(
-  db: DrizzleDatabase,
+  db: D1Database,
   {
     userId = "user-1",
     accessToken = "token-1",
@@ -70,7 +76,7 @@ async function seedUser(
     refreshToken?: string | null;
   } = {},
 ) {
-  await db.insert(users).values({
+  await insertRows(db, "users", {
     id: userId,
     username: `username-${userId}`,
     name: "Test User",
@@ -78,7 +84,7 @@ async function seedUser(
     updatedAt: now,
   });
 
-  await db.insert(accounts).values({
+  await insertRows(db, "accounts", {
     id: `account-${userId}`,
     accountId: `spotify-${userId}`,
     providerId: "spotify",
@@ -119,12 +125,21 @@ function mockSpotifyFor(
   }));
 }
 
+function getIngestionRun(database: D1Database) {
+  return runSql(database, findIngestionRun());
+}
+
+function saveIngestionRun(database: D1Database, values: Parameters<typeof recordIngestionRun>[0]) {
+  return runSql(database, recordIngestionRun(values));
+}
+
 function runIngestionWith(options: {
   readonly db?: D1Database;
   readonly spotifyLayer: Layer.Layer<SpotifyClient>;
   readonly at?: Date;
 }) {
-  const dbLayer = Db.layerFromBinding(options.db ?? env.DB);
+  const db = options.db ?? env.DB;
+  const dbLayer = DbLive(db);
 
   const authConfigLayer = AuthConfig.layer({
     betterAuthSecret: env.BETTER_AUTH_SECRET,
@@ -154,7 +169,7 @@ function runIngestionWith(options: {
 
 describe("Ingestion.run", () => {
   test("fetches the initial fifty plays and advances the cursor", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const calls: FetchCall[] = [];
@@ -169,11 +184,17 @@ describe("Ingestion.run", () => {
       });
 
       expect(calls).toEqual([{ accessToken: "token-1", limit: 50, options: undefined }]);
-      expect(await db.select().from(scrobbles)).toHaveLength(2);
+      expect(await selectRows(db, "scrobbles")).toHaveLength(2);
 
-      const user = await db.query.users.findFirst({ where: { id: "user-1" } });
-      expect(user?.lastRecentTracksFetchTime).toEqual(new Date("2026-11-11T11:58:00.000Z"));
-      expect(user?.lastFetchedAt).toEqual(now);
+      const [user] = await queryRows<{
+        lastRecentTracksFetchTime: number | null;
+        lastFetchedAt: number | null;
+      }>(db, "SELECT lastRecentTracksFetchTime, lastFetchedAt FROM users WHERE id = ?", ["user-1"]);
+
+      expect(user?.lastRecentTracksFetchTime).toBe(
+        Math.floor(new Date("2026-11-11T11:58:00.000Z").getTime() / 1000),
+      );
+      expect(user?.lastFetchedAt).toBe(now.getTime());
       expect(logs.named(INGESTION_EVENTS.accountIngested)).toEqual([
         { event: INGESTION_EVENTS.accountIngested, userId: "user-1", plays: 2 },
       ]);
@@ -183,18 +204,20 @@ describe("Ingestion.run", () => {
   });
 
   test("requests a full page and the cursor after the first fetch", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const cursor = new Date("2026-11-11T11:00:00.000Z");
 
-    await db
-      .update(users)
-      .set({
+    await updateRows(
+      db,
+      "users",
+      {
         lastRecentTracksFetchTime: cursor,
         lastFetchedAt: new Date("2026-11-11T11:45:00.000Z"),
-      })
-      .where(eq(users.id, "user-1"));
+      },
+      { id: "user-1" },
+    );
 
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -217,7 +240,7 @@ describe("Ingestion.run", () => {
   });
 
   test("refreshes an expired token and stores the new one", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db, {
       accessToken: "expired-token",
       accessTokenExpiresAt: new Date("2026-11-11T10:00:00.000Z"),
@@ -245,7 +268,12 @@ describe("Ingestion.run", () => {
 
       expect(calls).toEqual([{ accessToken: "fresh-token", limit: 50, options: undefined }]);
 
-      const account = await db.query.accounts.findFirst({ where: { id: "account-user-1" } });
+      const [account] = await queryRows<{ accessToken: string; refreshToken: string }>(
+        db,
+        "SELECT access_token AS accessToken, refresh_token AS refreshToken FROM accounts WHERE id = ?",
+        ["account-user-1"],
+      );
+
       expect(account?.accessToken).toBe("fresh-token");
       expect(account?.refreshToken).toBe("refresh-token-2");
     } finally {
@@ -254,7 +282,7 @@ describe("Ingestion.run", () => {
   });
 
   test("leaves the cursor unchanged when the token refresh fails", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db, {
       accessToken: "expired-token",
       accessTokenExpiresAt: new Date("2026-11-11T10:00:00.000Z"),
@@ -277,7 +305,12 @@ describe("Ingestion.run", () => {
 
       expect(calls).toHaveLength(0);
 
-      const user = await db.query.users.findFirst({ where: { id: "user-1" } });
+      const [user] = await queryRows<{ lastRecentTracksFetchTime: number | null }>(
+        db,
+        "SELECT lastRecentTracksFetchTime FROM users WHERE id = ?",
+        ["user-1"],
+      );
+
       expect(user?.lastRecentTracksFetchTime).toBeNull();
     } finally {
       logs.restore();
@@ -285,7 +318,7 @@ describe("Ingestion.run", () => {
   });
 
   test("does not duplicate a play that is fetched again", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const play = makePlay("2026-11-11T11:55:00.000Z", "1");
@@ -299,14 +332,14 @@ describe("Ingestion.run", () => {
         at: new Date(now.getTime() + 15 * 60_000),
       });
 
-      expect(await db.select().from(scrobbles)).toHaveLength(1);
+      expect(await selectRows(db, "scrobbles")).toHaveLength(1);
     } finally {
       logs.restore();
     }
   });
 
   test("continues with other accounts when one fetch fails", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db, { userId: "user-1", accessToken: "token-1" });
     await seedUser(db, { userId: "user-2", accessToken: "token-2" });
 
@@ -326,7 +359,7 @@ describe("Ingestion.run", () => {
         })),
       });
 
-      expect(await db.select().from(scrobbles)).toHaveLength(1);
+      expect(await selectRows(db, "scrobbles")).toHaveLength(1);
       expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
         expect.objectContaining({ status: "partial", failures: 1, fetched: 1, plays: 1 }),
       ]);
@@ -336,7 +369,7 @@ describe("Ingestion.run", () => {
   });
 
   test("continues with other accounts when a play timestamp is malformed", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db, { userId: "user-1", accessToken: "token-1" });
     await seedUser(db, { userId: "user-2", accessToken: "token-2" });
 
@@ -356,14 +389,12 @@ describe("Ingestion.run", () => {
         })),
       });
 
-      expect(await db.select().from(scrobbles)).toHaveLength(1);
+      expect(await selectRows(db, "scrobbles")).toHaveLength(1);
       expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
         expect.objectContaining({ status: "partial", failures: 1, fetched: 1, plays: 1 }),
       ]);
 
-      const heartbeat = await Effect.runPromise(
-        findIngestionRun().pipe(Effect.provide(Db.layerFromBinding(env.DB))),
-      );
+      const heartbeat = await getIngestionRun(db);
 
       expect(heartbeat?.status).toBe("partial");
     } finally {
@@ -372,7 +403,7 @@ describe("Ingestion.run", () => {
   });
 
   test("stops the run when Spotify reports a quota error", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db, { userId: "user-1", accessToken: "token-1" });
     await seedUser(db, { userId: "user-2", accessToken: "token-2" });
 
@@ -393,9 +424,7 @@ describe("Ingestion.run", () => {
 
       expect(seen).toEqual(["token-1"]);
 
-      const heartbeat = await Effect.runPromise(
-        findIngestionRun().pipe(Effect.provide(Db.layerFromBinding(env.DB))),
-      );
+      const heartbeat = await getIngestionRun(db);
 
       expect(heartbeat?.status).toBe("quota");
       expect(heartbeat?.blockedUntil).toEqual(new Date(now.getTime() + 600 * 1000));
@@ -405,16 +434,12 @@ describe("Ingestion.run", () => {
   });
 
   test("skips a run that is still inside a block", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const blockedUntil = new Date(now.getTime() + 10 * 60_000);
 
-    await Effect.runPromise(
-      recordIngestionRun({ at: now, status: "quota", blockedUntil }).pipe(
-        Effect.provide(Db.layerFromBinding(env.DB)),
-      ),
-    );
+    await saveIngestionRun(db, { at: now, status: "quota", blockedUntil });
 
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -435,16 +460,12 @@ describe("Ingestion.run", () => {
   });
 
   test("resumes after the stored block ends", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const blockedUntil = new Date(now.getTime() + 10 * 60_000);
 
-    await Effect.runPromise(
-      recordIngestionRun({ at: now, status: "quota", blockedUntil }).pipe(
-        Effect.provide(Db.layerFromBinding(env.DB)),
-      ),
-    );
+    await saveIngestionRun(db, { at: now, status: "quota", blockedUntil });
 
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -456,14 +477,14 @@ describe("Ingestion.run", () => {
       });
 
       expect(calls).toHaveLength(1);
-      expect(await db.select().from(scrobbles)).toHaveLength(1);
+      expect(await selectRows(db, "scrobbles")).toHaveLength(1);
     } finally {
       logs.restore();
     }
   });
 
   test("clamps a long block to one day", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const logs = captureLogs();
@@ -477,9 +498,7 @@ describe("Ingestion.run", () => {
         })),
       });
 
-      const heartbeat = await Effect.runPromise(
-        findIngestionRun().pipe(Effect.provide(Db.layerFromBinding(env.DB))),
-      );
+      const heartbeat = await getIngestionRun(db);
 
       expect(heartbeat?.blockedUntil).toEqual(new Date(now.getTime() + 24 * 60 * 60 * 1000));
     } finally {
@@ -488,10 +507,10 @@ describe("Ingestion.run", () => {
   });
 
   test("fetches a user once when a second Spotify account is linked", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db, { userId: "user-1", accessToken: "token-1" });
 
-    await db.insert(accounts).values({
+    await insertRows(db, "accounts", {
       id: "account-user-1-dup",
       accountId: "spotify-user-1-dup",
       providerId: "spotify",
@@ -517,7 +536,7 @@ describe("Ingestion.run", () => {
   });
 
   test("records one heartbeat per run", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const logs = captureLogs();
 
     try {
@@ -527,7 +546,7 @@ describe("Ingestion.run", () => {
         at: new Date(now.getTime() + 60_000),
       });
 
-      const rows = await db.select().from(ingestionRuns);
+      const rows = await selectRows(db, "ingestion_runs");
       expect(rows).toHaveLength(1);
       expect(rows[0]?.lastRunAt).toEqual(new Date(now.getTime() + 60_000));
     } finally {
@@ -536,7 +555,7 @@ describe("Ingestion.run", () => {
   });
 
   test("stops the run without a heartbeat when D1 rejects the store", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const logs = captureLogs();
@@ -547,7 +566,7 @@ describe("Ingestion.run", () => {
         spotifyLayer: mockSpotifyFor([], () => [makePlay("2026-11-11T11:55:00.000Z")]),
       });
 
-      const rows = await db.select().from(ingestionRuns);
+      const rows = await selectRows(db, "ingestion_runs");
       expect(rows).toHaveLength(0);
       expect(logs.messages.some((args) => args[0] === INGESTION_EVENTS.d1WriteLimit)).toBe(true);
     } finally {
@@ -657,7 +676,7 @@ describe("shouldFetchUser", () => {
 
 describe("dynamic fetch intervals in Ingestion.run", () => {
   test("skips inactive user on subsequent tick within 10-minute window", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const calls: FetchCall[] = [];
@@ -677,7 +696,7 @@ describe("dynamic fetch intervals in Ingestion.run", () => {
   });
 
   test("fetches inactive user after 10 minutes", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const calls: FetchCall[] = [];
@@ -697,7 +716,7 @@ describe("dynamic fetch intervals in Ingestion.run", () => {
   });
 
   test("promotes user to active when recent plays are found and fetches them 3 minutes later", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
     const calls: FetchCall[] = [];
@@ -723,17 +742,19 @@ describe("dynamic fetch intervals in Ingestion.run", () => {
 
 describe("now-playing polls in Ingestion.run", () => {
   test("skips the history while the track of the last fetch still plays", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
-    await db
-      .update(users)
-      .set({
+    await updateRows(
+      db,
+      "users",
+      {
         lastFetchedAt: new Date(now.getTime() - 3 * 60_000),
         lastActiveAt: new Date(now.getTime() - 3 * 60_000),
         lastRecentTracksFetchTime: new Date(now.getTime() - 5 * 60_000),
-      })
-      .where(eq(users.id, "user-1"));
+      },
+      { id: "user-1" },
+    );
 
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -754,17 +775,19 @@ describe("now-playing polls in Ingestion.run", () => {
   });
 
   test("fetches the history when another track began after the last fetch", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
-    await db
-      .update(users)
-      .set({
+    await updateRows(
+      db,
+      "users",
+      {
         lastFetchedAt: new Date(now.getTime() - 3 * 60_000),
         lastActiveAt: new Date(now.getTime() - 3 * 60_000),
         lastRecentTracksFetchTime: new Date(now.getTime() - 5 * 60_000),
-      })
-      .where(eq(users.id, "user-1"));
+      },
+      { id: "user-1" },
+    );
 
     const calls: FetchCall[] = [];
     const logs = captureLogs();
@@ -785,17 +808,19 @@ describe("now-playing polls in Ingestion.run", () => {
   });
 
   test("does not ask an inactive user what plays", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser(db);
 
-    await db
-      .update(users)
-      .set({
+    await updateRows(
+      db,
+      "users",
+      {
         lastFetchedAt: new Date(now.getTime() - 10 * 60_000),
         lastActiveAt: null,
         lastRecentTracksFetchTime: new Date(now.getTime() - 60 * 60_000),
-      })
-      .where(eq(users.id, "user-1"));
+      },
+      { id: "user-1" },
+    );
 
     const getCurrentlyPlaying = vi.fn(() => Effect.succeed(null));
     const logs = captureLogs();

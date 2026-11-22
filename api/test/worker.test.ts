@@ -8,7 +8,7 @@ import { Effect } from "effect";
 import { expect, test } from "vitest";
 
 import { findIngestionRun } from "../src/db/queries/ingestionRuns.ts";
-import { Db } from "../src/db/service.ts";
+import { DbLive } from "../src/db/service.ts";
 import worker from "../src/worker.ts";
 
 test("records the scheduled time for a cron run without accounts", async () => {
@@ -25,7 +25,7 @@ test("records the scheduled time for a cron run without accounts", async () => {
   await waitOnExecutionContext(ctx);
 
   const heartbeat = await Effect.runPromise(
-    findIngestionRun().pipe(Effect.provide(Db.layerFromBinding(env.DB))),
+    findIngestionRun().pipe(Effect.provide(DbLive(env.DB))),
   );
 
   expect(heartbeat?.lastRunAt).toEqual(scheduledTime);

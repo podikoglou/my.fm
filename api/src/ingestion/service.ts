@@ -2,6 +2,7 @@ import { Clock, Context, Effect, Layer, Predicate } from "effect";
 
 import { AuthService, type AuthError } from "../auth/service.ts";
 import { classifyDbError, type D1QueryError, type D1QuotaExceededError } from "../db/errors.ts";
+import type { DatabaseRequirements } from "../db/service.ts";
 import { findIngestionRun, recordIngestionRun } from "../db/queries/ingestionRuns.ts";
 import {
   findSpotifyAccounts,
@@ -9,7 +10,8 @@ import {
   updateUserFetchState,
   type UserFetchStateUpdate,
 } from "../db/queries/users.ts";
-import { Db } from "../db/service.ts";
+import { D1Client } from "@effect/sql-d1";
+import { SqlClient } from "effect/sql";
 import { Scrobbles } from "../scrobbles/service.ts";
 import type { SpotifyQuotaExceededError } from "../spotify/errors.ts";
 import { SpotifyClient } from "../spotify/service.ts";
@@ -66,11 +68,12 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
   static readonly layer: Layer.Layer<
     Ingestion,
     never,
-    Db | AuthService | Scrobbles | SpotifyClient
+    DatabaseRequirements | AuthService | Scrobbles | SpotifyClient
   > = Layer.effect(
     Ingestion,
     Effect.gen(function* () {
-      const db = yield* Db;
+      const sql = yield* SqlClient.SqlClient;
+      const d1 = yield* D1Client.D1Client;
       const auth = yield* AuthService;
       const scrobbles = yield* Scrobbles;
       const spotify = yield* SpotifyClient;
@@ -81,7 +84,6 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
         readonly blockedUntil?: Date | null;
       }) {
         yield* recordIngestionRun(values).pipe(
-          Effect.provideService(Db, db),
           Effect.catchTag("D1QuotaExceededError", (error) => logD1Quota(error)),
           Effect.catchTag("D1QueryError", (error) => Effect.die(error)),
         );
@@ -90,26 +92,24 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
       const ingestAccount = Effect.fn("Ingestion.ingestAccount")(function* (
         account: { readonly id: string; readonly userId: string },
         now: Date,
-      ): Effect.fn.Return<AccountOutcome> {
+      ): Effect.fn.Return<AccountOutcome, never, DatabaseRequirements> {
         type QueueResult =
           | {
               readonly ok: true;
-              readonly data: Awaited<ReturnType<typeof findUserQueueDataById>>;
+              readonly data: Effect.Success<ReturnType<typeof findUserQueueDataById>>;
             }
           | { readonly ok: false; readonly kind: "d1-quota"; readonly error: D1QuotaExceededError }
           | { readonly ok: false; readonly kind: "error"; readonly error: D1QueryError };
 
-        const queueData: QueueResult = yield* db
-          .query((client) => findUserQueueDataById(client, account.userId))
-          .pipe(
-            Effect.map((data): QueueResult => ({ ok: true, data })),
-            Effect.catchTag("D1QuotaExceededError", (error) =>
-              Effect.succeed<QueueResult>({ ok: false, kind: "d1-quota", error }),
-            ),
-            Effect.catchTag("D1QueryError", (error) =>
-              Effect.succeed<QueueResult>({ ok: false, kind: "error", error }),
-            ),
-          );
+        const queueData: QueueResult = yield* findUserQueueDataById(account.userId).pipe(
+          Effect.map((data): QueueResult => ({ ok: true, data })),
+          Effect.catchTag("D1QuotaExceededError", (error) =>
+            Effect.succeed<QueueResult>({ ok: false, kind: "d1-quota", error }),
+          ),
+          Effect.catchTag("D1QueryError", (error) =>
+            Effect.succeed<QueueResult>({ ok: false, kind: "error", error }),
+          ),
+        );
 
         if (!queueData.ok) {
           if (queueData.kind === "d1-quota") {
@@ -321,17 +321,15 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
               lastRecentTracksFetchTime: nextCursor,
             };
 
-        const updateResult: WriteResult = yield* db
-          .query((d) => updateUserFetchState(d, account.userId, update))
-          .pipe(
-            Effect.as<WriteResult>({ ok: true }),
-            Effect.catchTag("D1QuotaExceededError", (error) =>
-              Effect.succeed<WriteResult>({ ok: false, kind: "d1-quota", error }),
-            ),
-            Effect.catchTag("D1QueryError", (error) =>
-              Effect.succeed<WriteResult>({ ok: false, kind: "error", error }),
-            ),
-          );
+        const updateResult: WriteResult = yield* updateUserFetchState(account.userId, update).pipe(
+          Effect.as<WriteResult>({ ok: true }),
+          Effect.catchTag("D1QuotaExceededError", (error) =>
+            Effect.succeed<WriteResult>({ ok: false, kind: "d1-quota", error }),
+          ),
+          Effect.catchTag("D1QueryError", (error) =>
+            Effect.succeed<WriteResult>({ ok: false, kind: "error", error }),
+          ),
+        );
 
         if (!updateResult.ok) {
           if (updateResult.kind === "d1-quota") {
@@ -361,7 +359,6 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
         const now = nowOverride ?? new Date(nowMs);
 
         const previousResult = yield* findIngestionRun().pipe(
-          Effect.provideService(Db, db),
           Effect.map((value) => ({ ok: true as const, value })),
           Effect.catchTag("D1QuotaExceededError", (error) =>
             Effect.succeed({ ok: false as const, error }),
@@ -391,15 +388,13 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
           return;
         }
 
-        const accountsResult = yield* db
-          .query((client) => findSpotifyAccounts(client))
-          .pipe(
-            Effect.map((rows) => ({ ok: true as const, rows })),
-            Effect.catchTag("D1QuotaExceededError", (error) =>
-              Effect.succeed({ ok: false as const, error }),
-            ),
-            Effect.catchTag("D1QueryError", (error) => Effect.die(error)),
-          );
+        const accountsResult = yield* findSpotifyAccounts().pipe(
+          Effect.map((rows) => ({ ok: true as const, rows })),
+          Effect.catchTag("D1QuotaExceededError", (error) =>
+            Effect.succeed({ ok: false as const, error }),
+          ),
+          Effect.catchTag("D1QueryError", (error) => Effect.die(error)),
+        );
 
         if (!accountsResult.ok) {
           yield* logD1Quota(accountsResult.error);
@@ -480,7 +475,13 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
         });
       });
 
-      return Ingestion.of({ run });
+      return Ingestion.of({
+        run: (nowOverride) =>
+          run(nowOverride).pipe(
+            Effect.provideService(SqlClient.SqlClient, sql),
+            Effect.provideService(D1Client.D1Client, d1),
+          ),
+      });
     }),
   );
 }

@@ -27,8 +27,10 @@ Better Auth has issued.
 
 ## Migrations
 
-Edit the schema, run `bun run db:generate`, and commit the generated migration
-directory. Alchemy applies pending migrations on the next deploy.
+Write a new SQL migration at
+`api/migrations/<timestamp>_<name>/migration.sql` and commit it. Existing
+migrations are immutable; do not edit or regenerate them. Alchemy applies
+pending migrations on the next deploy.
 
 ## Cache
 

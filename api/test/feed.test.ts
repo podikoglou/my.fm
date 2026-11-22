@@ -1,20 +1,10 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { Schema } from "effect";
 import { describe, expect, test } from "vitest";
 
-import {
-  albumArtists,
-  albums,
-  artists,
-  scrobbles,
-  trackArtists,
-  tracks,
-  users,
-} from "../src/db/schema.ts";
-import { createDatabase } from "../src/db/service.ts";
 import worker from "../src/worker.ts";
 import { baseUrl } from "./session.ts";
+import { insertRows, updateRows } from "./d1.ts";
 
 const userA = "V1StGXR8_Z5jdHi6B-myT";
 const userB = "V1StGXR8_Z5jdHi6B-myU";
@@ -65,9 +55,7 @@ const FeedResponseSchema = Schema.Struct({
 const decodeFeedResponse = Schema.decodeUnknownSync(FeedResponseSchema);
 
 async function seed() {
-  const db = createDatabase(env.DB);
-
-  await db.insert(users).values([
+  await insertRows(env.DB, "users", [
     {
       id: userA,
       username: "alex",
@@ -104,12 +92,12 @@ async function seed() {
     },
   ]);
 
-  await db.insert(artists).values([
+  await insertRows(env.DB, "artists", [
     { spotifyUri: "spotify:artist:1", name: "First Artist" },
     { spotifyUri: "spotify:artist:2", name: "Second Artist" },
   ]);
 
-  await db.insert(albums).values({
+  await insertRows(env.DB, "albums", {
     spotifyUri: "spotify:album:1",
     name: "An Album",
     releaseDate: "2026",
@@ -118,7 +106,7 @@ async function seed() {
     imageUrl: "https://example.com/album.jpg",
   });
 
-  await db.insert(tracks).values({
+  await insertRows(env.DB, "tracks", {
     spotifyUri: "spotify:track:1",
     name: "A Track",
     trackNumber: 1,
@@ -128,12 +116,12 @@ async function seed() {
   });
 
   // Insert the second artist first so the feed's order is observable.
-  await db.insert(trackArtists).values([
+  await insertRows(env.DB, "track_artists", [
     { trackSpotifyUri: "spotify:track:1", artistSpotifyUri: "spotify:artist:2", position: 1 },
     { trackSpotifyUri: "spotify:track:1", artistSpotifyUri: "spotify:artist:1", position: 0 },
   ]);
 
-  await db.insert(albumArtists).values({
+  await insertRows(env.DB, "album_artists", {
     albumSpotifyUri: "spotify:album:1",
     artistSpotifyUri: "spotify:artist:1",
     position: 0,
@@ -147,18 +135,14 @@ async function seed() {
     scrobbleDate: new Date(at),
   });
 
-  await db
-    .insert(scrobbles)
-    .values([
-      scrobble(ids.a1, userA, "2026-11-11T12:00:00.000Z"),
-      scrobble(ids.a2, userB, "2026-11-11T12:00:00.000Z"),
-      scrobble(ids.a3, userA, "2026-11-11T11:00:00.000Z"),
-      scrobble(ids.b1, userB, "2026-11-11T10:00:00.000Z"),
-      scrobble(ids.c1, userC, "2026-11-11T13:00:00.000Z"),
-      scrobble(ids.d1, userD, "2026-11-11T14:00:00.000Z"),
-    ]);
-
-  return { db };
+  await insertRows(env.DB, "scrobbles", [
+    scrobble(ids.a1, userA, "2026-11-11T12:00:00.000Z"),
+    scrobble(ids.a2, userB, "2026-11-11T12:00:00.000Z"),
+    scrobble(ids.a3, userA, "2026-11-11T11:00:00.000Z"),
+    scrobble(ids.b1, userB, "2026-11-11T10:00:00.000Z"),
+    scrobble(ids.c1, userC, "2026-11-11T13:00:00.000Z"),
+    scrobble(ids.d1, userD, "2026-11-11T14:00:00.000Z"),
+  ]);
 }
 
 describe("public feed", () => {
@@ -219,9 +203,9 @@ describe("public feed", () => {
   });
 
   test("drops a user as soon as the profile becomes private", async () => {
-    const { db } = await seed();
+    await seed();
 
-    await db.update(users).set({ isPrivate: true }).where(eq(users.id, userA));
+    await updateRows(env.DB, "users", { isPrivate: true }, { id: userA });
 
     const response = await worker.fetch(new Request(`${baseUrl}/api/feed`), env);
     const body = decodeFeedResponse(await response.json());
