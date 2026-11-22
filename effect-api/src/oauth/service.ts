@@ -1,4 +1,4 @@
-import { authorizationErrorRedirect, type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
+import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { Context, Effect, Layer, Option, Schema } from "effect";
 
 import { InvalidOAuthRequestError, OAuthProviderError } from "./errors.ts";
@@ -117,6 +117,12 @@ export class OAuthProviderService extends Context.Service<OAuthProviderService, 
           const { authRequest, client } = yield* parseAndLookup(requestUrl, input.query);
 
           if (input.decision === "deny") {
+            // Lazy for the same reason as in edge.ts: the package's
+            // `cloudflare:workers` import must not load outside workerd.
+            const { authorizationErrorRedirect } = yield* Effect.promise(
+              () => import("@cloudflare/workers-oauth-provider"),
+            );
+
             return {
               redirectTo: authorizationErrorRedirect(authRequest, "access_denied"),
             };

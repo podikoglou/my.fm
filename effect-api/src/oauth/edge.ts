@@ -1,6 +1,6 @@
 import type { ExecutionContext, KVNamespace } from "@cloudflare/workers-types";
 
-import { type OAuthHelpers, OAuthProvider } from "@cloudflare/workers-oauth-provider";
+import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { Effect, type Layer, Schema } from "effect";
 
 import { type AppServices, handleWebRequest } from "../http/app.ts";
@@ -61,6 +61,11 @@ export async function handleOAuthEdgeRequest(
       );
     }
   }
+
+  // The package imports `cloudflare:workers` (a workerd-only builtin), which
+  // Bun cannot resolve. A static import would break the deploy CLI, which
+  // imports the stack — and this module through it — outside workerd.
+  const { OAuthProvider } = await import("@cloudflare/workers-oauth-provider");
 
   const provider = new OAuthProvider<OAuthEdgeEnv>({
     apiRoute: "/mcp",
