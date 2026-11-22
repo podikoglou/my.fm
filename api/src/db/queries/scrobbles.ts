@@ -559,7 +559,9 @@ export const findPublicFeed = Effect.fn("scrobbles.findPublicFeed")(function* ({
   return groupProjectionRows(rows).flatMap((group): FeedItem[] => {
     const row = group.row;
 
-    if (!row.scrobbleDate || !row.userUsername || !row.userName) return [];
+    if (row.scrobbleDate === null || row.userUsername === null || row.userName === null) {
+      return [];
+    }
 
     return [
       {

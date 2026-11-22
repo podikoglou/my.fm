@@ -10,6 +10,7 @@ const userA = "V1StGXR8_Z5jdHi6B-myT";
 const userB = "V1StGXR8_Z5jdHi6B-myU";
 const userC = "V1StGXR8_Z5jdHi6B-myV";
 const userD = "V1StGXR8_Z5jdHi6B-myW";
+const userE = "V1StGXR8_Z5jdHi6B-myX";
 
 const ids = {
   a1: `${"a".repeat(31)}1`,
@@ -18,6 +19,7 @@ const ids = {
   b1: `${"b".repeat(31)}1`,
   c1: `${"c".repeat(31)}1`,
   d1: `${"d".repeat(31)}1`,
+  e1: `${"e".repeat(31)}1`,
 };
 
 const now = new Date("2026-11-11T12:00:00.000Z");
@@ -176,6 +178,36 @@ describe("public feed", () => {
       spotifyUri: "spotify:album:1",
     });
     expect(body.nextCursor).toBeNull();
+  });
+
+  test("includes onboarded public users with an empty name", async () => {
+    await seed();
+    await insertRows(env.DB, "users", {
+      id: userE,
+      username: "empty-name",
+      name: "",
+      email: "empty-name@example.com",
+      updatedAt: now,
+      onboarded: true,
+      isPrivate: false,
+    });
+    await insertRows(env.DB, "scrobbles", {
+      id: ids.e1,
+      userId: userE,
+      trackSpotifyUri: "spotify:track:1",
+      albumSpotifyUri: "spotify:album:1",
+      scrobbleDate: now,
+    });
+
+    const response = await worker.fetch(new Request(`${baseUrl}/api/feed`), env);
+    const body = decodeFeedResponse(await response.json());
+    const item = body.items.find(({ id }) => id === ids.e1);
+
+    expect(item?.user).toEqual({
+      username: "empty-name",
+      name: "",
+      avatarUrl: null,
+    });
   });
 
   test("paginates with a keyset cursor without duplicates", async () => {
