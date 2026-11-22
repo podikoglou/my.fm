@@ -449,7 +449,11 @@ export const effectSqlAdapter = (client: SqlClient.SqlClient) =>
             client<T & object>`
               UPDATE ${client(model)}
               SET ${client.join(", ")(updates)}
-              WHERE ${whereClause(client, where, model)}
+              WHERE id = (
+                SELECT id FROM ${client(model)}
+                WHERE ${whereClause(client, where, model)}
+                LIMIT 1
+              )
               RETURNING *
             `,
           );
