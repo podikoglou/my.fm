@@ -10,8 +10,10 @@ export const UsernameSchema = Schema.String.check(
 
 export const NameSchema = Schema.Trim.check(
   Schema.isMinLength(1, { message: "Name must be at least 1 character" }),
-  Schema.isMaxLength(32, { message: "name must be at most 32 characters" }),
-  Schema.isPattern(/^[\p{L}\p{N} '_\-.]+$/u),
+  Schema.isMaxLength(32, { message: "Name must be at most 32 characters" }),
+  Schema.isPattern(/^[\p{L}\p{N} '_\-.]+$/u, {
+    message: "Name can only contain letters, numbers, spaces, and '_-.",
+  }),
 );
 
 export const NanoidSchema = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9_-]{21}$/));

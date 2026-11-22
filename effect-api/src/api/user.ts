@@ -48,7 +48,7 @@ export class UserGroup extends HttpApiGroup.make("user")
   )
   .add(
     HttpApiEndpoint.get("byUsername", "/byUsername", {
-      query: { username: Schema.String },
+      query: { username: Schema.String.check(Schema.isMinLength(1)) },
       success: PublicUserSchema,
       error: [UserNotFoundApiError, ProfilePrivateApiError, ServiceUnavailableApiError],
     })
