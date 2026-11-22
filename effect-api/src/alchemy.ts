@@ -45,8 +45,11 @@ export const PublicReadRateLimit = rateLimitResource("PUBLIC_READ_RATE_LIMIT");
  * secrets) and registers the one-minute Cron trigger at deploy and cold-start
  * time. The inner `fetch` and `cron` Effects resolve request-scoped bindings
  * into typed Effect service Layers.
+ *
+ * Must be the module's default export: the Worker bundle's virtual entry
+ * imports it as `entrypoint`.
  */
-export class Worker extends Cloudflare.Workers.Worker<Worker>()(
+export default class Worker extends Cloudflare.Workers.Worker<Worker>()(
   "Worker",
   {
     main: import.meta.url,
