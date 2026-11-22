@@ -241,9 +241,25 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
 
         const plays = pageResult.items;
 
-        const records = yield* Effect.promise(() =>
-          Promise.all(plays.map((play) => toPlayRecord(account.userId, play))),
+        const recordsResult = yield* Effect.tryPromise({
+          try: () => Promise.all(plays.map((play) => toPlayRecord(account.userId, play))),
+          catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+        }).pipe(
+          Effect.map((records) => ({ ok: true as const, records })),
+          Effect.catch((error) => Effect.succeed({ ok: false as const, error })),
         );
+
+        if (!recordsResult.ok) {
+          yield* logIngestionFailure(
+            INGESTION_EVENTS.accountFailed,
+            account.userId,
+            recordsResult.error,
+          );
+
+          return { kind: "failed" };
+        }
+
+        const { records } = recordsResult;
 
         type WriteResult =
           | { readonly ok: true }

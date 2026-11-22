@@ -335,6 +335,42 @@ describe("Ingestion.run", () => {
     }
   });
 
+  test("continues with other accounts when a play timestamp is malformed", async () => {
+    const db = createDatabase(env.DB);
+    await seedUser(db, { userId: "user-1", accessToken: "token-1" });
+    await seedUser(db, { userId: "user-2", accessToken: "token-2" });
+
+    const logs = captureLogs();
+
+    try {
+      await runIngestionWith({
+        spotifyLayer: makeMockSpotifyLayer((accessToken) => ({
+          getCurrentlyPlaying: () => Effect.succeed(null),
+          getRecentlyPlayedTracks: () => {
+            if (accessToken === "token-1") {
+              return Effect.succeed({ items: [makePlay("not-a-valid-date")] });
+            }
+
+            return Effect.succeed({ items: [makePlay("2026-11-11T11:55:00.000Z")] });
+          },
+        })),
+      });
+
+      expect(await db.select().from(scrobbles)).toHaveLength(1);
+      expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
+        expect.objectContaining({ status: "partial", failures: 1, fetched: 1, plays: 1 }),
+      ]);
+
+      const heartbeat = await Effect.runPromise(
+        findIngestionRun().pipe(Effect.provide(Db.layerFromBinding(env.DB))),
+      );
+
+      expect(heartbeat?.status).toBe("partial");
+    } finally {
+      logs.restore();
+    }
+  });
+
   test("stops the run when Spotify reports a quota error", async () => {
     const db = createDatabase(env.DB);
     await seedUser(db, { userId: "user-1", accessToken: "token-1" });
