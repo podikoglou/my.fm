@@ -5,22 +5,12 @@ import type { Notification, User } from "../schema.ts";
 
 import { notifications } from "../schema.ts";
 
-export const SPOTIFY_REAUTH_TYPE = "spotify-reauth";
-
-/** The scope that grants from before the app asked for it are missing. */
-export const SPOTIFY_REAUTH_SCOPE = "user-read-currently-playing";
-
-const TITLE = "Reconnect Spotify";
-
-const BODY = "Sign in again to let my.fm show what you are playing.";
-
-// Better Auth stores scopes comma-separated; Spotify returns them space-separated.
-const lacksScope = sql`instr(',' || replace(coalesce(scope, ''), ' ', ',') || ',', ${`,${SPOTIFY_REAUTH_SCOPE},`}) = 0`;
-
 export type UnacknowledgedNotification = Pick<
   Notification,
   "id" | "type" | "title" | "body" | "createdAt"
 >;
+
+export type NotificationDraft = Pick<Notification, "type" | "title" | "body">;
 
 export async function findUnacknowledgedNotifications(
   db: DrizzleDatabase,
@@ -39,6 +29,22 @@ export async function findUnacknowledgedNotifications(
     .orderBy(desc(notifications.createdAt), desc(notifications.id));
 }
 
+export async function insertNotification(
+  db: DrizzleDatabase,
+  userId: User["id"],
+  draft: NotificationDraft,
+): Promise<void> {
+  await db
+    .insert(notifications)
+    .values({
+      userId,
+      type: draft.type,
+      title: draft.title,
+      body: draft.body,
+    })
+    .onConflictDoNothing();
+}
+
 export async function acknowledgeNotification(
   db: DrizzleDatabase,
   userId: User["id"],
@@ -54,28 +60,20 @@ export async function acknowledgeNotification(
   return acknowledged.length > 0;
 }
 
-export async function syncSpotifyReauthNotification(
+export async function acknowledgeNotificationsByType(
   db: DrizzleDatabase,
   userId: User["id"],
+  type: Notification["type"],
   nowMs: number,
 ): Promise<void> {
-  await db.run(sql`
-    insert into notifications (userId, type, title, body)
-    select user_id, ${SPOTIFY_REAUTH_TYPE}, ${TITLE}, ${BODY}
-    from accounts
-    where user_id = ${userId} and provider_id = 'spotify' and ${lacksScope}
-    on conflict do nothing
-  `);
-
-  await db.run(sql`
-    update notifications
-    set acknowledgedAt = ${nowMs}
-    where userId = ${userId}
-      and type = ${SPOTIFY_REAUTH_TYPE}
-      and acknowledgedAt is null
-      and not exists (
-        select 1 from accounts
-        where user_id = ${userId} and provider_id = 'spotify' and ${lacksScope}
-      )
-  `);
+  await db
+    .update(notifications)
+    .set({ acknowledgedAt: new Date(nowMs) })
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, type),
+        isNull(notifications.acknowledgedAt),
+      ),
+    );
 }

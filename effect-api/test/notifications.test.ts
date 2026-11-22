@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { Schema } from "effect";
 import { describe, expect, test } from "vitest";
 
-import { SPOTIFY_REAUTH_TYPE } from "../src/db/queries/notifications.ts";
+import { SPOTIFY_REAUTH_TYPE } from "../src/notifications/spotify-reauth.ts";
 import { notifications } from "../src/db/schema.ts";
 import { createDatabase } from "../src/db/service.ts";
 import worker from "../src/worker.ts";
