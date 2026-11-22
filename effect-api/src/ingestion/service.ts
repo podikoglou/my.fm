@@ -1,8 +1,7 @@
 import { Clock, Context, Effect, Layer, Predicate } from "effect";
 
-import { AuthService } from "../auth/service.ts";
-import type { D1QuotaExceededError } from "../db/errors.ts";
-import { classifyDbError, type D1RowLimit } from "../db/errors.ts";
+import { AuthService, type AuthError } from "../auth/service.ts";
+import { classifyDbError, type D1QueryError, type D1QuotaExceededError } from "../db/errors.ts";
 import { findIngestionRun, recordIngestionRun } from "../db/queries/ingestionRuns.ts";
 import {
   findSpotifyAccounts,
@@ -36,7 +35,7 @@ type AccountOutcome =
   | { readonly kind: "spotify-quota"; readonly error: SpotifyQuotaExceededError }
   | { readonly kind: "d1-quota"; readonly error: D1QuotaExceededError };
 
-function logD1Quota(error: { readonly limit: D1RowLimit }): Effect.Effect<void> {
+function logD1Quota(error: D1QuotaExceededError): Effect.Effect<void> {
   const event =
     error.limit === "row-read" ? INGESTION_EVENTS.d1ReadLimit : INGESTION_EVENTS.d1WriteLimit;
 
@@ -98,7 +97,7 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
               readonly data: Awaited<ReturnType<typeof findUserQueueDataById>>;
             }
           | { readonly ok: false; readonly kind: "d1-quota"; readonly error: D1QuotaExceededError }
-          | { readonly ok: false; readonly kind: "error"; readonly error: unknown };
+          | { readonly ok: false; readonly kind: "error"; readonly error: D1QueryError };
 
         const queueData: QueueResult = yield* db
           .query((client) => findUserQueueDataById(client, account.userId))
@@ -142,7 +141,7 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
         type TokenResult =
           | { readonly ok: true; readonly accessToken: string | null }
           | { readonly ok: false; readonly kind: "d1-quota"; readonly error: D1QuotaExceededError }
-          | { readonly ok: false; readonly kind: "error"; readonly error: unknown };
+          | { readonly ok: false; readonly kind: "error"; readonly error: AuthError };
 
         const tokenResult: TokenResult = yield* auth
           .getAccessToken({ accountId: account.id, userId: account.userId })
@@ -264,7 +263,7 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
         type WriteResult =
           | { readonly ok: true }
           | { readonly ok: false; readonly kind: "d1-quota"; readonly error: D1QuotaExceededError }
-          | { readonly ok: false; readonly kind: "error"; readonly error: unknown };
+          | { readonly ok: false; readonly kind: "error"; readonly error: D1QueryError };
 
         const persistResult: WriteResult = yield* scrobbles.persistPlays(records).pipe(
           Effect.as<WriteResult>({ ok: true }),

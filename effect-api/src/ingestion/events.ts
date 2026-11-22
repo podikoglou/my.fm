@@ -55,6 +55,8 @@ export function logIngestionEvent(fields: IngestionEventFields): Effect.Effect<v
   });
 }
 
+export type IngestionFailureDetail = string | number | Error;
+
 export function logIngestionFailure(
   event:
     | typeof INGESTION_EVENTS.accountFailed
@@ -65,7 +67,7 @@ export function logIngestionFailure(
     | typeof INGESTION_EVENTS.importFailed
     | typeof INGESTION_EVENTS.d1WriteLimit
     | typeof INGESTION_EVENTS.d1ReadLimit,
-  ...details: unknown[]
+  ...details: ReadonlyArray<IngestionFailureDetail>
 ): Effect.Effect<void> {
   return Effect.sync(() => {
     if (
