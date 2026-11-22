@@ -16,8 +16,10 @@ const TOOL_ANNOTATIONS = {
 
 const GetMeInputSchema = Schema.Struct({});
 
+const NonEmptyString = Schema.String.check(Schema.isMinLength(1));
+
 const GetUserInputSchema = Schema.Struct({
-  username: Schema.optional(Schema.String),
+  username: Schema.optional(NonEmptyString),
   id: Schema.optional(NanoidSchema),
 }).check(
   Schema.makeFilter(({ username, id }) => (username === undefined) !== (id === undefined), {
@@ -26,14 +28,14 @@ const GetUserInputSchema = Schema.Struct({
 );
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: NonEmptyString,
   offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
-  before: Schema.optional(Schema.Number),
+  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: NonEmptyString,
   timeZone: Schema.optional(TimeZoneSchema),
 });
 
@@ -173,7 +175,13 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                 const lookup =
                   username !== undefined
                     ? users.viewProfileByUsername(username, userId)
-                    : users.viewProfileById(id ?? "", userId);
+                    : id !== undefined
+                      ? users.viewProfileById(id, userId)
+                      : undefined;
+
+                if (lookup === undefined) {
+                  return Effect.succeed(toolError("Provide either username or id"));
+                }
 
                 return lookup.pipe(
                   Effect.map(({ avatarUrl: _, ...user }) => toolData(user)),

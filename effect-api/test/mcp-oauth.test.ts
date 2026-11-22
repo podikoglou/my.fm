@@ -579,3 +579,31 @@ test("lists connected apps and revokes access", async () => {
   expect((await request("/api/oauth/apps")).status).toBe(401);
   expect((await request(`/api/oauth/apps/${appId}`, { method: "DELETE" })).status).toBe(401);
 });
+
+test("rejects invalid before and empty username on MCP scrobble tools", async () => {
+  const user = await signIn({ id: "oauth-validation", email: "validation@example.com" });
+  const accessToken = await token(user.cookie);
+
+  const fractionalBefore = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "alex",
+    offset: 0,
+    before: 12.5,
+  });
+
+  expect(fractionalBefore.isError).toBe(true);
+
+  const negativeBefore = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "alex",
+    offset: 0,
+    before: -1,
+  });
+
+  expect(negativeBefore.isError).toBe(true);
+
+  const emptyUsername = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "",
+    offset: 0,
+  });
+
+  expect(emptyUsername.isError).toBe(true);
+});
