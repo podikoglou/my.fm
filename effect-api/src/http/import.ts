@@ -1,5 +1,5 @@
-import { Effect, Predicate } from "effect";
-import { HttpServerRequest } from "effect/http";
+import { Effect, Match, Stream } from "effect";
+import { Multipart } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 
 import {
@@ -13,28 +13,9 @@ import {
   MyFmApi,
   ServiceUnavailableError,
 } from "../api/index.ts";
-import { MAX_FILE_SIZE_BYTES } from "../import/csv.ts";
 import { Imports } from "../import/service.ts";
 
 const GENERIC_SERVER_ERROR = "Something went wrong. Please try again.";
-
-type UploadedFile = {
-  readonly name: string;
-  readonly size: number;
-  arrayBuffer(): Promise<ArrayBuffer>;
-};
-
-function isUploadedFile(value: unknown): value is UploadedFile {
-  return (
-    Predicate.isObject(value) &&
-    "arrayBuffer" in value &&
-    Predicate.isFunction(value.arrayBuffer) &&
-    "name" in value &&
-    Predicate.isString(value.name) &&
-    "size" in value &&
-    Predicate.isNumber(value.size)
-  );
-}
 
 export const ImportHandlers = HttpApiBuilder.group(
   MyFmApi,
@@ -59,7 +40,7 @@ export const ImportHandlers = HttpApiBuilder.group(
           return { import: latest ?? null };
         }),
       )
-      .handle("upload", () =>
+      .handle("upload", ({ payload }) =>
         Effect.gen(function* () {
           const user = yield* CurrentUser;
 
@@ -76,40 +57,41 @@ export const ImportHandlers = HttpApiBuilder.group(
             }),
           );
 
-          const request = yield* HttpServerRequest.HttpServerRequest;
-          const contentLength = request.headers["content-length"];
+          let uploaded: { readonly filename: string; readonly bytes: Uint8Array } | undefined;
 
-          if (contentLength && Number(contentLength) > MAX_FILE_SIZE_BYTES) {
-            return yield* new ImportPayloadTooLargeError({
-              error: "File exceeds 10 MB limit",
-            });
-          }
+          yield* Stream.runForEach(payload, (part) => {
+            if (uploaded === undefined && Multipart.isFile(part) && part.key === "file") {
+              return Effect.map(part.contentEffect, (bytes) => {
+                uploaded = { filename: part.name, bytes };
+              });
+            }
 
-          const webRequest = yield* HttpServerRequest.toWeb(request).pipe(
-            Effect.mapError(() => new ImportBadRequestError({ error: "Invalid multipart body" })),
+            return Multipart.isFile(part) ? Stream.runDrain(part.content) : Effect.void;
+          }).pipe(
+            Effect.catchTag("MultipartError", (error) =>
+              Match.value(error.reason).pipe(
+                Match.tags({
+                  FileTooLarge: () =>
+                    Effect.fail(
+                      new ImportPayloadTooLargeError({ error: "File exceeds 10 MB limit" }),
+                    ),
+                  BodyTooLarge: () =>
+                    Effect.fail(
+                      new ImportPayloadTooLargeError({ error: "File exceeds 10 MB limit" }),
+                    ),
+                }),
+                Match.orElse(() =>
+                  Effect.fail(new ImportBadRequestError({ error: "Invalid multipart body" })),
+                ),
+              ),
+            ),
           );
 
-          const formData = yield* Effect.tryPromise({
-            try: () => webRequest.formData(),
-            catch: () => new ImportBadRequestError({ error: "Invalid multipart body" }),
-          });
-
-          const entry: unknown = formData.get("file");
-
-          if (!isUploadedFile(entry)) {
+          if (uploaded === undefined) {
             return yield* new ImportBadRequestError({ error: "Missing CSV file" });
           }
 
-          if (entry.size > MAX_FILE_SIZE_BYTES) {
-            return yield* new ImportPayloadTooLargeError({
-              error: "File exceeds 10 MB limit",
-            });
-          }
-
-          const bytes = yield* Effect.tryPromise({
-            try: () => entry.arrayBuffer(),
-            catch: () => new ImportBadRequestError({ error: "Invalid multipart body" }),
-          });
+          const { filename, bytes } = uploaded;
 
           const text = yield* Effect.try({
             try: () => new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes),
@@ -118,9 +100,9 @@ export const ImportHandlers = HttpApiBuilder.group(
 
           return yield* imports
             .acceptUpload(user.id, {
-              filename: entry.name,
+              filename,
               text,
-              bytes,
+              bytes: bytes.slice().buffer,
             })
             .pipe(
               Effect.catchTags({

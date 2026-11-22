@@ -1,8 +1,21 @@
 import { Schema, SchemaTransformation } from "effect";
+import { Multipart } from "effect/http";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 
+import { MAX_FILE_SIZE_BYTES } from "../import/csv.ts";
 import { RequireSessionMiddleware } from "./auth.ts";
 import { InternalServerApiError, ServiceUnavailableApiError } from "./errors.ts";
+
+const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
+
+export const ImportUploadPayload = Schema.Struct({
+  file: Multipart.SingleFileSchema,
+}).pipe(
+  HttpApiSchema.asMultipartStream({
+    maxFileSize: MAX_FILE_SIZE_BYTES,
+    maxTotalSize: MAX_FILE_SIZE_BYTES + MULTIPART_OVERHEAD_BYTES,
+  }),
+);
 
 export const ImportStatusSchema = Schema.Literals(["pending", "processing", "completed", "failed"]);
 
@@ -121,6 +134,7 @@ export class ImportGroup extends HttpApiGroup.make("import")
   )
   .add(
     HttpApiEndpoint.post("upload", "/import", {
+      payload: ImportUploadPayload,
       success: AcceptedImportResponse,
       error: [
         ImportBadRequestApiError,

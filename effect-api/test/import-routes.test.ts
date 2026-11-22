@@ -326,4 +326,64 @@ describe("CSV import HTTP routes", () => {
     expect(latestBody.import?.status).toBe("failed");
     expect(latestBody.import?.error).toContain("repeated metadata batch errors");
   });
+
+  test("returns 400 when multipart upload is missing the file part", async () => {
+    const { cookie } = await signIn({ id: "sp-imp-10", email: "imp10@example.com" });
+
+    const form = new FormData();
+
+    form.append("file", "not-a-file");
+
+    const res = await worker.fetch(
+      new Request(`${baseUrl}/api/import`, {
+        method: "POST",
+        headers: { cookie },
+        body: form,
+      }),
+      env,
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Missing CSV file" });
+  });
+
+  test("returns 400 when upload body is not valid multipart", async () => {
+    const { cookie } = await signIn({ id: "sp-imp-11", email: "imp11@example.com" });
+
+    const res = await worker.fetch(
+      new Request(`${baseUrl}/api/import`, {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "multipart/form-data",
+        },
+        body: "not-a-multipart-body",
+      }),
+      env,
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid multipart body" });
+  });
+
+  test("returns 413 when uploaded file exceeds 10 MB limit", async () => {
+    const { cookie } = await signIn({ id: "sp-imp-12", email: "imp12@example.com" });
+
+    const oversized = new Uint8Array(10 * 1024 * 1024 + 1);
+    const form = new FormData();
+
+    form.append("file", new File([oversized], "huge.csv", { type: "text/csv" }));
+
+    const res = await worker.fetch(
+      new Request(`${baseUrl}/api/import`, {
+        method: "POST",
+        headers: { cookie },
+        body: form,
+      }),
+      env,
+    );
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "File exceeds 10 MB limit" });
+  });
 });
