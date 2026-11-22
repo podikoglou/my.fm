@@ -154,7 +154,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                   Effect.catchTags({
                     UserNotFoundError: () => Effect.succeed(toolError("User not found")),
                     D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                    D1QueryError: (err) => Effect.succeed(toolError(String(err.cause))),
+                    D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
                   }),
                 ),
               );
@@ -181,7 +181,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                     UserNotFoundError: () => Effect.succeed(toolError("User not found")),
                     ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
                     D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                    D1QueryError: (err) => Effect.succeed(toolError(String(err.cause))),
+                    D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
                   }),
                 );
               });
@@ -213,7 +213,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                       UserNotFoundError: () => Effect.succeed(toolError("User not found")),
                       ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
                       D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(String(err.cause))),
+                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
                     }),
                   ),
               );
@@ -243,7 +243,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                       UserNotFoundError: () => Effect.succeed(toolError("User not found")),
                       ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
                       D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(String(err.cause))),
+                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
                     }),
                   ),
               );
@@ -278,7 +278,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                     Effect.catchTags({
                       InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
                       D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(String(err.cause))),
+                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
                     }),
                   ),
               );
