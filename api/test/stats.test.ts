@@ -167,6 +167,27 @@ describe("profile stats", () => {
     });
   });
 
+  test("counts plays in the range when none of them has an album", async () => {
+    const db = await seed();
+
+    await db.insert(scrobbles).values({
+      id: "bare",
+      userId,
+      trackName: "Bare Song",
+      scrobbleDate: new Date("2026-05-01T00:00:00Z"),
+    });
+
+    const since = seconds("2026-05-01T00:00:00Z");
+    const response = await get(`getTop?username=alex&kind=albums&since=${since}`);
+
+    expect(await response.json()).toEqual({
+      kind: "albums",
+      totalScrobbles: 1,
+      distinct: 0,
+      items: [],
+    });
+  });
+
   test("summarises the library envelope and taste", async () => {
     await seed();
 

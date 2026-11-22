@@ -26,10 +26,16 @@ export type TopEntityRow = {
   firstPlayed: number;
   /** Unix seconds. */
   lastPlayed: number;
-  /** Every scrobble in the range, including ones without this kind of entity. */
-  total: number;
   /** Distinct entities of this kind in the range. */
   distinct: number;
+};
+
+type NullableRow<T> = { [K in keyof T]: T[K] | null };
+
+export type RankedEntities = {
+  /** Every scrobble in the range, including ones without an entity of a kind. */
+  total: number;
+  rows: TopEntityRow[];
 };
 
 /**
@@ -99,11 +105,11 @@ function entitiesOf(kind: TopKind): SQL {
 export async function findTopEntities(
   db: DrizzleDatabase,
   userId: User["id"],
-  { kinds, limit, since, until }: ScrobbleRange & { kinds: ReadonlyArray<TopKind>; limit: number },
-): Promise<TopEntityRow[]> {
-  if (kinds.length === 0) return [];
-
-  return db.all<TopEntityRow>(sql`
+  { kinds, limit, since, until }: ScrobbleRange & { kinds: readonly [TopKind, ...TopKind[]]; limit: number },
+): Promise<RankedEntities> {
+  // The totals row joins every ranked row, and stands alone when nothing ranks,
+  // so the play total survives a range without any entity of these kinds.
+  const rows = await db.all<{ total: number } & NullableRow<TopEntityRow>>(sql`
     WITH plays AS MATERIALIZED (
       SELECT ${scrobbles.trackSpotifyUri} AS trackUri, ${scrobbles.albumSpotifyUri} AS albumUri,
         ${scrobbles.artistName} AS artistName, ${scrobbles.albumName} AS albumName,
@@ -123,12 +129,17 @@ export async function findTopEntities(
         count(*) OVER (PARTITION BY kind) AS "distinct"
       FROM entities
     )
-    SELECT kind, name, artist, spotifyUri, plays, firstPlayed, lastPlayed,
-      (SELECT sum(plays) FROM plays) AS total, "distinct"
-    FROM ranked
-    WHERE rank <= ${limit}
-    ORDER BY kind, rank
+    SELECT totals.total, ranked.kind, ranked.name, ranked.artist, ranked.spotifyUri,
+      ranked.plays, ranked.firstPlayed, ranked.lastPlayed, ranked."distinct"
+    FROM (SELECT coalesce(sum(plays), 0) AS total FROM plays) AS totals
+    LEFT JOIN ranked ON ranked.rank <= ${limit}
+    ORDER BY ranked.kind, ranked.rank
   `);
+
+  return {
+    total: rows[0]?.total ?? 0,
+    rows: rows.filter((row): row is { total: number } & TopEntityRow => row.kind !== null),
+  };
 }
 
 /** Unix-second ranges, each `[since, until)`. */

@@ -10,7 +10,7 @@ import {
   countScrobblesInRanges,
   findScrobblesAtPoints,
   findTopEntities,
-  type TopEntityRow,
+  type RankedEntities,
   type TopKind,
 } from "../db/queries/stats.ts";
 import { Db } from "../db/service.ts";
@@ -101,9 +101,11 @@ export interface StatsApi {
   ) => Effect.Effect<SampledPlay[], ProfileError>;
 }
 
-function toTopEntities(kind: TopKind, allRows: TopEntityRow[]): TopEntities {
+function toTopEntities(
+  kind: TopKind,
+  { total: totalScrobbles, rows: allRows }: RankedEntities,
+): TopEntities {
   const rows = allRows.filter((row) => row.kind === kind);
-  const totalScrobbles = allRows[0]?.total ?? 0;
 
   return {
     kind,
