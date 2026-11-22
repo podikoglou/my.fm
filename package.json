@@ -6,7 +6,7 @@
     "worker-api/"
   ],
   "scripts": {
-    "prepare": "effect-tsgo patch --no-typescript --oxlint --tsrs",
+    "prepare": "effect-tsgo patch --no-typescript --oxlint --tsrs --skip-missing",
     "build": "turbo build",
     "dev": "alchemy dev",
     "dev:proxy": "caddy run --config Caddyfile",
