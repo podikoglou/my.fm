@@ -6,6 +6,7 @@ import { ImportGroup } from "./import.ts";
 import { NotificationsGroup } from "./notifications.ts";
 import { OAuthGroup } from "./oauth.ts";
 import { ScrobbleGroup } from "./scrobble.ts";
+import { StatsGroup } from "./stats.ts";
 import { UserGroup } from "./user.ts";
 
 export {
@@ -16,6 +17,7 @@ export {
   PublicReadRateLimitMiddleware,
   RequireSessionMiddleware,
   SessionUserSchema,
+  StatsRateLimitMiddleware,
   type OptionalSessionValue,
   type SessionUser,
 } from "./auth.ts";
@@ -92,6 +94,15 @@ export {
 } from "./scrobble.ts";
 
 export {
+  StatsGroup,
+  SummarySchema,
+  TimelineSchema,
+  TopEntitiesSchema,
+  TopItemSchema,
+  SampledPlaySchema,
+} from "./stats.ts";
+
+export {
   OnboardInput,
   OnboardResponse,
   PublicUserSchema,
@@ -112,6 +123,7 @@ export class MyFmApi extends HttpApi.make("my-fm")
   .add(HealthGroup)
   .add(UserGroup)
   .add(ScrobbleGroup)
+  .add(StatsGroup)
   .add(FeedGroup)
   .add(NotificationsGroup)
   .add(ImportGroup)

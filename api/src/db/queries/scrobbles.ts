@@ -1,6 +1,6 @@
 import type { BatchItem } from "drizzle-orm/batch";
 
-import { and, eq, isNotNull, max, min, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lt, max, min, sql } from "drizzle-orm";
 
 import type { DrizzleDatabase } from "../service.ts";
 
@@ -512,15 +512,28 @@ export async function findPublicFeed(
   });
 }
 
-export async function countScrobblesByMonth(
+export type ScrobbleRange = {
+  /** Unix seconds, inclusive. */
+  since?: number;
+  /** Unix seconds, exclusive. */
+  until?: number;
+};
+
+/** The first and last play time of a user's scrobbles inside `range`. */
+export async function findScrobbleEdges(
   db: DrizzleDatabase,
   userId: User["id"],
-  { timeZone }: { timeZone: string },
-): Promise<MonthlyScrobbleCount[]> {
-  const where = and(eq(scrobbles.userId, userId), isNotNull(scrobbles.scrobbleDate));
+  { since, until }: ScrobbleRange = {},
+): Promise<{ earliest: Date; latest: Date } | null> {
+  const where = and(
+    eq(scrobbles.userId, userId),
+    isNotNull(scrobbles.scrobbleDate),
+    since === undefined ? undefined : gte(scrobbles.scrobbleDate, new Date(since * 1000)),
+    until === undefined ? undefined : lt(scrobbles.scrobbleDate, new Date(until * 1000)),
+  );
 
   // SQLite seeks the index edge only for a statement with a single min() or
-  // max(). Asking for both in one select reads every scrobble of the user.
+  // max(). Asking for both in one select reads every scrobble in the range.
   const [[earliest], [latest]] = await db.batch([
     db
       .select({ date: min(scrobbles.scrobbleDate) })
@@ -532,9 +545,21 @@ export async function countScrobblesByMonth(
       .where(where),
   ]);
 
-  if (!earliest?.date || !latest?.date) return [];
+  if (!earliest?.date || !latest?.date) return null;
 
-  const months = monthsBetween(earliest.date, latest.date, timeZone);
+  return { earliest: earliest.date, latest: latest.date };
+}
+
+export async function countScrobblesByMonth(
+  db: DrizzleDatabase,
+  userId: User["id"],
+  { timeZone }: { timeZone: string },
+): Promise<MonthlyScrobbleCount[]> {
+  const edges = await findScrobbleEdges(db, userId);
+
+  if (!edges) return [];
+
+  const months = monthsBetween(edges.earliest, edges.latest, timeZone);
 
   const bounds = sql.join(
     months.map(({ month, start }, index) =>

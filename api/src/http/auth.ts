@@ -9,11 +9,12 @@ import {
   PublicReadRateLimitMiddleware,
   RequireSessionMiddleware,
   ServiceUnavailableError,
+  StatsRateLimitMiddleware,
 } from "../api/index.ts";
 import { AuthService } from "../auth/service.ts";
 import { getD1QuotaError } from "../db/errors.ts";
 import { RateLimiter } from "../rate-limit/service.ts";
-import { RATE_LIMITS } from "../rate-limits.ts";
+import { RATE_LIMITS, type RateLimitBindingName } from "../rate-limits.ts";
 import { Users } from "../users/service.ts";
 import { rateLimitMiddleware } from "./middleware.ts";
 
@@ -87,18 +88,17 @@ export const RequireSessionMiddlewareLive = Layer.effect(
   }),
 );
 
-export const PublicReadRateLimitMiddlewareLive = Layer.effect(
-  PublicReadRateLimitMiddleware,
-  Effect.gen(function* () {
+function ipRateLimit(policy: RateLimitBindingName) {
+  return Effect.gen(function* () {
     const rateLimiter = yield* RateLimiter;
-    const { period } = RATE_LIMITS.PUBLIC_READ_RATE_LIMIT;
+    const { period } = RATE_LIMITS[policy];
 
-    return (httpEffect) =>
+    return <A, E, R>(httpEffect: Effect.Effect<A | HttpServerResponse.HttpServerResponse, E, R>) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
         const ip = request.headers["cf-connecting-ip"] ?? "unknown";
 
-        const allowed = yield* rateLimiter.check("PUBLIC_READ_RATE_LIMIT", ip).pipe(
+        const allowed = yield* rateLimiter.check(policy, ip).pipe(
           Effect.as(true),
           Effect.catchTag("RateLimitExceededError", () => Effect.succeed(false)),
           Effect.orDie,
@@ -116,39 +116,22 @@ export const PublicReadRateLimitMiddlewareLive = Layer.effect(
 
         return yield* httpEffect;
       });
-  }),
+  });
+}
+
+export const PublicReadRateLimitMiddlewareLive = Layer.effect(
+  PublicReadRateLimitMiddleware,
+  ipRateLimit("PUBLIC_READ_RATE_LIMIT"),
+);
+
+export const StatsRateLimitMiddlewareLive = Layer.effect(
+  StatsRateLimitMiddleware,
+  ipRateLimit("STATS_RATE_LIMIT"),
 );
 
 export const AuthRateLimitMiddlewareLive = Layer.effect(
   AuthRateLimitMiddleware,
-  Effect.gen(function* () {
-    const rateLimiter = yield* RateLimiter;
-    const { period } = RATE_LIMITS.AUTH_RATE_LIMIT;
-
-    return (httpEffect) =>
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest;
-        const ip = request.headers["cf-connecting-ip"] ?? "unknown";
-
-        const allowed = yield* rateLimiter.check("AUTH_RATE_LIMIT", ip).pipe(
-          Effect.as(true),
-          Effect.catchTag("RateLimitExceededError", () => Effect.succeed(false)),
-          Effect.orDie,
-        );
-
-        if (!allowed) {
-          return HttpServerResponse.jsonUnsafe(
-            { error: "Too many requests" },
-            {
-              status: 429,
-              headers: { "retry-after": String(period) },
-            },
-          );
-        }
-
-        return yield* httpEffect;
-      });
-  }),
+  ipRateLimit("AUTH_RATE_LIMIT"),
 );
 
 /**

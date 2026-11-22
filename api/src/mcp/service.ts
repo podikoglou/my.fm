@@ -4,8 +4,17 @@ import { Context, Effect, Layer, Predicate, Result, Schema } from "effect";
 
 import { TimeZoneSchema } from "../api/scrobble.ts";
 import { NanoidSchema } from "../api/validators.ts";
+import {
+  DEFAULT_SAMPLE_SIZE,
+  DEFAULT_TOP_LIMIT,
+  StatsInputSchemas,
+  TimelineBucketSchema,
+  TopKindSchema,
+} from "../api/stats.ts";
 import { RateLimiter } from "../rate-limit/service.ts";
+import type { RateLimitBindingName } from "../rate-limits.ts";
 import { Scrobbles } from "../scrobbles/service.ts";
+import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 
 const TOOL_ANNOTATIONS = {
@@ -43,6 +52,40 @@ const GetPublicFeedInputSchema = Schema.Struct({
   cursor: Schema.optional(Schema.String),
   limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 50 }))),
 });
+
+const StatsRangeFields = {
+  since: Schema.optional(StatsInputSchemas.unixSeconds),
+  until: Schema.optional(StatsInputSchemas.unixSeconds),
+};
+
+const GetSummaryInputSchema = Schema.Struct({
+  username: Schema.String,
+  ...StatsRangeFields,
+});
+
+const GetTopInputSchema = Schema.Struct({
+  username: Schema.String,
+  kind: TopKindSchema,
+  limit: Schema.optional(StatsInputSchemas.topLimit),
+  ...StatsRangeFields,
+});
+
+const GetTimelineInputSchema = Schema.Struct({
+  username: Schema.String,
+  bucket: TimelineBucketSchema,
+  timeZone: Schema.optional(TimeZoneSchema),
+  ...StatsRangeFields,
+});
+
+const GetSampleInputSchema = Schema.Struct({
+  username: Schema.String,
+  size: Schema.optional(StatsInputSchemas.sampleSize),
+  seed: Schema.optional(StatsInputSchemas.sampleSeed),
+  ...StatsRangeFields,
+});
+
+const RANGE_HINT =
+  "Optional since/until are Unix seconds bounding the scrobbles considered (until is exclusive).";
 
 function toToolInputSchema(schema: Schema.Top): Tool["inputSchema"] {
   const doc = Schema.toJsonSchemaDocument(schema);
@@ -82,6 +125,30 @@ const MCP_TOOLS: ReadonlyArray<Tool> = [
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetPublicFeedInputSchema),
   },
+  {
+    name: "get_summary",
+    description: `Quick taste profile and library envelope: total scrobbles, first and last play, distinct artists, albums and tracks, and the top five of each. ${RANGE_HINT}`,
+    annotations: TOOL_ANNOTATIONS,
+    inputSchema: toToolInputSchema(GetSummaryInputSchema),
+  },
+  {
+    name: "get_top",
+    description: `Ranked artists, albums, or tracks with play count, share of all scrobbles, and first/last seen in the range. An artist is the lead credited artist. limit defaults to 10. ${RANGE_HINT}`,
+    annotations: TOOL_ANNOTATIONS,
+    inputSchema: toToolInputSchema(GetTopInputSchema),
+  },
+  {
+    name: "get_timeline",
+    description: `Play counts per day, week (starting Monday), month, or year in a time zone (default UTC), from the first to the last scrobble, with the longest runs of empty buckets as gaps. At most 400 buckets per call. ${RANGE_HINT}`,
+    annotations: TOOL_ANNOTATIONS,
+    inputSchema: toToolInputSchema(GetTimelineInputSchema),
+  },
+  {
+    name: "get_sample",
+    description: `Stratified historical sample: splits the history into size (default 20) equal time slices and returns one play from each, so every era is represented. The same seed returns the same sample. ${RANGE_HINT}`,
+    annotations: TOOL_ANNOTATIONS,
+    inputSchema: toToolInputSchema(GetSampleInputSchema),
+  },
 ];
 
 function toolError(message: string): CallToolResult {
@@ -97,6 +164,10 @@ const decodeGetUserInput = Schema.decodeUnknownEffect(GetUserInputSchema);
 const decodeGetRecentScrobblesInput = Schema.decodeUnknownEffect(GetRecentScrobblesInputSchema);
 const decodeGetScrobbleMonthsInput = Schema.decodeUnknownEffect(GetScrobbleMonthsInputSchema);
 const decodeGetPublicFeedInput = Schema.decodeUnknownEffect(GetPublicFeedInputSchema);
+const decodeGetSummaryInput = Schema.decodeUnknownEffect(GetSummaryInputSchema);
+const decodeGetTopInput = Schema.decodeUnknownEffect(GetTopInputSchema);
+const decodeGetTimelineInput = Schema.decodeUnknownEffect(GetTimelineInputSchema);
+const decodeGetSampleInput = Schema.decodeUnknownEffect(GetSampleInputSchema);
 
 export interface McpServiceApi {
   readonly listTools: () => ReadonlyArray<Tool>;
@@ -109,20 +180,22 @@ export interface McpServiceApi {
 export class McpService extends Context.Service<McpService, McpServiceApi>()(
   "@my.fm/api/mcp/McpService",
 ) {
-  static readonly layer: Layer.Layer<McpService, never, Users | Scrobbles | RateLimiter> =
+  static readonly layer: Layer.Layer<McpService, never, Users | Scrobbles | Stats | RateLimiter> =
     Layer.effect(
       McpService,
       Effect.gen(function* () {
         const users = yield* Users;
         const scrobbles = yield* Scrobbles;
+        const stats = yield* Stats;
         const rateLimiter = yield* RateLimiter;
 
-        const withRateLimit = (
+        const withPolicy = (
+          policy: RateLimitBindingName,
           userId: string,
           run: () => Effect.Effect<CallToolResult>,
         ): Effect.Effect<CallToolResult> =>
           Effect.gen(function* () {
-            const allowed = yield* rateLimiter.check("PUBLIC_READ_RATE_LIMIT", userId).pipe(
+            const allowed = yield* rateLimiter.check(policy, userId).pipe(
               Effect.as(true),
               Effect.catchTag("RateLimitExceededError", () => Effect.succeed(false)),
               Effect.orDie,
@@ -134,6 +207,21 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
 
             return yield* run();
           });
+
+        const withRateLimit = (userId: string, run: () => Effect.Effect<CallToolResult>) =>
+          withPolicy("PUBLIC_READ_RATE_LIMIT", userId, run);
+
+        const withStatsRateLimit = (userId: string, run: () => Effect.Effect<CallToolResult>) =>
+          withRateLimit(userId, () => withPolicy("STATS_RATE_LIMIT", userId, run));
+
+        const profileErrors = {
+          UserNotFoundError: () => Effect.succeed(toolError("User not found")),
+          ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
+          D1QuotaExceededError: (err: { readonly message: string }) =>
+            Effect.succeed(toolError(err.message)),
+          D1QueryError: (err: { readonly description: { readonly message: string } }) =>
+            Effect.succeed(toolError(err.description.message)),
+        };
 
         const callTool = Effect.fn("McpService.callTool")(function* (
           userId: string,
@@ -289,6 +377,75 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                       D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
                     }),
                   ),
+              );
+            }
+
+            case "get_summary": {
+              const decoded = yield* decodeGetSummaryInput(rawArgs).pipe(Effect.result);
+
+              if (Result.isFailure(decoded)) {
+                return toolError(String(decoded.failure));
+              }
+
+              return yield* withStatsRateLimit(userId, () =>
+                stats
+                  .getSummary(decoded.success, userId)
+                  .pipe(Effect.map(toolData), Effect.catchTags(profileErrors)),
+              );
+            }
+
+            case "get_top": {
+              const decoded = yield* decodeGetTopInput(rawArgs).pipe(Effect.result);
+
+              if (Result.isFailure(decoded)) {
+                return toolError(String(decoded.failure));
+              }
+
+              const input = decoded.success;
+
+              return yield* withStatsRateLimit(userId, () =>
+                stats
+                  .getTop({ ...input, limit: input.limit ?? DEFAULT_TOP_LIMIT }, userId)
+                  .pipe(Effect.map(toolData), Effect.catchTags(profileErrors)),
+              );
+            }
+
+            case "get_timeline": {
+              const decoded = yield* decodeGetTimelineInput(rawArgs).pipe(Effect.result);
+
+              if (Result.isFailure(decoded)) {
+                return toolError(String(decoded.failure));
+              }
+
+              const input = decoded.success;
+
+              return yield* withStatsRateLimit(userId, () =>
+                stats.getTimeline({ ...input, timeZone: input.timeZone ?? "UTC" }, userId).pipe(
+                  Effect.map(toolData),
+                  Effect.catchTags({
+                    ...profileErrors,
+                    TimelineTooLongError: (err) => Effect.succeed(toolError(err.message)),
+                  }),
+                ),
+              );
+            }
+
+            case "get_sample": {
+              const decoded = yield* decodeGetSampleInput(rawArgs).pipe(Effect.result);
+
+              if (Result.isFailure(decoded)) {
+                return toolError(String(decoded.failure));
+              }
+
+              const input = decoded.success;
+
+              return yield* withStatsRateLimit(userId, () =>
+                stats
+                  .getSample(
+                    { ...input, size: input.size ?? DEFAULT_SAMPLE_SIZE, seed: input.seed ?? 0 },
+                    userId,
+                  )
+                  .pipe(Effect.map(toolData), Effect.catchTags(profileErrors)),
               );
             }
 

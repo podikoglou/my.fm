@@ -37,6 +37,7 @@ function rateLimitResource(name: RateLimitBindingName) {
 
 export const AuthRateLimit = rateLimitResource("AUTH_RATE_LIMIT");
 export const PublicReadRateLimit = rateLimitResource("PUBLIC_READ_RATE_LIMIT");
+export const StatsRateLimit = rateLimitResource("STATS_RATE_LIMIT");
 
 /**
  * Effectful Alchemy Cloudflare Worker definition.
@@ -72,12 +73,14 @@ export default class Worker extends Cloudflare.Workers.Worker<Worker>()(
     // binding as its `name` arg crashes, since `props` is then undefined.
     const authLimiter = yield* AuthRateLimit;
     const publicReadLimiter = yield* PublicReadRateLimit;
+    const statsLimiter = yield* StatsRateLimit;
 
     const makeInfraLayer = Effect.gen(function* () {
       const rawDb = yield* dbClient.raw;
       const rawBucket = yield* importsBucket.raw;
       const rawAuthLimiter = yield* authLimiter.raw;
       const rawPublicReadLimiter = yield* publicReadLimiter.raw;
+      const rawStatsLimiter = yield* statsLimiter.raw;
       const betterAuthSecret = yield* Config.String("BETTER_AUTH_SECRET").pipe(Effect.orDie);
       const spotifyClientId = yield* Config.String("SPOTIFY_CLIENT_ID").pipe(Effect.orDie);
 
@@ -92,6 +95,7 @@ export default class Worker extends Cloudflare.Workers.Worker<Worker>()(
         RateLimiter.layerFromBindings({
           AUTH_RATE_LIMIT: rawAuthLimiter,
           PUBLIC_READ_RATE_LIMIT: rawPublicReadLimiter,
+          STATS_RATE_LIMIT: rawStatsLimiter,
         }),
         AuthConfig.layer({
           betterAuthSecret,
