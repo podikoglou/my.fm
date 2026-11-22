@@ -4,6 +4,7 @@ import { Layer } from "effect";
 
 import type { RateLimitBinding } from "./rate-limits.ts";
 
+import { AuthConfig } from "./auth/service.ts";
 import { Db } from "./db/service.ts";
 import { type AppServices, handleWebRequest } from "./http/app.ts";
 import { RateLimiter } from "./rate-limit/service.ts";
@@ -15,6 +16,9 @@ export type WorkerBindings = {
   readonly OAUTH_KV: KVNamespace;
   readonly AUTH_RATE_LIMIT: RateLimitBinding;
   readonly PUBLIC_READ_RATE_LIMIT: RateLimitBinding;
+  readonly BETTER_AUTH_SECRET: string;
+  readonly SPOTIFY_CLIENT_ID: string;
+  readonly SPOTIFY_CLIENT_SECRET: string;
 };
 
 /**
@@ -31,6 +35,11 @@ export function makeWorkerInfraLayer(env: WorkerBindings): Layer.Layer<AppServic
     RateLimiter.layerFromBindings({
       AUTH_RATE_LIMIT: env.AUTH_RATE_LIMIT,
       PUBLIC_READ_RATE_LIMIT: env.PUBLIC_READ_RATE_LIMIT,
+    }),
+    AuthConfig.layer({
+      betterAuthSecret: env.BETTER_AUTH_SECRET,
+      spotifyClientId: env.SPOTIFY_CLIENT_ID,
+      spotifyClientSecret: env.SPOTIFY_CLIENT_SECRET,
     }),
   );
 }
