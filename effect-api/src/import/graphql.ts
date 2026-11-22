@@ -151,13 +151,13 @@ export function extractResolvedMetadata(
     trackSpotifyUri: spotifyUrlToUri(track.spotifyUrl),
     albumSpotifyUri: spotifyUrlToUri(track.album?.spotifyUrl),
     artistSpotifyUri: spotifyUrlToUri(track.artist?.spotifyUrl),
-    artistName: track.artist?.name ?? rawArtist,
-    albumName: track.album?.title ?? rawAlbum,
-    trackName: track.title ?? rawTitle,
+    artistName: track.artist?.name || rawArtist,
+    albumName: track.album?.title || rawAlbum,
+    trackName: track.title || rawTitle,
     coverArtUrl,
-    artistImageUrl: track.artist?.imageUrl ?? null,
-    albumReleaseDate: track.album?.releaseDate ?? "",
-    albumType: track.album?.type ?? "album",
+    artistImageUrl: track.artist?.imageUrl || null,
+    albumReleaseDate: track.album?.releaseDate || "",
+    albumType: track.album?.type || "album",
   };
 }
 
