@@ -1,21 +1,17 @@
 import { useInfiniteQuery, type InfiniteData } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { parseResponse } from "hono/client";
 import { ListMusic } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { apiClient } from "~/lib/api";
+import { publicApiClient, runApi } from "~/lib/api";
 
 import { ErrorCard } from "./error-card";
 import { FeedTrack } from "./feed-track-card";
 
 function fetchFeedPage(cursor: string | null) {
-  return parseResponse(
-    apiClient.feed.$get(
-      { query: cursor ? { cursor } : {} },
-      // The feed is the same for every viewer, so do not send a session.
-      { init: { credentials: "omit" } },
-    ),
+  return runApi(
+    // The feed is the same for every viewer, so do not send a session.
+    publicApiClient.feed.getFeed({ query: cursor ? { cursor } : {} }),
   );
 }
 

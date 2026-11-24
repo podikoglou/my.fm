@@ -1,17 +1,42 @@
-import { DetailedError } from "hono/client";
-import { z } from "zod";
+import {
+  ImportBadRequestError,
+  ImportConflictError,
+  ImportPayloadTooLargeError,
+  ImportTooManyRequestsError,
+  ImportUnprocessableError,
+  InternalServerError,
+  ServiceUnavailableError,
+} from "@my.fm/api";
+import { HttpClientError } from "effect/http";
 
-const errorResponseSchema = z.object({
-  data: z.object({ error: z.string().optional() }).optional(),
-});
+function isImportApiError(
+  error: Error,
+): error is
+  | ImportBadRequestError
+  | ImportConflictError
+  | ImportPayloadTooLargeError
+  | ImportTooManyRequestsError
+  | ImportUnprocessableError
+  | InternalServerError
+  | ServiceUnavailableError {
+  return (
+    error instanceof ImportBadRequestError ||
+    error instanceof ImportConflictError ||
+    error instanceof ImportPayloadTooLargeError ||
+    error instanceof ImportTooManyRequestsError ||
+    error instanceof ImportUnprocessableError ||
+    error instanceof InternalServerError ||
+    error instanceof ServiceUnavailableError
+  );
+}
 
 export function importErrorMessage(error: Error): string {
-  if (error instanceof DetailedError) {
-    const parsed = errorResponseSchema.safeParse(error.detail);
+  if (isImportApiError(error)) {
+    return error.error || "Import failed. Please try again.";
+  }
 
-    return (
-      (parsed.success ? parsed.data.data?.error : undefined) ?? "Import failed. Please try again."
-    );
+  if (HttpClientError.isHttpClientError(error) && error.reason._tag === "StatusCodeError") {
+    return "Import failed. Please try again.";
   }
 
   return "Network error during upload.";

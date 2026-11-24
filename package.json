@@ -2,8 +2,7 @@
   "name": "my.fm",
   "workspaces": [
     "app/",
-    "effect-api/",
-    "worker-api/"
+    "api/"
   ],
   "scripts": {
     "prepare": "effect-tsgo patch --no-typescript --oxlint --tsrs --skip-missing",

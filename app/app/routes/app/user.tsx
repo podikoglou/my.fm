@@ -1,5 +1,6 @@
+import { ProfilePrivateApiError } from "@my.fm/api";
 import { useQuery } from "@tanstack/react-query";
-import { DetailedError, parseResponse } from "hono/client";
+import { Schema } from "effect";
 import { Lock, Settings, UserX } from "lucide-react";
 import { Link, Navigate, useLocation } from "react-router";
 
@@ -8,11 +9,13 @@ import { Button, buttonVariants } from "~/components/ui/button";
 import { CardHeader, CardContent } from "~/components/ui/card";
 import { UserAvatar } from "~/components/user-avatar";
 import { UserTrackList } from "~/components/user-track-list";
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 import { authClient } from "~/lib/auth";
 import { signInWithSpotify } from "~/lib/auth-guard";
 
 import type { Route } from "./+types/user";
+
+const isProfilePrivateError = Schema.is(ProfilePrivateApiError);
 
 export async function clientLoader({ params }: Route.LoaderArgs) {
   return params;
@@ -24,14 +27,14 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
 
   const { data, error } = useQuery({
     queryKey: ["user", username],
-    queryFn: () => parseResponse(apiClient.user.byUsername.$get({ query: { username } })),
+    queryFn: () => runApi(apiClient.user.byUsername({ query: { username } })),
     retry: false,
   });
 
   // The API answers 401 without a session, so ask only when there is one.
   const { data: me } = useQuery({
     queryKey: ["user", "me"],
-    queryFn: () => parseResponse(apiClient.user.me.$get()),
+    queryFn: () => runApi(apiClient.user.me()),
     enabled: Boolean(session),
   });
 
@@ -45,7 +48,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
   }
 
   if (error) {
-    if (error instanceof DetailedError && error.statusCode === 403) {
+    if (isProfilePrivateError(error)) {
       return (
         <ErrorCard
           Icon={Lock}

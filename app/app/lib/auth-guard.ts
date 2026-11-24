@@ -1,6 +1,4 @@
-import { parseResponse } from "hono/client";
-
-import { apiClient } from "./api";
+import { apiClient, runApi } from "./api";
 import { authClient } from "./auth";
 import { AUTH_ERROR_PATH } from "./auth-paths";
 import { queryClient } from "./query";
@@ -25,7 +23,7 @@ export async function requireAuth(callbackURL: string) {
   try {
     const data = await queryClient.fetchQuery({
       queryKey: ["user", "me"],
-      queryFn: () => parseResponse(apiClient.user.me.$get()),
+      queryFn: () => runApi(apiClient.user.me()),
     });
 
     return { session: session.data, user: data };

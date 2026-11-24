@@ -1,15 +1,14 @@
 import { useMutation } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 import { type ChangeEvent, useRef } from "react";
 
-import { apiClient } from "~/lib/api";
+import { runApi, uploadImportFile } from "~/lib/api";
 import { queryClient } from "~/lib/query";
 
 export function useImportUpload() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const uploadImport = useMutation({
-    mutationFn: (file: File) => parseResponse(apiClient.import.$post({ form: { file } })),
+    mutationFn: (file: File) => runApi(uploadImportFile(file)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["import", "latest"] });
     },

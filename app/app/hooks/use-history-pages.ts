@@ -1,17 +1,16 @@
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
 
-import { apiClient } from "~/lib/api";
+import { apiClient, runApi } from "~/lib/api";
 import { type HistoryPage, type Month, PAGE_SIZE, rowAddress } from "~/lib/history-timeline";
 
 function fetchHistoryPage(username: string, { month, page }: HistoryPage) {
-  return parseResponse(
-    apiClient.scrobble.getRecent.$get({
+  return runApi(
+    apiClient.scrobble.getRecent({
       query: {
         username,
-        before: String(month.before),
-        offset: String(page * PAGE_SIZE),
-        limit: String(PAGE_SIZE),
+        before: month.before,
+        offset: page * PAGE_SIZE,
+        limit: PAGE_SIZE,
       },
     }),
   );

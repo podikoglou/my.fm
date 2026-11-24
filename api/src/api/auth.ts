@@ -1,0 +1,63 @@
+import { Context, Schema } from "effect";
+import { HttpApiMiddleware } from "effect/http-api";
+
+import { ServiceUnavailableApiError, UnauthorizedApiError } from "./errors.ts";
+
+export const SessionUserSchema = Schema.Struct({
+  id: Schema.String,
+  username: Schema.String,
+  name: Schema.String,
+  email: Schema.String,
+  avatarUrl: Schema.NullOr(Schema.String),
+  onboarded: Schema.NullOr(Schema.Boolean),
+  isPrivate: Schema.Boolean,
+});
+
+export type SessionUser = typeof SessionUserSchema.Type;
+
+export interface OptionalSessionValue {
+  readonly userId: string;
+}
+
+export class OptionalSession extends Context.Service<
+  OptionalSession,
+  OptionalSessionValue | null
+>()("@my.fm/api/api/OptionalSession") {}
+
+export class CurrentUser extends Context.Service<CurrentUser, SessionUser>()(
+  "@my.fm/api/api/CurrentUser",
+) {}
+
+export class OptionalSessionMiddleware extends HttpApiMiddleware.Service<
+  OptionalSessionMiddleware,
+  {
+    provides: OptionalSession;
+    requires: never;
+  }
+>()("@my.fm/api/api/OptionalSessionMiddleware") {}
+
+export class RequireSessionMiddleware extends HttpApiMiddleware.Service<
+  RequireSessionMiddleware,
+  {
+    provides: CurrentUser;
+    requires: never;
+  }
+>()("@my.fm/api/api/RequireSessionMiddleware", {
+  error: [UnauthorizedApiError, ServiceUnavailableApiError],
+}) {}
+
+export class PublicReadRateLimitMiddleware extends HttpApiMiddleware.Service<
+  PublicReadRateLimitMiddleware,
+  {
+    provides: never;
+    requires: never;
+  }
+>()("@my.fm/api/api/PublicReadRateLimitMiddleware") {}
+
+export class AuthRateLimitMiddleware extends HttpApiMiddleware.Service<
+  AuthRateLimitMiddleware,
+  {
+    provides: never;
+    requires: never;
+  }
+>()("@my.fm/api/api/AuthRateLimitMiddleware") {}

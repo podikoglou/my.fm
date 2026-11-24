@@ -16,7 +16,7 @@ export function FeedTrack({
     name: string;
     imageUrl: string;
     spotifyUri?: string;
-    artists: { name: string; spotifyUri?: string }[];
+    artists: readonly { readonly name: string; readonly spotifyUri?: string }[];
   };
   album?: {
     name?: string;

@@ -1,12 +1,10 @@
-import { parseResponse } from "hono/client";
-
-import { apiClient } from "./api";
+import { apiClient, runApi } from "./api";
 import { queryClient } from "./query";
 
 export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 
 export async function fetchNotifications() {
-  const { notifications } = await parseResponse(apiClient.notifications.$get());
+  const { notifications } = await runApi(apiClient.notifications.list());
 
   return notifications;
 }
@@ -19,9 +17,9 @@ export type Notification = Awaited<ReturnType<typeof fetchNotifications>>[number
  * follow-up action, such as signing in again, has run.
  */
 export async function markNotificationAcknowledged(id: string) {
-  await parseResponse(apiClient.notifications[":id"].acknowledge.$post({ param: { id } }));
+  await runApi(apiClient.notifications.acknowledge({ params: { id } }));
 
-  queryClient.setQueryData<Notification[]>(NOTIFICATIONS_QUERY_KEY, (notifications) =>
+  queryClient.setQueryData<readonly Notification[]>(NOTIFICATIONS_QUERY_KEY, (notifications) =>
     notifications?.filter((notification) => notification.id !== id),
   );
 }
