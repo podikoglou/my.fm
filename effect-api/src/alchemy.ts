@@ -6,6 +6,7 @@ import { HttpRouter } from "effect/http";
 import { AuthConfig } from "./auth/service.ts";
 import { Db } from "./db/service.ts";
 import { HttpAppLayer } from "./http/app.ts";
+import { Imports } from "./import/service.ts";
 import { Ingestion } from "./ingestion/service.ts";
 import { RateLimiter } from "./rate-limit/service.ts";
 import { RATE_LIMITS, type RateLimitBindingName } from "./rate-limits.ts";
@@ -90,11 +91,17 @@ export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>(
       Effect.gen(function* () {
         const infraLayer = yield* makeInfraLayer;
 
-        const ingestion = yield* Ingestion.pipe(
-          Effect.provide(IngestionLive.pipe(Layer.provide(infraLayer))),
+        const cronLayer = Layer.mergeAll(IngestionLive, Imports.layer).pipe(
+          Layer.provide(infraLayer),
         );
 
-        yield* ingestion.run(new Date(controller.scheduledTime));
+        yield* Effect.gen(function* () {
+          const ingestion = yield* Ingestion;
+          const imports = yield* Imports;
+
+          yield* ingestion.run(new Date(controller.scheduledTime));
+          yield* imports.runTick();
+        }).pipe(Effect.provide(cronLayer));
       }),
     );
 

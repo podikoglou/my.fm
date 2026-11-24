@@ -13,6 +13,7 @@ import type { RateLimitBinding } from "./rate-limits.ts";
 import { AuthConfig, AuthService } from "./auth/service.ts";
 import { Db } from "./db/service.ts";
 import { type AppServices, handleWebRequest } from "./http/app.ts";
+import { Imports } from "./import/service.ts";
 import { Ingestion } from "./ingestion/service.ts";
 import { RateLimiter } from "./rate-limit/service.ts";
 import { Scrobbles } from "./scrobbles/service.ts";
@@ -65,17 +66,21 @@ export const IngestionLive: Layer.Layer<Ingestion, never, Db | AuthConfig> = Ing
   ),
 );
 
-/** Execute one scheduled ingestion tick with the given infrastructure Layer. */
+/** Execute one scheduled ingestion + import tick with the given infrastructure Layer. */
 export function runScheduledTick(
   scheduledTime: Date,
   infraLayer: Layer.Layer<AppServices>,
 ): Promise<void> {
+  const cronLayer = Layer.mergeAll(IngestionLive, Imports.layer).pipe(Layer.provide(infraLayer));
+
   return Effect.runPromise(
     Effect.gen(function* () {
       const ingestion = yield* Ingestion;
+      const imports = yield* Imports;
 
       yield* ingestion.run(scheduledTime);
-    }).pipe(Effect.provide(IngestionLive.pipe(Layer.provide(infraLayer)))),
+      yield* imports.runTick();
+    }).pipe(Effect.provide(cronLayer)),
   );
 }
 

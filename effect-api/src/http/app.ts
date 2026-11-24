@@ -9,6 +9,7 @@ import type { ImportsStorage } from "../storage/service.ts";
 
 import { MyFmApi } from "../api/index.ts";
 import { AuthService } from "../auth/service.ts";
+import { Imports } from "../import/service.ts";
 import { Notifications } from "../notifications/service.ts";
 import { Scrobbles } from "../scrobbles/service.ts";
 import { Users } from "../users/service.ts";
@@ -20,6 +21,7 @@ import {
 } from "./auth.ts";
 import { FeedCacheMiddlewareLive, FeedHandlers } from "./feed.ts";
 import { HealthHandlers } from "./health.ts";
+import { ImportHandlers } from "./import.ts";
 import { DefaultCacheControlMiddleware } from "./middleware.ts";
 import { NotificationsHandlers } from "./notifications.ts";
 import { ScrobbleHandlers } from "./scrobble.ts";
@@ -27,7 +29,12 @@ import { UserHandlers } from "./user.ts";
 
 export type AppServices = Db | ImportsStorage | RateLimiter | AuthConfig;
 
-const BaseDomainLayer = Layer.mergeAll(AuthService.layer, Users.layer, Notifications.layer);
+const BaseDomainLayer = Layer.mergeAll(
+  AuthService.layer,
+  Users.layer,
+  Notifications.layer,
+  Imports.layer,
+);
 
 const DomainLayer = Layer.mergeAll(
   BaseDomainLayer,
@@ -49,6 +56,7 @@ const ApiRoutes = HttpApiBuilder.layer(MyFmApi).pipe(
       ScrobbleHandlers,
       FeedHandlers,
       NotificationsHandlers,
+      ImportHandlers,
     ),
   ),
   Layer.provide(MiddlewareLayer),
