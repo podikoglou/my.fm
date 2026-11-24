@@ -4,7 +4,7 @@ import { Db } from "../service.ts";
 import { ingestionRuns } from "../schema.ts";
 
 /** Outcome of a scheduled ingestion run. */
-export type IngestionStatus = "ok" | "quota" | "d1-quota";
+export type IngestionStatus = "ok" | "partial" | "quota";
 
 /** The row is a heartbeat, so it keeps one fixed key. */
 const HEARTBEAT_ID = 1;

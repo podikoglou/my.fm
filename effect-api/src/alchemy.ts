@@ -6,9 +6,11 @@ import { HttpRouter } from "effect/http";
 import { AuthConfig } from "./auth/service.ts";
 import { Db } from "./db/service.ts";
 import { HttpAppLayer } from "./http/app.ts";
+import { Ingestion } from "./ingestion/service.ts";
 import { RateLimiter } from "./rate-limit/service.ts";
 import { RATE_LIMITS, type RateLimitBindingName } from "./rate-limits.ts";
 import { ImportsStorage } from "./storage/service.ts";
+import { IngestionLive } from "./worker.ts";
 
 export const EffectDatabase = Cloudflare.D1.Database("EffectDatabase");
 export const EffectImportsBucket = Cloudflare.R2.Bucket("EffectImportsBucket");
@@ -28,10 +30,10 @@ export const PublicReadRateLimit = rateLimitResource("PUBLIC_READ_RATE_LIMIT");
 /**
  * Effectful Alchemy Cloudflare Worker definition.
  *
- * The outer Effect binds Cloudflare resources (D1, R2, rate limits, secrets) at
- * deploy and cold-start time. The inner `fetch` Effect resolves request-scoped
- * bindings from `RuntimeContext` into typed Effect service Layers (`Db`,
- * `ImportsStorage`, `RateLimiter`, `AuthConfig`). Not yet wired into root
+ * The outer Effect binds Cloudflare resources (D1, R2, rate limits, secrets)
+ * and registers the one-minute Cron trigger at deploy and cold-start time.
+ * The inner `fetch` and `cron` Effects resolve request-scoped bindings from
+ * `RuntimeContext` into typed Effect service Layers. Not yet wired into root
  * `alchemy.run.ts` until PR 7 cutover.
  */
 export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>()(
@@ -56,33 +58,49 @@ export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>(
     const authLimiter = yield* AuthRateLimit;
     const publicReadLimiter = yield* PublicReadRateLimit;
 
+    const makeInfraLayer = Effect.gen(function* () {
+      const rawDb = yield* dbClient.raw;
+      const rawBucket = yield* importsBucket.raw;
+      const rawAuthLimiter = yield* authLimiter.raw;
+      const rawPublicReadLimiter = yield* publicReadLimiter.raw;
+      const betterAuthSecret = yield* Config.String("BETTER_AUTH_SECRET").pipe(Effect.orDie);
+      const spotifyClientId = yield* Config.String("SPOTIFY_CLIENT_ID").pipe(Effect.orDie);
+
+      const spotifyClientSecret = yield* Config.Redacted("SPOTIFY_CLIENT_SECRET").pipe(
+        Effect.map(Redacted.value),
+        Effect.orDie,
+      );
+
+      return Layer.mergeAll(
+        Db.layerFromBinding(rawDb),
+        ImportsStorage.layerFromBinding(rawBucket),
+        RateLimiter.layerFromBindings({
+          AUTH_RATE_LIMIT: rawAuthLimiter,
+          PUBLIC_READ_RATE_LIMIT: rawPublicReadLimiter,
+        }),
+        AuthConfig.layer({
+          betterAuthSecret,
+          spotifyClientId,
+          spotifyClientSecret,
+        }),
+      );
+    });
+
+    yield* Cloudflare.Workers.cron("* * * * *", (controller) =>
+      Effect.gen(function* () {
+        const infraLayer = yield* makeInfraLayer;
+
+        const ingestion = yield* Ingestion.pipe(
+          Effect.provide(IngestionLive.pipe(Layer.provide(infraLayer))),
+        );
+
+        yield* ingestion.run(new Date(controller.scheduledTime));
+      }),
+    );
+
     return {
       fetch: Effect.gen(function* () {
-        const rawDb = yield* dbClient.raw;
-        const rawBucket = yield* importsBucket.raw;
-        const rawAuthLimiter = yield* authLimiter.raw;
-        const rawPublicReadLimiter = yield* publicReadLimiter.raw;
-        const betterAuthSecret = yield* Config.String("BETTER_AUTH_SECRET").pipe(Effect.orDie);
-        const spotifyClientId = yield* Config.String("SPOTIFY_CLIENT_ID").pipe(Effect.orDie);
-
-        const spotifyClientSecret = yield* Config.Redacted("SPOTIFY_CLIENT_SECRET").pipe(
-          Effect.map(Redacted.value),
-          Effect.orDie,
-        );
-
-        const infraLayer = Layer.mergeAll(
-          Db.layerFromBinding(rawDb),
-          ImportsStorage.layerFromBinding(rawBucket),
-          RateLimiter.layerFromBindings({
-            AUTH_RATE_LIMIT: rawAuthLimiter,
-            PUBLIC_READ_RATE_LIMIT: rawPublicReadLimiter,
-          }),
-          AuthConfig.layer({
-            betterAuthSecret,
-            spotifyClientId,
-            spotifyClientSecret,
-          }),
-        );
+        const infraLayer = yield* makeInfraLayer;
 
         const httpEffect = yield* HttpRouter.toHttpEffect(
           HttpAppLayer.pipe(Layer.provide(infraLayer)),
@@ -97,6 +115,7 @@ export class EffectApiWorker extends Cloudflare.Workers.Worker<EffectApiWorker>(
         Cloudflare.D1.QueryDatabaseBinding,
         Cloudflare.R2.ReadWriteBucketBinding,
         Cloudflare.Workers.RateLimitBinding,
+        Cloudflare.Workers.CronEventSourceLive,
       ),
     ),
   ),
