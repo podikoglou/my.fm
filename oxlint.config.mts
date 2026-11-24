@@ -1,8 +1,10 @@
 import cloudflare from "@cloudflare/oxlint-config";
+import { recommended as effectRecommended } from "@effect/tsgo/oxlint-presets";
 import { defineConfig } from "oxlint";
 
 export default defineConfig({
   ...cloudflare,
+  plugins: [...(cloudflare.plugins ?? []), ...(effectRecommended.plugins ?? [])],
   jsPlugins: [
     ...(cloudflare.jsPlugins ?? []),
     {
@@ -31,6 +33,7 @@ export default defineConfig({
   ],
   rules: {
     ...cloudflare.rules,
+    ...effectRecommended.rules,
     // The preset's quality plugin already provides the other Anti-Slop rules.
     "anti-slop/no-module-mocking": "error",
     "anti-slop/no-runtime-typeof": "error",
@@ -51,7 +54,11 @@ export default defineConfig({
   overrides: [
     ...(cloudflare.overrides ?? []),
     {
-      files: ["alchemy.run.ts", "worker-api/**/*.{ts,js,mts,mjs,cts,cjs}"],
+      files: [
+        "alchemy.run.ts",
+        "effect-api/**/*.{ts,js,mts,mjs,cts,cjs}",
+        "worker-api/**/*.{ts,js,mts,mjs,cts,cjs}",
+      ],
       rules: {
         "anti-slop-effect/no-manual-effect-error-tag": "error",
         "anti-slop-effect/no-manual-tag-comparison": "error",
@@ -90,7 +97,11 @@ export default defineConfig({
       },
     },
     {
-      files: ["app/test/**/*.test.ts", "worker-api/test/**/*.test.ts"],
+      files: [
+        "app/test/**/*.test.ts",
+        "effect-api/test/**/*.test.ts",
+        "worker-api/test/**/*.test.ts",
+      ],
       rules: {
         // Test-local fixtures and stubs are easier to read next to their callers.
         "unicorn/consistent-function-scoping": "off",
@@ -110,7 +121,7 @@ export default defineConfig({
       rules: { "typescript/no-unsafe-type-assertion": "off" }, // Still requires a SAFETY comment.
     },
     {
-      files: ["worker-api/test/env.d.ts"],
+      files: ["effect-api/test/env.d.ts", "worker-api/test/env.d.ts"],
       rules: {
         "typescript/consistent-type-imports": ["error", { disallowTypeAnnotations: false }],
       },
