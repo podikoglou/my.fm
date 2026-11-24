@@ -15,6 +15,8 @@ import { Db } from "./db/service.ts";
 import { type AppServices, handleWebRequest } from "./http/app.ts";
 import { Imports } from "./import/service.ts";
 import { Ingestion } from "./ingestion/service.ts";
+import { handleOAuthEdgeRequest } from "./oauth/edge.ts";
+import { OAuthProviderService } from "./oauth/service.ts";
 import { RateLimiter } from "./rate-limit/service.ts";
 import { Scrobbles } from "./scrobbles/service.ts";
 import { SpotifyClient } from "./spotify/service.ts";
@@ -85,8 +87,14 @@ export function runScheduledTick(
 }
 
 export default {
-  fetch(request: Request, env: WorkerBindings): Promise<Response> {
-    return handleWebRequest(request, makeWorkerInfraLayer(env));
+  fetch(request: Request, env: WorkerBindings, ctx?: ExecutionContext): Promise<Response> {
+    const infraLayer = makeWorkerInfraLayer(env);
+
+    if (!ctx) {
+      return handleWebRequest(request, infraLayer, OAuthProviderService.unavailableLayer);
+    }
+
+    return handleOAuthEdgeRequest(request, env.OAUTH_KV, ctx, infraLayer);
   },
 
   scheduled(controller: ScheduledController, env: WorkerBindings, ctx: ExecutionContext): void {

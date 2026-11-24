@@ -8,7 +8,7 @@ import { createDatabase } from "../src/db/service.ts";
 import worker from "../src/worker.ts";
 import { network } from "./network.ts";
 
-export const baseUrl = "http://app.test";
+export const baseUrl = "https://app.test";
 
 const SocialSignInResponse = Schema.Struct({ url: Schema.String });
 

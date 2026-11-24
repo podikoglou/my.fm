@@ -11,9 +11,11 @@ import { MyFmApi } from "../api/index.ts";
 import { AuthService } from "../auth/service.ts";
 import { Imports } from "../import/service.ts";
 import { Notifications } from "../notifications/service.ts";
+import { OAuthProviderService } from "../oauth/service.ts";
 import { Scrobbles } from "../scrobbles/service.ts";
 import { Users } from "../users/service.ts";
 import {
+  AuthRateLimitMiddlewareLive,
   BetterAuthRoutes,
   OptionalSessionMiddlewareLive,
   PublicReadRateLimitMiddlewareLive,
@@ -24,10 +26,13 @@ import { HealthHandlers } from "./health.ts";
 import { ImportHandlers } from "./import.ts";
 import { DefaultCacheControlMiddleware } from "./middleware.ts";
 import { NotificationsHandlers } from "./notifications.ts";
+import { OAuthHandlers } from "./oauth.ts";
 import { ScrobbleHandlers } from "./scrobble.ts";
 import { UserHandlers } from "./user.ts";
 
 export type AppServices = Db | ImportsStorage | RateLimiter | AuthConfig;
+
+export type HttpAppServices = AppServices | OAuthProviderService;
 
 const BaseDomainLayer = Layer.mergeAll(
   AuthService.layer,
@@ -45,6 +50,7 @@ const MiddlewareLayer = Layer.mergeAll(
   OptionalSessionMiddlewareLive,
   RequireSessionMiddlewareLive,
   PublicReadRateLimitMiddlewareLive,
+  AuthRateLimitMiddlewareLive,
   FeedCacheMiddlewareLive,
 );
 
@@ -57,6 +63,7 @@ const ApiRoutes = HttpApiBuilder.layer(MyFmApi).pipe(
       FeedHandlers,
       NotificationsHandlers,
       ImportHandlers,
+      OAuthHandlers,
     ),
   ),
   Layer.provide(MiddlewareLayer),
@@ -64,7 +71,8 @@ const ApiRoutes = HttpApiBuilder.layer(MyFmApi).pipe(
 
 /**
  * Full HTTP router layer for my.fm, requiring only typed infrastructure
- * services (`Db`, `ImportsStorage`, `RateLimiter`, `AuthConfig`).
+ * services (`Db`, `ImportsStorage`, `RateLimiter`, `AuthConfig`) and
+ * `OAuthProviderService`.
  */
 export const HttpAppLayer = Layer.mergeAll(
   ApiRoutes,
@@ -76,10 +84,16 @@ export const HttpAppLayer = Layer.mergeAll(
  * Build a Web `fetch`-compatible handler backed by the supplied infrastructure
  * service layer.
  */
-export function makeWebHandler(infraLayer: Layer.Layer<AppServices>) {
-  return HttpRouter.toWebHandler(HttpAppLayer.pipe(Layer.provide(infraLayer)), {
-    disableLogger: true,
-  });
+export function makeWebHandler(
+  infraLayer: Layer.Layer<AppServices>,
+  oauthLayer: Layer.Layer<OAuthProviderService> = OAuthProviderService.unavailableLayer,
+) {
+  return HttpRouter.toWebHandler(
+    HttpAppLayer.pipe(Layer.provide(Layer.mergeAll(infraLayer, oauthLayer))),
+    {
+      disableLogger: true,
+    },
+  );
 }
 
 /**
@@ -92,8 +106,9 @@ export function makeWebHandler(infraLayer: Layer.Layer<AppServices>) {
 export async function handleWebRequest(
   request: Request,
   infraLayer: Layer.Layer<AppServices>,
+  oauthLayer: Layer.Layer<OAuthProviderService> = OAuthProviderService.unavailableLayer,
 ): Promise<Response> {
-  const { handler, dispose } = makeWebHandler(infraLayer);
+  const { handler, dispose } = makeWebHandler(infraLayer, oauthLayer);
 
   try {
     const response = await handler(request);
