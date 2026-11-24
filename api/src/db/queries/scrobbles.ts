@@ -1,6 +1,6 @@
 import type { BatchItem } from "drizzle-orm/batch";
 
-import { and, eq, isNotNull, max, min, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lt, max, min, sql } from "drizzle-orm";
 
 import type { DrizzleDatabase } from "../service.ts";
 
@@ -510,6 +510,44 @@ export async function findPublicFeed(
       },
     ];
   });
+}
+
+export type ScrobbleRange = {
+  /** Unix seconds, inclusive. */
+  since?: number;
+  /** Unix seconds, exclusive. */
+  until?: number;
+};
+
+/** The first and last play time of a user's scrobbles inside `range`. */
+export async function findScrobbleEdges(
+  db: DrizzleDatabase,
+  userId: User["id"],
+  { since, until }: ScrobbleRange = {},
+): Promise<{ earliest: Date; latest: Date } | null> {
+  const where = and(
+    eq(scrobbles.userId, userId),
+    isNotNull(scrobbles.scrobbleDate),
+    since === undefined ? undefined : gte(scrobbles.scrobbleDate, new Date(since * 1000)),
+    until === undefined ? undefined : lt(scrobbles.scrobbleDate, new Date(until * 1000)),
+  );
+
+  // SQLite seeks the index edge only for a statement with a single min() or
+  // max(). Asking for both in one select reads every scrobble in the range.
+  const [[earliest], [latest]] = await db.batch([
+    db
+      .select({ date: min(scrobbles.scrobbleDate) })
+      .from(scrobbles)
+      .where(where),
+    db
+      .select({ date: max(scrobbles.scrobbleDate) })
+      .from(scrobbles)
+      .where(where),
+  ]);
+
+  if (!earliest?.date || !latest?.date) return null;
+
+  return { earliest: earliest.date, latest: latest.date };
 }
 
 export async function countScrobblesByMonth(

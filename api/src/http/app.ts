@@ -13,6 +13,7 @@ import { Imports } from "../import/service.ts";
 import { Notifications } from "../notifications/service.ts";
 import { OAuthProviderService } from "../oauth/service.ts";
 import { Scrobbles } from "../scrobbles/service.ts";
+import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 import {
   AuthRateLimitMiddlewareLive,
@@ -28,6 +29,7 @@ import { DefaultCacheControlMiddleware } from "./middleware.ts";
 import { NotificationsHandlers } from "./notifications.ts";
 import { OAuthHandlers } from "./oauth.ts";
 import { ScrobbleHandlers } from "./scrobble.ts";
+import { StatsHandlers } from "./stats.ts";
 import { UserHandlers } from "./user.ts";
 
 export type AppServices = Db | ImportsStorage | RateLimiter | AuthConfig;
@@ -44,6 +46,7 @@ const BaseDomainLayer = Layer.mergeAll(
 const DomainLayer = Layer.mergeAll(
   BaseDomainLayer,
   Scrobbles.layer.pipe(Layer.provide(BaseDomainLayer)),
+  Stats.layer.pipe(Layer.provide(BaseDomainLayer)),
 );
 
 const MiddlewareLayer = Layer.mergeAll(
@@ -60,6 +63,7 @@ const ApiRoutes = HttpApiBuilder.layer(MyFmApi).pipe(
       HealthHandlers,
       UserHandlers,
       ScrobbleHandlers,
+      StatsHandlers,
       FeedHandlers,
       NotificationsHandlers,
       ImportHandlers,

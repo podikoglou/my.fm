@@ -6,11 +6,13 @@ import { Effect, Layer } from "effect";
 import type { AppServices } from "../http/app.ts";
 
 import { Scrobbles } from "../scrobbles/service.ts";
+import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 import { McpService } from "./service.ts";
 
 const McpDomainLayer = McpService.layer.pipe(
   Layer.provideMerge(Scrobbles.layer),
+  Layer.provideMerge(Stats.layer),
   Layer.provideMerge(Users.layer),
 );
 

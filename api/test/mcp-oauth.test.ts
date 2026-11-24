@@ -418,7 +418,11 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     "get_me",
     "get_public_feed",
     "get_recent_scrobbles",
+    "get_sample",
     "get_scrobble_months",
+    "get_summary",
+    "get_timeline",
+    "get_top",
     "get_user",
   ]);
 
@@ -476,6 +480,18 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   });
 
   expect(JSON.parse(text(months))).toEqual([{ month: "2026-10", count: 9 }]);
+  const summary = await callTool(accessToken, "get_summary", { username: "owner" });
+  expect(JSON.parse(text(summary))).toMatchObject({
+    totalScrobbles: 9,
+    topTracks: [{ name: "Private song", plays: 9, share: 1 }],
+  });
+  expect(
+    (await callTool(accessToken, "get_top", { username: "owner", kind: "tracks", limit: 51 }))
+      .isError,
+  ).toBe(true);
+  expect(
+    (await callTool(accessToken, "get_timeline", { username: "owner", bucket: "hour" })).isError,
+  ).toBe(true);
   const feed = await callTool(accessToken, "get_public_feed", { limit: 1 });
   expect(JSON.parse(text(feed))).toMatchObject({
     items: [{ id: "a".repeat(32), user: { username: "public", name: "Public" } }],
@@ -491,6 +507,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     ["get_user", { id: privateId }],
     ["get_recent_scrobbles", { username: "private", offset: 0 }],
     ["get_scrobble_months", { username: "private" }],
+    ["get_sample", { username: "private" }],
   ] as const) {
     const result = await callTool(accessToken, name, args);
     expect(result.isError).toBe(true);
