@@ -2,25 +2,48 @@ import { Effect, Layer } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 
+import type { AuthConfig } from "../auth/service.ts";
 import type { Db } from "../db/service.ts";
 import type { RateLimiter } from "../rate-limit/service.ts";
 import type { ImportsStorage } from "../storage/service.ts";
 
 import { MyFmApi } from "../api/index.ts";
+import { AuthService } from "../auth/service.ts";
+import { Users } from "../users/service.ts";
+import {
+  BetterAuthRoutes,
+  OptionalSessionMiddlewareLive,
+  PublicReadRateLimitMiddlewareLive,
+  RequireSessionMiddlewareLive,
+} from "./auth.ts";
 import { HealthHandlers } from "./health.ts";
 import { DefaultCacheControlMiddleware } from "./middleware.ts";
+import { UserHandlers } from "./user.ts";
 
-export type AppServices = Db | ImportsStorage | RateLimiter;
+export type AppServices = Db | ImportsStorage | RateLimiter | AuthConfig;
+
+const DomainLayer = Layer.mergeAll(AuthService.layer, Users.layer);
+
+const MiddlewareLayer = Layer.mergeAll(
+  OptionalSessionMiddlewareLive,
+  RequireSessionMiddlewareLive,
+  PublicReadRateLimitMiddlewareLive,
+);
+
+const ApiRoutes = HttpApiBuilder.layer(MyFmApi).pipe(
+  Layer.provide(Layer.mergeAll(HealthHandlers, UserHandlers)),
+  Layer.provide(MiddlewareLayer),
+);
 
 /**
  * Full HTTP router layer for my.fm, requiring only typed infrastructure
- * services (`Db`, `ImportsStorage`, `RateLimiter`).
+ * services (`Db`, `ImportsStorage`, `RateLimiter`, `AuthConfig`).
  */
-export const HttpAppLayer = HttpApiBuilder.layer(MyFmApi).pipe(
-  Layer.provide(HealthHandlers),
-  Layer.merge(DefaultCacheControlMiddleware),
-  Layer.provide(HttpServer.layerServices),
-);
+export const HttpAppLayer = Layer.mergeAll(
+  ApiRoutes,
+  BetterAuthRoutes,
+  DefaultCacheControlMiddleware,
+).pipe(Layer.provide(DomainLayer), Layer.provide(HttpServer.layerServices));
 
 /**
  * Build a Web `fetch`-compatible handler backed by the supplied infrastructure

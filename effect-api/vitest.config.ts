@@ -29,6 +29,9 @@ export default defineConfig({
         ),
         bindings: {
           TEST_MIGRATIONS: migrations.sort((a, b) => a.name.localeCompare(b.name)),
+          BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
+          SPOTIFY_CLIENT_ID: "test-client-id",
+          SPOTIFY_CLIENT_SECRET: "test-client-secret",
         },
       },
     }),
