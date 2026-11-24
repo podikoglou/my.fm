@@ -555,11 +555,24 @@ export async function countScrobblesByMonth(
   userId: User["id"],
   { timeZone }: { timeZone: string },
 ): Promise<MonthlyScrobbleCount[]> {
-  const edges = await findScrobbleEdges(db, userId);
+  const where = and(eq(scrobbles.userId, userId), isNotNull(scrobbles.scrobbleDate));
 
-  if (!edges) return [];
+  // SQLite seeks the index edge only for a statement with a single min() or
+  // max(). Asking for both in one select reads every scrobble of the user.
+  const [[earliest], [latest]] = await db.batch([
+    db
+      .select({ date: min(scrobbles.scrobbleDate) })
+      .from(scrobbles)
+      .where(where),
+    db
+      .select({ date: max(scrobbles.scrobbleDate) })
+      .from(scrobbles)
+      .where(where),
+  ]);
 
-  const months = monthsBetween(edges.earliest, edges.latest, timeZone);
+  if (!earliest?.date || !latest?.date) return [];
+
+  const months = monthsBetween(earliest.date, latest.date, timeZone);
 
   const bounds = sql.join(
     months.map(({ month, start }, index) =>
