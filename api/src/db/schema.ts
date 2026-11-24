@@ -147,7 +147,7 @@ export const scrobbles = sqliteTable(
   // reads one user's scrobbles in the same order.
   (table) => [
     index("scrobbles_scrobble_date_id_idx").on(table.scrobbleDate, table.id),
-    index("scrobbles_user_id_scrobble_date_idx").on(table.userId, table.scrobbleDate),
+    index("scrobbles_user_id_scrobble_date_id_idx").on(table.userId, table.scrobbleDate, table.id),
   ],
 );
 
