@@ -1,6 +1,7 @@
 import type { View } from "@effect/ui";
 import type { Html } from "@effect/ui/html";
 
+import { HideFailedImage } from "../../components/HideFailedImage";
 import { icon } from "../../components/icon";
 import { spotifyUriToUrl } from "../../lib/spotify";
 
@@ -35,12 +36,14 @@ export function Track<M, E extends View.Content<M> = never>(
         .children(icon(h, "music", "h-4 w-4 text-muted-foreground")),
       options.imageUrl !== undefined &&
         options.imageUrl !== "" &&
-        h.img.attrs({
-          "data-slot": "avatar-image",
-          src: options.imageUrl,
-          alt: "",
-          class: "absolute inset-0 size-full object-cover",
-        }),
+        h.img
+          .attrs({
+            "data-slot": "avatar-image",
+            src: options.imageUrl,
+            alt: "",
+            class: "absolute inset-0 size-full object-cover",
+          })
+          .onMount(HideFailedImage()),
     );
 
   return h.div.class("flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50").children(

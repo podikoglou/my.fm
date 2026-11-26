@@ -1,13 +1,13 @@
-import { Command, Component, Head, Router, UiSchema } from "@effect/ui";
+import { Command, Component, Head, Router, Subscription, UiSchema } from "@effect/ui";
 import { Html } from "@effect/ui/html";
-import { Cause, Effect, Option, Schema } from "effect";
+import { Cause, Effect, Option, Schema, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 
 import { signInWithSpotify } from "../../lib/auth";
 import { AppRoute } from "../../routes";
 import { profileIcon } from "./icons";
 import { ProfileErrorCard } from "./ProfileErrorCard";
-import { GetUserByUsername, GetViewer } from "./queries";
+import { GetUserByUsername, GetViewer, ProfileSession } from "./queries";
 import { UserAvatar } from "./UserAvatar";
 import { UserTrackList } from "./UserTrackList";
 
@@ -24,6 +24,15 @@ export const SignInWithSpotify = Command.make(
     ),
 );
 
+export const InvalidateViewer = Command.make(
+  "InvalidateViewer",
+  {
+    args: {},
+    mode: "switch",
+  },
+  () => GetViewer.invalidate({}).pipe(Effect.as(Component.noop)),
+);
+
 export const ProfilePageProps = Schema.Struct({
   username: Schema.String,
 });
@@ -31,6 +40,7 @@ export const ProfilePageProps = Schema.Struct({
 export const ProfilePageMessage = UiSchema.TaggedEnum({
   ClickedSignIn: {},
   CheckedViewer: { needsOnboarding: Schema.Boolean },
+  ChangedSession: { userId: Schema.NullOr(Schema.String) },
 });
 
 const ghostButtonClasses =
@@ -39,7 +49,10 @@ const ghostButtonClasses =
 export const ProfilePageNoDeps = Html.component({
   name: "ProfilePage",
   props: ProfilePageProps,
-  model: Schema.Struct({}),
+  model: Schema.Struct({
+    hasSession: Schema.Boolean,
+    sessionUserId: Schema.NullOr(Schema.String),
+  }),
   message: ProfilePageMessage,
   restore: false,
   queries: {
@@ -60,7 +73,7 @@ export const ProfilePageNoDeps = Html.component({
     },
   },
 }).make({
-  init: () => ({}),
+  init: () => ({ hasSession: false, sessionUserId: null }),
   update: {
     ClickedSignIn: ($) =>
       $.run(
@@ -72,7 +85,24 @@ export const ProfilePageNoDeps = Html.component({
       needsOnboarding
         ? $.run(Router.replace(AppRoute, AppRoute.Onboard({ search: {} })).pipe(Command.asNoop))
         : $,
+    ChangedSession: ($, { userId }) => {
+      if (!$.model.hasSession) {
+        return { hasSession: true, sessionUserId: userId };
+      }
+
+      if (userId === $.model.sessionUserId) return $.model;
+
+      return $.set({ hasSession: true, sessionUserId: userId }).run(InvalidateViewer.make({}));
+    },
   },
+  subscriptions: () => [
+    Subscription.make(
+      "session",
+      Stream.unwrap(Effect.map(ProfileSession, ({ changes }) => changes)).pipe(
+        Stream.map((userId) => ProfilePageMessage.ChangedSession({ userId })),
+      ),
+    ),
+  ],
   head: ({ props, queries }) => [
     Head.title(
       AsyncResult.isSuccess(queries.profile) ? queries.profile.value.name : `@${props.username}`,
@@ -147,5 +177,5 @@ export const ProfilePageNoDeps = Html.component({
 });
 
 export const ProfilePage = ProfilePageNoDeps.pipe(
-  Component.provide([GetUserByUsername.layer, GetViewer.layer]),
+  Component.provide([GetUserByUsername.layer, GetViewer.layer, ProfileSession.layer]),
 );
