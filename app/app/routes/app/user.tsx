@@ -72,18 +72,19 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
   return (
     <>
       <CardHeader className="relative flex flex-col items-center gap-4">
-        {me?.id === data.id && (
-          <Link
-            to="/settings"
-            aria-label="Settings"
-            className={buttonVariants({
-              variant: "ghost",
-              size: "icon-sm",
-              className: "absolute top-0 right-2",
-            })}
-          >
-            <Settings />
-          </Link>
+        {session && me?.id === data.id && (
+          <div className="absolute inset-x-2 top-0 flex items-center justify-between">
+            <Link to="/feed" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              Feed
+            </Link>
+            <Link
+              to="/settings"
+              aria-label="Settings"
+              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            >
+              <Settings />
+            </Link>
+          </div>
         )}
 
         {!sessionPending && !session && (

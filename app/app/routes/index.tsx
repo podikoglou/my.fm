@@ -1,5 +1,13 @@
-import { redirect } from "react-router";
+import { replace } from "react-router";
 
-export function clientLoader() {
-  throw redirect("/feed");
+import { readAuth } from "~/lib/auth-guard";
+
+export async function clientLoader() {
+  const { user } = await readAuth();
+
+  if (!user) return replace("/feed");
+
+  if (!user.onboarded) return replace("/onboard");
+
+  return replace(`/user/${encodeURIComponent(user.username)}`);
 }
