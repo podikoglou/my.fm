@@ -1,0 +1,7 @@
+{
+	local_certs
+}
+
+my.fm {
+	reverse_proxy http://localhost:5174
+}
