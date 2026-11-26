@@ -8,6 +8,7 @@ const paths = {
   ],
   listMusic: ["M16 5H3", "M11 12H3", "M11 19H3", "M21 16V5"],
   bell: ["M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9", "M10 21h4"],
+  frown: ["M16 16s-1.5-2-4-2-4 2-4 2", "M9 9h.01", "M15 9h.01"],
   key: [
     "M15.5 7.5a5.5 5.5 0 1 1-3.54 9.71L8 21H5v-3H2v-3l5.79-5.79A5.5 5.5 0 0 1 15.5 7.5",
     "M16 11h.01",
@@ -28,6 +29,7 @@ export function icon<M>(h: Html.H<M>, name: keyof typeof paths, className = "siz
       class: className,
     })
     .children(
+      name === "frown" && h.el("circle").attrs({ cx: "12", cy: "12", r: "10" }),
       paths[name].map((d) => h.el("path").attr("d", d)),
       name === "listMusic" && h.el("circle").attrs({ cx: "18", cy: "16", r: "3" }),
     );

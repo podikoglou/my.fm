@@ -7,7 +7,12 @@ export const AppRoute = Route.union({
   User: Route.make("/user/:username", { params: { username: Schema.String } }),
   Settings: Route.make("/settings"),
   Onboard: Route.make("/onboard", { search: { returnTo: Schema.optional(Schema.String) } }),
-  AuthError: Route.make("/auth/error", { search: { error: Schema.optional(Schema.String) } }),
+  AuthError: Route.make("/auth/error", {
+    search: {
+      error: Schema.optional(Schema.String),
+      error_description: Schema.optional(Schema.String),
+    },
+  }),
   OAuthAuthorize: Route.make("/oauth/authorize"),
   NotFound: Route.make("/*"),
 });

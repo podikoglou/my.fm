@@ -1,8 +1,8 @@
 # Effect UI app
 
 This is the standalone Effect UI rebuild. The existing React app and production
-deployment remain unchanged. Only the shell, notifications and public feed are
-implemented here; the other routes are migration placeholders.
+deployment remain unchanged. The candidate wires the feed, profile, settings,
+onboarding, sign-in error and OAuth consent routes.
 
 From the repository root:
 
