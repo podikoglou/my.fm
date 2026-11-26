@@ -1,23 +1,14 @@
 import type { Html } from "@effect/ui/html";
 
 const paths = {
-  music: [
-    "M9 18V5l12-2v13",
-    "M9 18a3 3 0 1 1-3-3c1.66 0 3 1.34 3 3",
-    "M21 16a3 3 0 1 1-3-3c1.66 0 3 1.34 3 3",
+  music: ["M9 18V5l12-2v13"],
+  listMusic: ["M16 5H3", "M11 12H3", "M11 19H3", "M21 16V5"],
+  bell: [
+    "M10.268 21a2 2 0 0 0 3.464 0",
+    "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326",
   ],
-  listMusic: [
-    "M21 15V6",
-    "M18 6h3",
-    "M18 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
-    "M3 6h10",
-    "M3 10h10",
-    "M3 14h4",
-  ],
-  bell: ["M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9", "M10 21h4"],
   key: [
-    "M15.5 7.5a5.5 5.5 0 1 1-3.54 9.71L8 21H5v-3H2v-3l5.79-5.79A5.5 5.5 0 0 1 15.5 7.5",
-    "M16 11h.01",
+    "M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z",
   ],
 };
 
@@ -34,5 +25,12 @@ export function icon<M>(h: Html.H<M>, name: keyof typeof paths, className = "siz
       "aria-hidden": "true",
       class: className,
     })
-    .children(paths[name].map((d) => h.el("path").attr("d", d)));
+    .children(
+      paths[name].map((d) => h.el("path").attr("d", d)),
+      name === "listMusic" && h.el("circle").attrs({ cx: "18", cy: "16", r: "3" }),
+      name === "music" && h.el("circle").attrs({ cx: "6", cy: "18", r: "3" }),
+      name === "music" && h.el("circle").attrs({ cx: "18", cy: "16", r: "3" }),
+      name === "key" &&
+        h.el("circle").attrs({ cx: "16.5", cy: "7.5", r: ".5", fill: "currentColor" }),
+    );
 }

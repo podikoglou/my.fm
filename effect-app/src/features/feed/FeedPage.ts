@@ -7,6 +7,7 @@ import { Effect, Option, Queue, Schema, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 
 import { EmptyState } from "../../components/EmptyState";
+import { HideFailedImage } from "../../components/HideFailedImage";
 import { icon } from "../../components/icon";
 import { publicApiClient } from "../../lib/api";
 import { spotifyUriToUrl } from "../../lib/spotify";
@@ -69,13 +70,22 @@ function SpotifyLink<M>(h: Html.H<M>, label: string, uri?: string) {
 function FeedTrack<M>(h: Html.H<M>, item: typeof FeedItemSchema.Type) {
   const albumUrl = spotifyUriToUrl(item.album.spotifyUri);
 
-  const cover = h.div
-    .class("relative size-9 shrink-0 overflow-hidden rounded-md bg-muted")
+  const cover = h.span
+    .attr("data-slot", "avatar")
+    .class("relative flex size-9 shrink-0 overflow-hidden rounded-md")
     .children(
-      h.div
-        .class("absolute inset-0 flex items-center justify-center")
+      h.span
+        .attr("data-slot", "avatar-fallback")
+        .class("flex size-full items-center justify-center rounded-full bg-muted select-none")
         .children(icon(h, "music", "size-4 text-muted-foreground")),
-      h.img.attrs({ src: item.track.imageUrl, alt: "", class: "relative size-full object-cover" }),
+      h.img
+        .attrs({
+          "data-slot": "avatar-image",
+          src: item.track.imageUrl,
+          alt: "",
+          class: "absolute inset-0 size-full object-cover",
+        })
+        .onMount(HideFailedImage()),
     );
 
   return h.div
@@ -136,7 +146,7 @@ export const FeedPageNoDeps = Html.component({
       h.header
         .class("grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6")
         .children(
-          h.h1.class("text-3xl leading-none font-bold").children("Feed"),
+          h.h1.class("text-3xl font-bold").children("Feed"),
           h.p
             .class("mt-2 text-sm text-muted-foreground")
             .children("The latest scrobbles from everyone."),
