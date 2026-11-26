@@ -24,7 +24,7 @@ const Message = UiSchema.TaggedEnum({
 });
 
 function appLink(uri: string | undefined) {
-  if (!uri) return undefined;
+  if (!uri || !/^https?:\/\//i.test(uri)) return undefined;
 
   try {
     const { protocol } = new URL(uri);
