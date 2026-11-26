@@ -9,6 +9,9 @@ your Spotify account and keeps a history of the tracks you play.
 - The API (`api/`) is an Effect + `effect/http-api` application also on
   Cloudflare Workers. It fetches users' recently played tracks on a schedule
   through a cron trigger and stores them in D1.
+- The simulator (`sim/`) estimates Spotify request volume and rate-limit
+  exposure for a given user count and activity level. See
+  [docs/RATE-LIMIT-SIM.md](docs/RATE-LIMIT-SIM.md).
 
 Both components are deployed with [Alchemy](https://alchemy.run).
 
