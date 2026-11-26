@@ -53,7 +53,7 @@ function ShellPage(
         .children(
           icon(h, "frown", "size-16 text-muted-foreground opacity-50"),
           h.div.children(
-            h.h1.class("text-3xl leading-none font-bold").children("Page Not Found"),
+            h.h1.class("text-3xl font-bold").children("Page Not Found"),
             h.p
               .class("mt-2 text-sm text-muted-foreground")
               .children("The page you're looking for doesn't exist."),
