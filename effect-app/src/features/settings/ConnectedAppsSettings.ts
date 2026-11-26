@@ -199,7 +199,7 @@ export const ConnectedAppsSettings = Html.component({
                           props: { disabled: revoking, focusableWhenDisabled: true },
                           onPress: Message.RequestedRevoke({ id: app.id }),
                         })
-                          .class("settings-button")
+                          .class("settings-button settings-revoke")
                           .children(revoking ? "Revoking..." : "Revoke"),
                       );
                   }),
