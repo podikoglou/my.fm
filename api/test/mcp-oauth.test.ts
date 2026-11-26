@@ -435,6 +435,31 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     });
   }
 
+  const page = async (cursor?: string) => {
+    const result = await callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      limit: 5,
+      before: Date.parse("2026-11-02T00:00:00Z") / 1000,
+      cursor,
+    });
+
+    return Schema.decodeUnknownSync(
+      Schema.Struct({
+        items: Schema.Array(Schema.Struct({ id: Schema.String })),
+        nextCursor: Schema.NullOr(Schema.String),
+      }),
+    )(JSON.parse(text(result)));
+  };
+
+  const first = await page();
+  expect(first.items).toHaveLength(5);
+  expect(first.nextCursor).toEqual(expect.any(String));
+  const second = await page(first.nextCursor ?? undefined);
+  expect(second.nextCursor).toBeNull();
+  expect([...first.items, ...second.items].map(({ id }) => id)).toEqual(
+    Array.from({ length: 9 }, (_, index) => (8 - index).toString(16).padStart(32, "0")),
+  );
+
   const me = await callTool(accessToken, "get_me");
   expect(me.isError).not.toBe(true);
   expect(JSON.parse(text(me))).toEqual({
@@ -454,22 +479,21 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   const recent = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
   });
 
-  expect(Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)))).toHaveLength(9);
+  expect(
+    Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)).items),
+  ).toHaveLength(9);
 
   const empty = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
     before: 0,
   });
 
-  expect(JSON.parse(text(empty))).toEqual([]);
+  expect(JSON.parse(text(empty))).toEqual({ items: [], nextCursor: null });
 
   const capped = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
     limit: 201,
   });
 
@@ -506,7 +530,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   for (const [name, args] of [
     ["get_user", { username: "private" }],
     ["get_user", { id: privateId }],
-    ["get_recent_scrobbles", { username: "private", offset: 0 }],
+    ["get_recent_scrobbles", { username: "private" }],
     ["get_scrobble_months", { username: "private" }],
     ["get_sample", { username: "private" }],
   ] as const) {
@@ -518,6 +542,33 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   const missing = await callTool(accessToken, "get_user", { username: "missing" });
   expect(missing.isError).toBe(true);
   expect(text(missing)).toBe("User not found");
+});
+
+test("returns 50 recent plays by default and accepts a full 200-play page", async () => {
+  const owner = await signIn({ id: "oauth-pages", email: "pages@example.com" });
+  await updateRows(env.DB, "users", { username: "pages" }, { id: owner.userId });
+  await insertRows(
+    env.DB,
+    "scrobbles",
+    Array.from({ length: 200 }, (_, index) => ({
+      id: index.toString(16).padStart(32, "0"),
+      userId: owner.userId,
+      scrobbleDate: new Date("2026-11-01T00:30:00Z"),
+      trackName: "Song",
+    })),
+  );
+  const accessToken = await token(owner.cookie);
+
+  const page = await callTool(accessToken, "get_recent_scrobbles", { username: "pages" });
+  expect(JSON.parse(text(page)).items).toHaveLength(50);
+
+  const full = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "pages",
+    limit: 200,
+  });
+
+  expect(JSON.parse(text(full)).items).toHaveLength(200);
+  expect(JSON.parse(text(full)).nextCursor).toBeNull();
 });
 
 test("enforces the real public-read budget keyed by authenticated user", async () => {
@@ -604,7 +655,6 @@ test("rejects invalid before and empty username on MCP scrobble tools", async ()
 
   const fractionalBefore = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    offset: 0,
     before: 12.5,
   });
 
@@ -612,7 +662,6 @@ test("rejects invalid before and empty username on MCP scrobble tools", async ()
 
   const negativeBefore = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    offset: 0,
     before: -1,
   });
 
@@ -620,7 +669,6 @@ test("rejects invalid before and empty username on MCP scrobble tools", async ()
 
   const emptyUsername = await callTool(accessToken, "get_recent_scrobbles", {
     username: "",
-    offset: 0,
   });
 
   expect(emptyUsername.isError).toBe(true);

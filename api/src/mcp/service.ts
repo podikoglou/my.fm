@@ -36,16 +36,23 @@ const GetUserInputSchema = Schema.Struct({
   }),
 );
 
+const DEFAULT_RECENT_LIMIT = 50;
+
 const GetRecentScrobblesInputSchema = Schema.Struct({
   username: NonEmptyString,
-  offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  limit: Schema.optionalKey(
-    Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 })).annotate({
-      default: 50,
-      description: "Number of plays to return (1–200, default 50).",
+  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  cursor: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
     }),
   ),
-  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 }))
+    .annotate({
+      default: DEFAULT_RECENT_LIMIT,
+      description: "Number of plays to return (1–200, default 50).",
+    })
+    .pipe(Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_RECENT_LIMIT))),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
@@ -295,25 +302,13 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
               const input = decoded.success;
 
               return yield* withRateLimit(userId, () =>
-                scrobbles
-                  .getRecent(
-                    {
-                      username: input.username,
-                      offset: input.offset,
-                      limit: input.limit ?? 50,
-                      before: input.before,
-                    },
-                    userId,
-                  )
-                  .pipe(
-                    Effect.map(toolData),
-                    Effect.catchTags({
-                      UserNotFoundError: () => Effect.succeed(toolError("User not found")),
-                      ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
-                      D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
-                    }),
-                  ),
+                scrobbles.getRecentPage(input, userId).pipe(
+                  Effect.map(toolData),
+                  Effect.catchTags({
+                    ...profileErrors,
+                    InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
+                  }),
+                ),
               );
             }
 
