@@ -190,6 +190,7 @@ export type ProjectedTrack = Pick<Track, "name" | "imageUrl"> & {
 
 export type ProjectedAlbum = Pick<Album, "name" | "imageUrl"> & {
   spotifyUri?: Album["spotifyUri"];
+  releaseDate?: Album["releaseDate"];
   artists: ProjectedArtist[];
 };
 
@@ -297,6 +298,7 @@ const ScrobbleProjectionRow = Schema.Struct({
   trackImageUrl: Schema.NullOr(Schema.String),
   trackUriFromTrack: Schema.NullOr(Schema.String),
   albumNameFromAlbum: Schema.NullOr(Schema.String),
+  albumReleaseDate: Schema.optionalKey(Schema.NullOr(Schema.String)),
   albumImageUrl: Schema.NullOr(Schema.String),
   albumUriFromAlbum: Schema.NullOr(Schema.String),
   trackArtistPosition: Schema.NullOr(Schema.Int),
@@ -397,6 +399,7 @@ function projectAlbum(group: ScrobbleProjectionGroup): ProjectedAlbum {
       name: row.albumNameFromAlbum ?? "",
       imageUrl: row.albumImageUrl ?? "",
       spotifyUri: row.albumUriFromAlbum,
+      ...(row.albumReleaseDate && { releaseDate: row.albumReleaseDate }),
       artists: group.albumArtists
         .toSorted((a, b) => a.position - b.position)
         .map(({ name, spotifyUri }) => ({ name, spotifyUri })),
@@ -420,6 +423,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
     limit,
     pageAfter,
     includeAlbumArtists = true,
+    includeAlbumReleaseDate = false,
   }: {
     since?: number;
     before?: NonNullable<Scrobble["scrobbleDate"]>;
@@ -427,6 +431,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
     limit: number;
     pageAfter?: FeedCursor | null;
     includeAlbumArtists?: boolean;
+    includeAlbumReleaseDate?: boolean;
   },
 ) {
   const sql = yield* SqlClient.SqlClient;
@@ -485,6 +490,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
           t.imageUrl AS trackImageUrl,
           t.spotifyUri AS trackUriFromTrack,
           album.name AS albumNameFromAlbum,
+          ${includeAlbumReleaseDate ? sql`album.releaseDate AS albumReleaseDate,` : sql``}
           album.imageUrl AS albumImageUrl,
           album.spotifyUri AS albumUriFromAlbum,
           trackArtistJoin.position AS trackArtistPosition,

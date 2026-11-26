@@ -36,6 +36,7 @@ export interface RecentPageInput extends Omit<RecentScrobblesInput, "offset" | "
   readonly until?: number;
   readonly cursor?: string;
   readonly includeAlbumArtists?: boolean;
+  readonly includeAlbumReleaseDate?: boolean;
 }
 
 interface RecentPage {
@@ -144,6 +145,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         const rows = yield* runDb(
           findRecentScrobblesByUserId(profile.id, {
             includeAlbumArtists: input.includeAlbumArtists,
+            includeAlbumReleaseDate: input.includeAlbumReleaseDate,
             pageAfter: cursor,
             limit: input.limit + 1,
             since: input.since,
