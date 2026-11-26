@@ -91,7 +91,7 @@ function detail(h: Html.H<typeof OAuthConsentMessage.Type>, label: string, value
 }
 
 const buttonClass =
-  "inline-flex h-9 flex-1 items-center justify-center rounded-md px-4 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50";
+  "inline-flex h-9 flex-1 items-center justify-center rounded-md px-4 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50";
 
 export const OAuthConsentPage = Html.component({
   name: "OAuthConsentPage",
@@ -186,7 +186,7 @@ export const OAuthConsentPage = Html.component({
                       .attr("type", "button")
                       .class(
                         buttonClass,
-                        "border bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
+                        "border bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
                       )
                       .disabled(decision === "pending")
                       .on("click", OAuthConsentMessage.Chose({ decision: "deny" }))
