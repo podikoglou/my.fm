@@ -123,7 +123,7 @@ export const SettingsPage = Html.component({
   head: () => [Head.title("Settings")],
   view: (h, model) =>
     h.section
-      .class("settings-page flex min-h-0 min-w-0 flex-1 flex-col gap-6 px-6")
+      .class("settings-page flex min-h-0 min-w-0 flex-1 flex-col gap-6")
       .attr("aria-labelledby", "settings-title")
       .children(
         h.header(
