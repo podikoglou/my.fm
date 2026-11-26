@@ -179,7 +179,11 @@ function toolData<T>(data: T): CallToolResult {
 
 const decodeGetMeInput = Schema.decodeUnknownEffect(GetMeInputSchema);
 const decodeGetUserInput = Schema.decodeUnknownEffect(GetUserInputSchema);
-const decodeGetRecentScrobblesInput = Schema.decodeUnknownEffect(GetRecentScrobblesInputSchema);
+
+const decodeGetRecentScrobblesInput = Schema.decodeUnknownEffect(GetRecentScrobblesInputSchema, {
+  onExcessProperty: "error",
+});
+
 const decodeGetScrobbleMonthsInput = Schema.decodeUnknownEffect(GetScrobbleMonthsInputSchema);
 const decodeGetPublicFeedInput = Schema.decodeUnknownEffect(GetPublicFeedInputSchema);
 const decodeGetSummaryInput = Schema.decodeUnknownEffect(GetSummaryInputSchema);

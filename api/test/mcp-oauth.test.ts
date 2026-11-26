@@ -451,6 +451,12 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     )(JSON.parse(text(result)));
   };
 
+  const unsupported = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "owner",
+    offset: 5,
+  });
+
+  expect(unsupported.isError).toBe(true);
   const first = await page();
   expect(first.items).toHaveLength(5);
   expect(first.nextCursor).toEqual(expect.any(String));
