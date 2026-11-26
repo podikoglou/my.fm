@@ -90,6 +90,7 @@ export const AcknowledgeNotification = Command.make(
 
 export const NotificationListNoDeps = Html.component({
   name: "NotificationList",
+  restore: false,
   model: Schema.Struct({
     userId: Schema.NullOr(Schema.String),
     pending: Schema.Boolean,
