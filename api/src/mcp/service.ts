@@ -29,6 +29,12 @@ const GetMeInputSchema = Schema.Struct({});
 
 const NonEmptyString = Schema.String.check(Schema.isMinLength(1));
 
+const ListenerUsername = Schema.optionalKey(
+  NonEmptyString.annotate({
+    description: "Defaults to the signed-in listener. Supply a username to read another profile.",
+  }),
+);
+
 const GetUserInputSchema = Schema.Struct({
   username: Schema.optional(NonEmptyString),
   id: Schema.optional(NanoidSchema),
@@ -42,7 +48,7 @@ const DEFAULT_RECENT_LIMIT = 50;
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
   include: Schema.optionalKey(RecentExtras),
-  username: NonEmptyString,
+  username: ListenerUsername,
   since: Schema.optionalKey(
     StatsInputSchemas.unixSeconds.annotate({
       description:
@@ -70,7 +76,7 @@ const GetRecentScrobblesInputSchema = Schema.Struct({
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
-  username: NonEmptyString,
+  username: ListenerUsername,
   timeZone: Schema.optional(TimeZoneSchema),
 });
 
@@ -85,26 +91,26 @@ const StatsRangeFields = {
 };
 
 const GetSummaryInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: ListenerUsername,
   ...StatsRangeFields,
 });
 
 const GetTopInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: ListenerUsername,
   kind: TopKindSchema,
   limit: Schema.optional(StatsInputSchemas.topLimit),
   ...StatsRangeFields,
 });
 
 const GetTimelineInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: ListenerUsername,
   bucket: TimelineBucketSchema,
   timeZone: Schema.optional(TimeZoneSchema),
   ...StatsRangeFields,
 });
 
 const GetSampleInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: ListenerUsername,
   size: Schema.optional(StatsInputSchemas.sampleSize),
   seed: Schema.optional(StatsInputSchemas.sampleSeed),
   ...StatsRangeFields,
