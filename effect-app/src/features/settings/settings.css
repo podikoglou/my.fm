@@ -55,7 +55,8 @@
       border-top: 1px solid var(--border, GrayText);
     }
 
-    & > div {
+    & > div:not([popover]),
+    & > div:popover-open {
       display: grid;
       gap: 0.25rem;
       min-width: 0;
