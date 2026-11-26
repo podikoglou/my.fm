@@ -40,7 +40,18 @@ const DEFAULT_RECENT_LIMIT = 50;
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
   username: NonEmptyString,
-  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  since: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Inclusive Unix seconds. For a local day use midnight in the listener's time zone.",
+    }),
+  ),
+  until: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Exclusive Unix seconds. For a local day use the next midnight in the same time zone.",
+    }),
+  ),
   cursor: Schema.optionalKey(
     Schema.String.annotate({
       description:

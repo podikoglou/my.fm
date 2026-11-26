@@ -414,11 +414,13 @@ function projectAlbum(group: ScrobbleProjectionGroup): ProjectedAlbum {
 export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUserId")(function* (
   userId: User["id"],
   {
+    since,
     before,
     offset = 0,
     limit,
     pageAfter,
   }: {
+    since?: number;
     before?: NonNullable<Scrobble["scrobbleDate"]>;
     offset?: number;
     limit: number;
@@ -426,6 +428,8 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
   },
 ) {
   const sql = yield* SqlClient.SqlClient;
+
+  const lowerBound = since === undefined ? sql`` : sql`AND s.scrobbleDate >= ${since}`;
 
   // A single upper bound lets SQLite seek directly to the start of this page.
   const upperBound = (() => {
@@ -452,7 +456,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
           SELECT s.id, s.scrobbleDate, s.trackSpotifyUri, s.albumSpotifyUri,
             s.coverArtUrl, s.artistName, s.albumName, s.trackName, s.userId
           FROM scrobbles AS s
-          WHERE s.userId = ${userId} ${upperBound}
+          WHERE s.userId = ${userId} ${lowerBound} ${upperBound}
           ORDER BY s.scrobbleDate DESC, s.id DESC
           LIMIT ${limit} OFFSET ${offset}
         )

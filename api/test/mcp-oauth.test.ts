@@ -444,7 +444,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     const result = await callTool(accessToken, "get_recent_scrobbles", {
       username: "owner",
       limit: 5,
-      before: Date.parse("2026-11-02T00:00:00Z") / 1000,
+      until: Date.parse("2026-11-02T00:00:00Z") / 1000,
       cursor,
     });
 
@@ -470,6 +470,23 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   expect([...first.items, ...second.items].map(({ id }) => id)).toEqual(
     Array.from({ length: 9 }, (_, index) => (8 - index).toString(16).padStart(32, "0")),
   );
+
+  const playTime = Date.parse("2026-11-01T00:30:00Z") / 1000;
+
+  const inRange = async (since: number, until: number) => {
+    const result = await callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      limit: 1,
+      since,
+      until,
+    });
+
+    return Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(result)).items);
+  };
+
+  expect(await inRange(playTime, playTime + 1)).toHaveLength(1);
+  expect(await inRange(playTime + 1, playTime + 2)).toEqual([]);
+  expect(await inRange(playTime - 1, playTime)).toEqual([]);
 
   const me = await callTool(accessToken, "get_me");
   expect(me.isError).not.toBe(true);
@@ -498,7 +515,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   const empty = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    before: 0,
+    until: 0,
   });
 
   expect(JSON.parse(text(empty))).toEqual({ items: [], nextCursor: null });
@@ -660,23 +677,23 @@ test("lists connected apps and revokes access", async () => {
   expect((await request(`/api/oauth/apps/${appId}`, { method: "DELETE" })).status).toBe(401);
 });
 
-test("rejects invalid before and empty username on MCP scrobble tools", async () => {
+test("rejects invalid until and empty username on MCP scrobble tools", async () => {
   const user = await signIn({ id: "oauth-validation", email: "validation@example.com" });
   const accessToken = await token(user.cookie);
 
-  const fractionalBefore = await callTool(accessToken, "get_recent_scrobbles", {
+  const fractionalUntil = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    before: 12.5,
+    until: 12.5,
   });
 
-  expect(fractionalBefore.isError).toBe(true);
+  expect(fractionalUntil.isError).toBe(true);
 
-  const negativeBefore = await callTool(accessToken, "get_recent_scrobbles", {
+  const negativeUntil = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    before: -1,
+    until: -1,
   });
 
-  expect(negativeBefore.isError).toBe(true);
+  expect(negativeUntil.isError).toBe(true);
 
   const emptyUsername = await callTool(accessToken, "get_recent_scrobbles", {
     username: "",

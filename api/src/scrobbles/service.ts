@@ -31,7 +31,9 @@ export interface RecentScrobblesInput {
   readonly before?: number;
 }
 
-export interface RecentPageInput extends Omit<RecentScrobblesInput, "offset"> {
+export interface RecentPageInput extends Omit<RecentScrobblesInput, "offset" | "before"> {
+  readonly since?: number;
+  readonly until?: number;
   readonly cursor?: string;
 }
 
@@ -142,7 +144,8 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
           findRecentScrobblesByUserId(profile.id, {
             pageAfter: cursor,
             limit: input.limit + 1,
-            before: input.before === undefined ? undefined : new Date(input.before * 1000),
+            since: input.since,
+            before: input.until === undefined ? undefined : new Date(input.until * 1000),
           }),
         );
 
