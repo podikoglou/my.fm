@@ -66,7 +66,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
         </div>
       </CardHeader>
 
-      <CardContent className="min-h-0 flex-1 overflow-hidden">
+      <CardContent className="min-h-32 flex-1 overflow-hidden">
         <UserTrackList username={username} />
       </CardContent>
     </>

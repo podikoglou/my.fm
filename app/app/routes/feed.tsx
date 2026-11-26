@@ -13,7 +13,7 @@ export default function FeedPage() {
         <CardDescription className="mt-2">The latest scrobbles from everyone.</CardDescription>
       </CardHeader>
 
-      <CardContent className="min-h-0 flex-1 overflow-hidden">
+      <CardContent className="min-h-32 flex-1 overflow-hidden">
         <FeedTrackList />
       </CardContent>
     </>
