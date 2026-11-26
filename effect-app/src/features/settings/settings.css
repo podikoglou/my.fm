@@ -1,4 +1,8 @@
 .settings-page {
+  & > * {
+    padding-inline: 1.5rem;
+  }
+
   & > header {
     display: flex;
     justify-content: space-between;
