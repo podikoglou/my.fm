@@ -1,4 +1,5 @@
 import { FeedTrackList } from "~/components/feed-track-list";
+import { LastListenLink } from "~/components/last-listen-link";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 
 export function meta() {
@@ -16,6 +17,8 @@ export default function FeedPage() {
       <CardContent className="min-h-0 flex-1 overflow-hidden">
         <FeedTrackList />
       </CardContent>
+
+      <LastListenLink />
     </>
   );
 }
