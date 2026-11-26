@@ -17,6 +17,8 @@ import { Scrobbles } from "../scrobbles/service.ts";
 import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 
+import { presentRecentPlay, RecentExtras } from "./recent.ts";
+
 const TOOL_ANNOTATIONS = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -36,11 +38,35 @@ const GetUserInputSchema = Schema.Struct({
   }),
 );
 
+const DEFAULT_RECENT_LIMIT = 50;
+
 const GetRecentScrobblesInputSchema = Schema.Struct({
+  include: Schema.optionalKey(RecentExtras),
   username: NonEmptyString,
-  offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
-  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  since: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Inclusive Unix seconds. For a local day use midnight in the listener's time zone.",
+    }),
+  ),
+  until: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Exclusive Unix seconds. For a local day use the next midnight in the same time zone.",
+    }),
+  ),
+  cursor: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
+    }),
+  ),
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 }))
+    .annotate({
+      default: DEFAULT_RECENT_LIMIT,
+      description: "Number of plays to return (1–200, default 50).",
+    })
+    .pipe(Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_RECENT_LIMIT))),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
@@ -165,7 +191,11 @@ function toolData<T>(data: T): CallToolResult {
 
 const decodeGetMeInput = Schema.decodeUnknownEffect(GetMeInputSchema);
 const decodeGetUserInput = Schema.decodeUnknownEffect(GetUserInputSchema);
-const decodeGetRecentScrobblesInput = Schema.decodeUnknownEffect(GetRecentScrobblesInputSchema);
+
+const decodeGetRecentScrobblesInput = Schema.decodeUnknownEffect(GetRecentScrobblesInputSchema, {
+  onExcessProperty: "error",
+});
+
 const decodeGetScrobbleMonthsInput = Schema.decodeUnknownEffect(GetScrobbleMonthsInputSchema);
 const decodeGetPublicFeedInput = Schema.decodeUnknownEffect(GetPublicFeedInputSchema);
 const decodeGetSummaryInput = Schema.decodeUnknownEffect(GetSummaryInputSchema);
@@ -295,22 +325,23 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
 
               return yield* withRateLimit(userId, () =>
                 scrobbles
-                  .getRecent(
+                  .getRecentPage(
                     {
-                      username: input.username,
-                      offset: input.offset,
-                      limit: input.limit ?? 8,
-                      before: input.before,
+                      ...input,
+                      includeAlbumArtists: input.include?.includes("albumArtists") ?? false,
                     },
                     userId,
                   )
                   .pipe(
-                    Effect.map(toolData),
+                    Effect.map(({ items, nextCursor }) =>
+                      toolData({
+                        items: items.map((item) => presentRecentPlay(item, input.include)),
+                        nextCursor,
+                      }),
+                    ),
                     Effect.catchTags({
-                      UserNotFoundError: () => Effect.succeed(toolError("User not found")),
-                      ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
-                      D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
+                      ...profileErrors,
+                      InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
                     }),
                   ),
               );

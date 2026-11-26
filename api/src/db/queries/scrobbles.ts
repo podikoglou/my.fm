@@ -414,15 +414,46 @@ function projectAlbum(group: ScrobbleProjectionGroup): ProjectedAlbum {
 export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUserId")(function* (
   userId: User["id"],
   {
+    since,
     before,
-    offset,
+    offset = 0,
     limit,
-  }: { before?: NonNullable<Scrobble["scrobbleDate"]>; offset: number; limit: number },
+    pageAfter,
+    includeAlbumArtists = true,
+  }: {
+    since?: number;
+    before?: NonNullable<Scrobble["scrobbleDate"]>;
+    offset?: number;
+    limit: number;
+    pageAfter?: FeedCursor | null;
+    includeAlbumArtists?: boolean;
+  },
 ) {
   const sql = yield* SqlClient.SqlClient;
 
-  const beforeFilter = before
-    ? sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`
+  const lowerBound = since === undefined ? sql`` : sql`AND s.scrobbleDate >= ${since}`;
+
+  // A single upper bound lets SQLite seek directly to the start of this page.
+  const upperBound = (() => {
+    if (before && (!pageAfter || before <= pageAfter.scrobbleDate)) {
+      return sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`;
+    }
+
+    if (pageAfter) {
+      return sql`AND (s.scrobbleDate, s.id) < (${Math.floor(pageAfter.scrobbleDate.getTime() / 1000)}, ${pageAfter.id})`;
+    }
+
+    return pageAfter === null ? sql`AND s.scrobbleDate IS NOT NULL` : sql``;
+  })();
+
+  const albumCredits = includeAlbumArtists
+    ? sql`albumArtistJoin.position AS albumArtistPosition, albumArtist.name AS albumArtistName,
+          albumArtist.spotifyUri AS albumArtistSpotifyUri`
+    : sql`NULL AS albumArtistPosition, NULL AS albumArtistName, NULL AS albumArtistSpotifyUri`;
+
+  const albumCreditJoins = includeAlbumArtists
+    ? sql`LEFT JOIN album_artists AS albumArtistJoin ON albumArtistJoin.album_spotify_uri = album.spotifyUri
+          LEFT JOIN artists AS albumArtist ON albumArtist.spotifyUri = albumArtistJoin.artist_spotify_uri`
     : sql``;
 
   const find = SqlSchema.findAll({
@@ -437,7 +468,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
           SELECT s.id, s.scrobbleDate, s.trackSpotifyUri, s.albumSpotifyUri,
             s.coverArtUrl, s.artistName, s.albumName, s.trackName, s.userId
           FROM scrobbles AS s
-          WHERE s.userId = ${userId} ${beforeFilter}
+          WHERE s.userId = ${userId} ${lowerBound} ${upperBound}
           ORDER BY s.scrobbleDate DESC, s.id DESC
           LIMIT ${limit} OFFSET ${offset}
         )
@@ -459,9 +490,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
           trackArtistJoin.position AS trackArtistPosition,
           trackArtist.name AS trackArtistName,
           trackArtist.spotifyUri AS trackArtistSpotifyUri,
-          albumArtistJoin.position AS albumArtistPosition,
-          albumArtist.name AS albumArtistName,
-          albumArtist.spotifyUri AS albumArtistSpotifyUri,
+          ${albumCredits},
           NULL AS userUsername,
           NULL AS userName,
           NULL AS userAvatarUrl
@@ -470,10 +499,9 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
         LEFT JOIN albums AS album ON album.spotifyUri = s.albumSpotifyUri
         LEFT JOIN track_artists AS trackArtistJoin ON trackArtistJoin.track_spotify_uri = t.spotifyUri
         LEFT JOIN artists AS trackArtist ON trackArtist.spotifyUri = trackArtistJoin.artist_spotify_uri
-        LEFT JOIN album_artists AS albumArtistJoin ON albumArtistJoin.album_spotify_uri = album.spotifyUri
-        LEFT JOIN artists AS albumArtist ON albumArtist.spotifyUri = albumArtistJoin.artist_spotify_uri
+        ${albumCreditJoins}
         ORDER BY s.scrobbleDate DESC, s.id DESC,
-          trackArtistJoin.position ASC, albumArtistJoin.position ASC
+          trackArtistPosition ASC, albumArtistPosition ASC
       `,
   });
 
