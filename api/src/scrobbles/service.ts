@@ -25,6 +25,7 @@ import { decodeFeedCursor, encodeFeedCursor } from "./cursor.ts";
 import type { InvalidCursorError } from "./errors.ts";
 
 export interface RecentScrobblesInput {
+  readonly since?: number;
   readonly username: string;
   readonly offset: number;
   readonly limit: number;
@@ -111,6 +112,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
             offset: input.offset,
             limit: input.limit,
             before: input.before === undefined ? undefined : new Date(input.before * 1000),
+            since: input.since,
           }),
         );
       });

@@ -37,6 +37,18 @@ const GetUserInputSchema = Schema.Struct({
 );
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
+  since: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Inclusive lower bound in Unix seconds. For a local day, use midnight in the listener's IANA time zone.",
+    }),
+  ),
+  until: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Exclusive upper bound in Unix seconds. For a local day, use the next local midnight. If before is also set, the earlier bound applies.",
+    }),
+  ),
   username: NonEmptyString,
   offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
@@ -296,7 +308,11 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                       username: input.username,
                       offset: input.offset,
                       limit: input.limit ?? 8,
-                      before: input.before,
+                      before:
+                        input.before === undefined
+                          ? input.until
+                          : Math.min(input.before, input.until ?? input.before),
+                      since: input.since,
                     },
                     userId,
                   )

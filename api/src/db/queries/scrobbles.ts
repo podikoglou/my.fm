@@ -415,15 +415,23 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
   userId: User["id"],
   {
     before,
+    since,
     offset,
     limit,
-  }: { before?: NonNullable<Scrobble["scrobbleDate"]>; offset: number; limit: number },
+  }: {
+    before?: NonNullable<Scrobble["scrobbleDate"]>;
+    since?: number;
+    offset: number;
+    limit: number;
+  },
 ) {
   const sql = yield* SqlClient.SqlClient;
 
   const beforeFilter = before
     ? sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`
     : sql``;
+
+  const sinceFilter = since === undefined ? sql`` : sql`AND s.scrobbleDate >= ${since}`;
 
   const find = SqlSchema.findAll({
     Request: Schema.Struct({
@@ -437,7 +445,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
           SELECT s.id, s.scrobbleDate, s.trackSpotifyUri, s.albumSpotifyUri,
             s.coverArtUrl, s.artistName, s.albumName, s.trackName, s.userId
           FROM scrobbles AS s
-          WHERE s.userId = ${userId} ${beforeFilter}
+          WHERE s.userId = ${userId} ${beforeFilter} ${sinceFilter}
           ORDER BY s.scrobbleDate DESC, s.id DESC
           LIMIT ${limit} OFFSET ${offset}
         )

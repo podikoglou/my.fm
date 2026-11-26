@@ -467,6 +467,21 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   expect(JSON.parse(text(empty))).toEqual([]);
 
+  const playTime = Date.parse("2026-11-01T00:30:00Z") / 1000;
+
+  const inRange = (since: number, until: number) =>
+    callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      offset: 0,
+      limit: 1,
+      since,
+      until,
+    });
+
+  expect(JSON.parse(text(await inRange(playTime, playTime + 1)))).toHaveLength(1);
+  expect(JSON.parse(text(await inRange(playTime + 1, playTime + 2)))).toEqual([]);
+  expect(JSON.parse(text(await inRange(playTime - 1, playTime)))).toEqual([]);
+
   const capped = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
     offset: 0,
