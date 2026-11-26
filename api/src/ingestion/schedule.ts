@@ -1,5 +1,5 @@
 import { createScrobbleId, type PlayRecord } from "../db/queries/scrobbles.ts";
-import type { SpotifyPlay, SpotifyPlayback } from "../spotify/service.ts";
+import type { SpotifyPlay } from "../spotify/service.ts";
 
 /** Fallback Spotify quota block when no numeric Retry-After is available (30 min). */
 export const SPOTIFY_QUOTA_FALLBACK_SECONDS = 30 * 60;
@@ -46,34 +46,6 @@ export function shouldFetchUser(user: UserScheduleState, now: Date): boolean {
     : INACTIVE_FETCH_INTERVAL_MS;
 
   return now.getTime() - user.lastFetchedAt.getTime() >= intervalMs;
-}
-
-/**
- * Decide whether to call Spotify's recently-played endpoint given an optional
- * currently-playing snapshot.
- *
- * When a track is currently playing, history is fetched only if the track
- * started after `lastFetchedAt` (so the previous track may have finished) or
- * if the inactive safety interval has elapsed.
- */
-export function shouldFetchHistory(
-  user: UserScheduleState,
-  playback: SpotifyPlayback | null,
-  now: Date,
-): boolean {
-  if (!playback || !user.lastFetchedAt || user.lastRecentTracksFetchTime === null) {
-    return shouldFetchUser(user, now);
-  }
-
-  const elapsedMs = now.getTime() - user.lastFetchedAt.getTime();
-
-  if (elapsedMs >= INACTIVE_FETCH_INTERVAL_MS) {
-    return true;
-  }
-
-  const trackStartedAtMs = now.getTime() - playback.progressMs;
-
-  return trackStartedAtMs > user.lastFetchedAt.getTime();
 }
 
 export function computeQuotaBlock(retryAfterSeconds: number | null, now: Date): Date {

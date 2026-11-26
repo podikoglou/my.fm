@@ -16,14 +16,7 @@ import { Scrobbles } from "../scrobbles/service.ts";
 import type { SpotifyQuotaExceededError } from "../spotify/errors.ts";
 import { SpotifyClient } from "../spotify/service.ts";
 import { INGESTION_EVENTS, logIngestionEvent, logIngestionFailure } from "./events.ts";
-import {
-  ACTIVE_WINDOW_MS,
-  computeQuotaBlock,
-  isUserActive,
-  shouldFetchHistory,
-  shouldFetchUser,
-  toPlayRecord,
-} from "./schedule.ts";
+import { ACTIVE_WINDOW_MS, computeQuotaBlock, shouldFetchUser, toPlayRecord } from "./schedule.ts";
 
 export interface IngestionApi {
   readonly run: (now?: Date) => Effect.Effect<void>;
@@ -132,9 +125,8 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
         }
 
         const userState = queueData.data;
-        const active = isUserActive(userState.lastActiveAt, now);
 
-        if (!active && !shouldFetchUser(userState, now)) {
+        if (!shouldFetchUser(userState, now)) {
           return { kind: "ok", plays: 0, skipped: true };
         }
 
@@ -185,27 +177,6 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
         }
 
         const client = spotify.forAccessToken(tokenResult.accessToken);
-
-        let playback = null;
-
-        if (active) {
-          const playbackResult = yield* client.getCurrentlyPlaying().pipe(
-            Effect.map((value) => ({ ok: true as const, value })),
-            Effect.catchTag("SpotifyQuotaExceededError", (error) =>
-              Effect.succeed({ ok: false as const, error }),
-            ),
-          );
-
-          if (!playbackResult.ok) {
-            return { kind: "spotify-quota", error: playbackResult.error };
-          }
-
-          playback = playbackResult.value;
-        }
-
-        if (!shouldFetchHistory(userState, playback, now)) {
-          return { kind: "ok", plays: 0, skipped: true };
-        }
 
         const cursor = userState.lastRecentTracksFetchTime;
 

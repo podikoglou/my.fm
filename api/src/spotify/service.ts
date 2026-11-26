@@ -1,5 +1,5 @@
 import { type MaxInt, SpotifyApi } from "@spotify/web-api-ts-sdk";
-import { Context, Effect, Layer, Option, Schema } from "effect";
+import { Context, Effect, Layer } from "effect";
 
 import { AuthConfig } from "../auth/service.ts";
 import {
@@ -39,10 +39,6 @@ export interface SpotifyPlay {
   readonly track: SpotifyTrack;
 }
 
-export interface SpotifyPlayback {
-  readonly progressMs: number;
-}
-
 export interface RecentlyPlayedOptions {
   readonly type: "after";
   readonly timestamp: number;
@@ -56,23 +52,11 @@ export interface SpotifyUserClient {
     { readonly items: ReadonlyArray<SpotifyPlay> },
     SpotifyQuotaExceededError | SpotifyClientError
   >;
-  readonly getCurrentlyPlaying: () => Effect.Effect<
-    SpotifyPlayback | null,
-    SpotifyQuotaExceededError
-  >;
 }
 
 export interface SpotifyClientApi {
   readonly forAccessToken: (accessToken: string) => SpotifyUserClient;
 }
-
-const CurrentlyPlayingSchema = Schema.Struct({
-  is_playing: Schema.Literal(true),
-  currently_playing_type: Schema.Literal("track"),
-  progress_ms: Schema.Finite,
-});
-
-const decodeCurrentlyPlaying = Schema.decodeUnknownOption(CurrentlyPlayingSchema);
 
 /**
  * Wrap `fetch` so HTTP 429 responses throw `SpotifyQuotaExceededError` with
@@ -128,22 +112,7 @@ function makeSdkUserClient(clientId: string, accessToken: string): SpotifyUserCl
     });
   });
 
-  const getCurrentlyPlaying = Effect.fn("SpotifyClient.getCurrentlyPlaying")(function* () {
-    const result = yield* Effect.tryPromise({
-      try: () => sdk.player.getCurrentlyPlayingTrack(),
-      catch: classifySpotifyError,
-    }).pipe(Effect.catchTag("SpotifyClientError", () => Effect.succeed(null)));
-
-    if (result === null || result === undefined) {
-      return null;
-    }
-
-    const decoded = decodeCurrentlyPlaying(result);
-
-    return Option.isSome(decoded) ? { progressMs: decoded.value.progress_ms } : null;
-  });
-
-  return { getRecentlyPlayedTracks, getCurrentlyPlaying };
+  return { getRecentlyPlayedTracks };
 }
 
 export class SpotifyClient extends Context.Service<SpotifyClient, SpotifyClientApi>()(
