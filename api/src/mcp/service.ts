@@ -39,7 +39,12 @@ const GetUserInputSchema = Schema.Struct({
 const GetRecentScrobblesInputSchema = Schema.Struct({
   username: NonEmptyString,
   offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
+  limit: Schema.optionalKey(
+    Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 })).annotate({
+      default: 50,
+      description: "Number of plays to return (1–200, default 50).",
+    }),
+  ),
   before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
 });
 
@@ -295,7 +300,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                     {
                       username: input.username,
                       offset: input.offset,
-                      limit: input.limit ?? 8,
+                      limit: input.limit ?? 50,
                       before: input.before,
                     },
                     userId,

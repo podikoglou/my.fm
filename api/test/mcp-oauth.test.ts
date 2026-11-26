@@ -457,7 +457,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     offset: 0,
   });
 
-  expect(Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)))).toHaveLength(8);
+  expect(Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)))).toHaveLength(9);
 
   const empty = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
@@ -470,7 +470,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   const capped = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
     offset: 0,
-    limit: 9,
+    limit: 201,
   });
 
   expect(capped.isError).toBe(true);
