@@ -328,6 +328,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                   .getRecentPage(
                     {
                       ...input,
+                      includeAlbumReleaseDate: input.include?.includes("albumReleaseDate"),
                       includeAlbumArtists: input.include?.includes("albumArtists") ?? false,
                     },
                     userId,

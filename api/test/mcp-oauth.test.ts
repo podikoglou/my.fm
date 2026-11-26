@@ -600,10 +600,39 @@ test("returns 50 recent plays by default and accepts a full 200-play page", asyn
       trackName: "Song",
     })),
   );
+  await insertRows(env.DB, "albums", {
+    spotifyUri: "spotify:album:1",
+    name: "Album",
+    releaseDate: "1999",
+    totalTracks: 1,
+    albumType: "album",
+    imageUrl: "",
+  });
+  await updateRows(
+    env.DB,
+    "scrobbles",
+    { albumSpotifyUri: "spotify:album:1" },
+    {
+      id: (199).toString(16).padStart(32, "0"),
+    },
+  );
   const accessToken = await token(owner.cookie);
 
   const page = await callTool(accessToken, "get_recent_scrobbles", { username: "pages" });
-  expect(JSON.parse(text(page)).items).toHaveLength(50);
+  const { items } = JSON.parse(text(page));
+  expect(items).toHaveLength(50);
+  expect(items[0].album).toEqual({ name: "Album" });
+
+  const dates = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "pages",
+    include: ["albumReleaseDate"],
+    limit: 2,
+  });
+
+  expect(JSON.parse(text(dates)).items).toMatchObject([
+    { album: { releaseDate: "1999" } },
+    { album: { releaseDate: null } },
+  ]);
 
   const full = await callTool(accessToken, "get_recent_scrobbles", {
     username: "pages",
