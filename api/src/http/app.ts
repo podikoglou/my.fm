@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Layer } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 
@@ -115,7 +115,7 @@ export async function handleWebRequest(
   const { handler, dispose } = makeWebHandler(infraLayer, oauthLayer);
 
   try {
-    const response = await handler(request, Context.empty());
+    const response = await handler(request);
 
     if (response.headers.has("cache-control")) {
       return response;
