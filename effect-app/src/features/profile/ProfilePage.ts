@@ -113,7 +113,7 @@ export const ProfilePageNoDeps = Html.component({
                     "aria-label": "Settings",
                     class: `${ghostButtonClasses} absolute top-0 right-2 size-8 gap-2 [&_svg:not([class*='size-'])]:size-3`,
                   })
-                  .children(profileIcon(h, "settings", "size-3")),
+                  .children(profileIcon(h, "settings", "size-4")),
               viewer?._tag === "Anonymous" &&
                 h.button
                   .attrs({
