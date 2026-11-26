@@ -6,7 +6,7 @@ export const RecentExtras = Schema.Array(
   Schema.Literals(["images", "spotifyUris", "albumArtists", "albumReleaseDate"]),
 ).annotate({
   description:
-    "Additional metadata to return. By default each play includes its ID, time, track, credited track artists and album name. albumReleaseDate adds album.releaseDate at catalog precision, or null when unknown.",
+    "Additional metadata to return. By default each play includes its ID, time, track, credited track artists and album name.",
 });
 
 export function presentRecentPlay(play: ProjectedScrobble, include: typeof RecentExtras.Type = []) {
