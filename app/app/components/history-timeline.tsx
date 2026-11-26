@@ -52,7 +52,7 @@ export function HistoryTimeline({ username, months }: { username: string; months
 
   return (
     <div className="relative h-full">
-      <div ref={ref} className="history-scroll h-full overflow-y-auto pr-1" onScroll={onScroll}>
+      <div ref={ref} className="timeline-scroll h-full overflow-y-auto pr-1" onScroll={onScroll}>
         <h3 className="sticky top-0 z-10 h-7 bg-card text-xs leading-7 font-medium text-muted-foreground">
           {currentMonth.label}
         </h3>

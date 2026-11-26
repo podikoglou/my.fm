@@ -190,28 +190,28 @@
   }
 }
 
-.history-scroll {
+.timeline-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
 @supports selector(::-webkit-scrollbar) {
-  .history-scroll {
+  .timeline-scroll {
     scrollbar-width: auto;
     scrollbar-color: auto;
   }
 
-  .history-scroll::-webkit-scrollbar {
+  .timeline-scroll::-webkit-scrollbar {
     width: 8px;
   }
 
-  .history-scroll::-webkit-scrollbar-thumb {
+  .timeline-scroll::-webkit-scrollbar-thumb {
     min-height: 44px;
     background: var(--border);
     border-radius: 9999px;
   }
 
-  .history-scroll::-webkit-scrollbar-thumb:hover {
+  .timeline-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
   }
 }
