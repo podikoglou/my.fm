@@ -30,22 +30,43 @@ tarball manifests were checked:
 | `@effect/ui-devtools` | `0.0.0` | Optional debugging; not required for the browser app |
 | `@effect/ui-opentui`  | `0.0.0` | OpenTUI terminal host; not needed for my.fm          |
 
-For the rebuild, run from the frontend package (after verifying the intended
-workspace/package directory):
+The [rebuild foundation][foundation] added `effect-app/` to the root Bun workspaces and
+declared this dependency in `effect-app/package.json`:
 
-```sh
-bun add \
-  @effect/ui@https://pkg.pr.new/Effect-TS/ui/@effect/ui@1ba2087 \
-  @effect/ui-kit@https://pkg.pr.new/Effect-TS/ui/@effect/ui-kit@1ba2087
+```json
+{
+  "dependencies": {
+    "@effect/ui": "https://pkg.pr.new/Effect-TS/ui/@effect/ui@1ba208776ee27c98dfa9e724e30e050309d9648e"
+  }
+}
 ```
 
-Use the same SHA for all UI packages. The core and kit declare `effect:
-^4.1.4`; my.fm's workspace locks `4.1.5`, while upstream develops against
-`^4.1.6`. Check the resolved Effect instance and run the rebuild's typecheck
-and browser smoke test before making a workspace-wide version change. Tarball
-contents and peer ranges are verified; Bun installation, deduplication, and
-runtime compatibility with my.fm are **not** verified. Upstream documents
-pnpm peer warnings for URL dependencies; do not assume Bun behaves the same.
+From the my.fm workspace root:
+
+```sh
+bun install
+bun run --cwd effect-app typecheck
+bun run --cwd effect-app build
+```
+
+**Verified by the rebuild foundation owner:** Bun installed `@effect/ui`
+with my.fm's Effect `4.1.5` (`Resolved, downloaded and extracted [44]`,
+`Saved lockfile`,
+`49 packages installed [1490.00ms]`). The resulting `bun.lock` pinned
+`@effect/ui` to the full SHA above and contained one `effect` package entry
+at `4.1.5`. Typecheck and the Vite `7.3.2` production build passed
+(829 modules transformed).
+
+**Not verified:** whether the built app uses a single Effect instance at
+runtime, and whether it works in a browser. One lockfile entry establishes
+package resolution, not bundle or runtime identity. The feed/shell
+foundation did not need or install `@effect/ui-kit`. When adding the kit,
+declare its matching snapshot URL
+(`https://pkg.pr.new/Effect-TS/ui/@effect/ui-kit@1ba208776ee27c98dfa9e724e30e050309d9648e`)
+and verify its installation and browser behavior separately. Use the same
+SHA for all UI packages. Both core and kit declare `effect: ^4.1.4`,
+while upstream develops against `^4.1.6`; do not upgrade the workspace
+solely to match upstream development.
 Enable both `strict` and `exactOptionalPropertyTypes` for the rebuilt app;
 upstream documents an inference failure when the latter is off.
 
@@ -219,15 +240,16 @@ changing scroll behavior.
   including real-browser focus, file selection, scroll, native history and
   OAuth navigation, plus Worker routing and request traces.
 - **Explicit review gates.** The upstream APIs are experimental, package
-  snapshots are not npm releases, and integration with Better Auth's
-  non-React client, Bun/Vite, Cloudflare's static site, and browser support
-  for every kit control remains unverified in my.fm. The current
+  snapshots are not npm releases, and the foundation build does not verify
+  browser behavior, Better Auth's non-React client, Cloudflare's static site,
+  or browser support for every kit control in my.fm. The current
   [code style](CODE-STYLE.md) limits Effect outside infrastructure; the new
   UI framework requires it within the browser runtime. Scope that exception
   to the rebuild and review any necessary lint/TS config change; do not
   blanket-disable rules or port unrelated API/domain code to Effect.
 
 [pin]: https://github.com/Effect-TS/ui/commit/1ba208776ee27c98dfa9e724e30e050309d9648e
+[foundation]: https://github.com/podikoglou/my.fm/commit/993a175468603713d8fb59a1cb88f3eb1b58f092
 [snapshot]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/.github/workflows/snapshot.yml
 [html]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/src/html/Html.ts
 [component]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/src/Component.ts
