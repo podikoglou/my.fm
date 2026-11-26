@@ -88,6 +88,7 @@
       "name": "@my.fm/effect-app",
       "dependencies": {
         "@effect/ui": "https://pkg.pr.new/Effect-TS/ui/@effect/ui@1ba208776ee27c98dfa9e724e30e050309d9648e",
+        "@effect/ui-kit": "https://pkg.pr.new/Effect-TS/ui/@effect/ui-kit@1ba208776ee27c98dfa9e724e30e050309d9648e",
         "@my.fm/api": "workspace:*",
         "better-auth": "1.7.20",
         "date-fns": "^4.1.0",
@@ -301,6 +302,8 @@
     "@effect/tsgo-win32-x64": ["@effect/tsgo-win32-x64@0.73.2", "", { "os": "win32", "cpu": "x64" }, "sha512-N5V9GaTZseqGN38+XhGypLpweX2XiM2DO1V9DUppp26deZIJe0j3QRiRCSUAQoJrR0Lji/k5wo3jki6P38sCPA=="],
 
     "@effect/ui": ["@effect/ui@https://pkg.pr.new/Effect-TS/ui/@effect/ui@1ba208776ee27c98dfa9e724e30e050309d9648e", { "peerDependencies": { "effect": "^4.1.4" } }, "sha512-9M1zxPkiHX2b/TOucuSh/EYPOHxgMB3sox86Q0WglYerb9mf17HnMTzRtHdM3vfC32e6nsVEZYP8uT/4tKapDg=="],
+
+    "@effect/ui-kit": ["@effect/ui-kit@https://pkg.pr.new/Effect-TS/ui/@effect/ui-kit@1ba208776ee27c98dfa9e724e30e050309d9648e", { "peerDependencies": { "@effect/ui": "^0.0.0", "effect": "^4.1.4" } }, "sha512-2rbe1sNn2UioP/1PM77qmn0eITZCU+dOxiKggKkh94gouu5muviKjfAhFQeP7j3/FO6Gaz/h4AmM+tkDHe4VQQ=="],
 
     "@emnapi/runtime": ["@emnapi/runtime@1.11.3", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA=="],
 
