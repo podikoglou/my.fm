@@ -16,6 +16,7 @@ import type { RateLimitBindingName } from "../rate-limits.ts";
 import { Scrobbles } from "../scrobbles/service.ts";
 import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
+
 import { presentRecentPlay, RecentExtras } from "./recent.ts";
 
 const TOOL_ANNOTATIONS = {
@@ -38,11 +39,18 @@ const GetUserInputSchema = Schema.Struct({
 );
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
-  username: NonEmptyString,
-  offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
-  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
   include: Schema.optionalKey(RecentExtras),
+  username: NonEmptyString,
+  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  cursor: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
+    }),
+  ),
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 })).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(8)),
+  ),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
@@ -293,26 +301,23 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
 
               return yield* withRateLimit(userId, () =>
                 scrobbles
-                  .getRecent(
+                  .getRecentPage(
                     {
-                      username: input.username,
+                      ...input,
                       includeAlbumArtists: input.include?.includes("albumArtists") ?? false,
-                      offset: input.offset,
-                      limit: input.limit ?? 8,
-                      before: input.before,
                     },
                     userId,
                   )
                   .pipe(
-                    Effect.map((items) =>
-                      items.map((item) => presentRecentPlay(item, input.include)),
+                    Effect.map(({ items, nextCursor }) =>
+                      toolData({
+                        items: items.map((item) => presentRecentPlay(item, input.include)),
+                        nextCursor,
+                      }),
                     ),
-                    Effect.map(toolData),
                     Effect.catchTags({
-                      UserNotFoundError: () => Effect.succeed(toolError("User not found")),
-                      ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
-                      D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
+                      ...profileErrors,
+                      InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
                     }),
                   ),
               );
