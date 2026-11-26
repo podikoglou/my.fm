@@ -17,6 +17,8 @@ import { Scrobbles } from "../scrobbles/service.ts";
 import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 
+import { presentRecentPlay, RecentExtras } from "./recent.ts";
+
 const TOOL_ANNOTATIONS = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -39,6 +41,7 @@ const GetUserInputSchema = Schema.Struct({
 const DEFAULT_RECENT_LIMIT = 50;
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
+  include: Schema.optionalKey(RecentExtras),
   username: NonEmptyString,
   since: Schema.optionalKey(
     StatsInputSchemas.unixSeconds.annotate({
@@ -317,13 +320,26 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
               const input = decoded.success;
 
               return yield* withRateLimit(userId, () =>
-                scrobbles.getRecentPage(input, userId).pipe(
-                  Effect.map(toolData),
-                  Effect.catchTags({
-                    ...profileErrors,
-                    InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
-                  }),
-                ),
+                scrobbles
+                  .getRecentPage(
+                    {
+                      ...input,
+                      includeAlbumArtists: input.include?.includes("albumArtists") ?? false,
+                    },
+                    userId,
+                  )
+                  .pipe(
+                    Effect.map(({ items, nextCursor }) =>
+                      toolData({
+                        items: items.map((item) => presentRecentPlay(item, input.include)),
+                        nextCursor,
+                      }),
+                    ),
+                    Effect.catchTags({
+                      ...profileErrors,
+                      InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
+                    }),
+                  ),
               );
             }
 

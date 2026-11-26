@@ -419,12 +419,14 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
     offset = 0,
     limit,
     pageAfter,
+    includeAlbumArtists = true,
   }: {
     since?: number;
     before?: NonNullable<Scrobble["scrobbleDate"]>;
     offset?: number;
     limit: number;
     pageAfter?: FeedCursor | null;
+    includeAlbumArtists?: boolean;
   },
 ) {
   const sql = yield* SqlClient.SqlClient;
@@ -443,6 +445,16 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
 
     return pageAfter === null ? sql`AND s.scrobbleDate IS NOT NULL` : sql``;
   })();
+
+  const albumCredits = includeAlbumArtists
+    ? sql`albumArtistJoin.position AS albumArtistPosition, albumArtist.name AS albumArtistName,
+          albumArtist.spotifyUri AS albumArtistSpotifyUri`
+    : sql`NULL AS albumArtistPosition, NULL AS albumArtistName, NULL AS albumArtistSpotifyUri`;
+
+  const albumCreditJoins = includeAlbumArtists
+    ? sql`LEFT JOIN album_artists AS albumArtistJoin ON albumArtistJoin.album_spotify_uri = album.spotifyUri
+          LEFT JOIN artists AS albumArtist ON albumArtist.spotifyUri = albumArtistJoin.artist_spotify_uri`
+    : sql``;
 
   const find = SqlSchema.findAll({
     Request: Schema.Struct({
@@ -478,9 +490,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
           trackArtistJoin.position AS trackArtistPosition,
           trackArtist.name AS trackArtistName,
           trackArtist.spotifyUri AS trackArtistSpotifyUri,
-          albumArtistJoin.position AS albumArtistPosition,
-          albumArtist.name AS albumArtistName,
-          albumArtist.spotifyUri AS albumArtistSpotifyUri,
+          ${albumCredits},
           NULL AS userUsername,
           NULL AS userName,
           NULL AS userAvatarUrl
@@ -489,10 +499,9 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
         LEFT JOIN albums AS album ON album.spotifyUri = s.albumSpotifyUri
         LEFT JOIN track_artists AS trackArtistJoin ON trackArtistJoin.track_spotify_uri = t.spotifyUri
         LEFT JOIN artists AS trackArtist ON trackArtist.spotifyUri = trackArtistJoin.artist_spotify_uri
-        LEFT JOIN album_artists AS albumArtistJoin ON albumArtistJoin.album_spotify_uri = album.spotifyUri
-        LEFT JOIN artists AS albumArtist ON albumArtist.spotifyUri = albumArtistJoin.artist_spotify_uri
+        ${albumCreditJoins}
         ORDER BY s.scrobbleDate DESC, s.id DESC,
-          trackArtistJoin.position ASC, albumArtistJoin.position ASC
+          trackArtistPosition ASC, albumArtistPosition ASC
       `,
   });
 
