@@ -30,7 +30,8 @@ Better Auth has issued.
 Write a new SQL migration at
 `api/migrations/<timestamp>_<name>/migration.sql` and commit it. Existing
 migrations are immutable; do not edit or regenerate them. Alchemy applies
-pending migrations on the next deploy.
+pending migrations on the next deploy. Each directory holds only
+`migration.sql`; there is no schema snapshot.
 
 ## Cache
 
