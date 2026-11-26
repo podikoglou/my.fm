@@ -84,6 +84,13 @@
         "vitest": "4.1.12",
       },
     },
+    "sim": {
+      "name": "@my.fm/sim",
+      "devDependencies": {
+        "@types/bun": "^1.3.12",
+        "@typescript/native-preview": "^7.0.0-dev.20260423.1",
+      },
+    },
   },
   "packages": {
     "@alchemy.run/acme": ["@alchemy.run/acme@2.0.0-beta.85", "", { "dependencies": { "@distilled.cloud/acme": "1.0.0-rc.18" }, "peerDependencies": { "alchemy": "2.0.0-beta.85", "effect": "^4.1.0" } }, "sha512-hOV18VHG6ivrbPnk35hoqlCQPc6bR8b9soGmHlSkbnPIgVZUg7jpliF9AztSSJbJK4GHcBFc9hWetwCRHzGYAg=="],
@@ -465,6 +472,8 @@
     "@my.fm/api": ["@my.fm/api@workspace:api"],
 
     "@my.fm/app": ["@my.fm/app@workspace:app"],
+
+    "@my.fm/sim": ["@my.fm/sim@workspace:sim"],
 
     "@nkzw/eslint-plugin": ["@nkzw/eslint-plugin@2.0.0", "", { "peerDependencies": { "eslint": ">= 9" } }, "sha512-IoU8kOqHfnf7se2dGxMD/7RPm6WVjzjOjWSo7FulRx3lJzuZvXioSkT5Nd82l66DH3Pl2whw74lPT1di3KMwFA=="],
 

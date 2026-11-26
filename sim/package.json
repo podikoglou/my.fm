@@ -1,0 +1,16 @@
+{
+  "name": "@my.fm/sim",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sim": "bun run src/cli.ts",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "test": "bun test",
+    "typecheck": "tsgo"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.12",
+    "@typescript/native-preview": "^7.0.0-dev.20260423.1"
+  }
+}
