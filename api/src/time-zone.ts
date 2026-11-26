@@ -133,6 +133,26 @@ function nextWallClock(wallClock: number, unit: CalendarUnit) {
   }
 }
 
+export const CALENDAR_RANGES = ["today", "yesterday", "last_7_days", "this_month"] as const;
+
+type CalendarRange = (typeof CALENDAR_RANGES)[number];
+
+export function calendarRangeBounds(range: CalendarRange, timeZone: string, now: number) {
+  const formatter = wallClockFormatter(timeZone);
+  const local = new Date(now + utcOffsetMs(now, formatter));
+  const unit = range === "this_month" ? "month" : "day";
+  const start = alignWallClock(local, unit);
+  const day = 24 * HOUR_MS;
+  // These offsets move calendar dates on the UTC wall clock, before resolving either midnight.
+  const daysBack = { today: 0, yesterday: 1, last_7_days: 6, this_month: 0 }[range];
+  const end = range === "yesterday" ? start : nextWallClock(start, unit);
+
+  return {
+    since: Math.floor(startOfLocalDay(start - daysBack * day, formatter) / 1000),
+    until: Math.floor(startOfLocalDay(end, formatter) / 1000),
+  };
+}
+
 function bucketLabel(wallClock: number, unit: CalendarUnit) {
   const iso = new Date(wallClock).toISOString();
 
