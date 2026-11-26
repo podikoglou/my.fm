@@ -1,17 +1,15 @@
 import { ProfilePrivateApiError } from "@my.fm/api";
 import { useQuery } from "@tanstack/react-query";
 import { Schema } from "effect";
-import { Lock, Settings, UserX } from "lucide-react";
-import { Link, Navigate, useLocation } from "react-router";
+import { Lock, UserX } from "lucide-react";
+import { Navigate } from "react-router";
 
 import { ErrorCard } from "~/components/error-card";
-import { Button, buttonVariants } from "~/components/ui/button";
 import { CardHeader, CardContent } from "~/components/ui/card";
 import { UserAvatar } from "~/components/user-avatar";
 import { UserTrackList } from "~/components/user-track-list";
+import { useViewer } from "~/hooks/use-current-user";
 import { apiClient, runApi } from "~/lib/api";
-import { authClient } from "~/lib/auth";
-import { signInWithSpotify } from "~/lib/auth-guard";
 
 import type { Route } from "./+types/user";
 
@@ -22,25 +20,13 @@ export async function clientLoader({ params }: Route.LoaderArgs) {
 }
 
 export default function AppUserPage({ loaderData: { username } }: Route.ComponentProps) {
-  const location = useLocation();
-  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const { user: me } = useViewer();
 
   const { data, error } = useQuery({
-    queryKey: ["user", username],
+    queryKey: ["user", "profile", username],
     queryFn: () => runApi(apiClient.user.byUsername({ query: { username } })),
     retry: false,
   });
-
-  // The API answers 401 without a session, so ask only when there is one.
-  const { data: me } = useQuery({
-    queryKey: ["user", "me"],
-    queryFn: () => runApi(apiClient.user.me()),
-    enabled: Boolean(session),
-  });
-
-  async function signIn() {
-    await signInWithSpotify(location.pathname);
-  }
 
   // The guarded layout skips this route, so the onboarding check lives here.
   if (me && !me.onboarded) {
@@ -71,27 +57,7 @@ export default function AppUserPage({ loaderData: { username } }: Route.Componen
 
   return (
     <>
-      <CardHeader className="relative flex flex-col items-center gap-4">
-        {me?.id === data.id && (
-          <Link
-            to="/settings"
-            aria-label="Settings"
-            className={buttonVariants({
-              variant: "ghost",
-              size: "icon-sm",
-              className: "absolute top-0 right-2",
-            })}
-          >
-            <Settings />
-          </Link>
-        )}
-
-        {!sessionPending && !session && (
-          <Button variant="ghost" size="sm" className="absolute top-0 right-2" onClick={signIn}>
-            Sign in
-          </Button>
-        )}
-
+      <CardHeader className="flex flex-col items-center gap-4">
         <UserAvatar avatarUrl={data.avatarUrl} name={data.name} />
 
         <div className="space-y-1 text-center">

@@ -1,12 +1,10 @@
-import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
 
 import { AppearanceSettings } from "~/components/settings/appearance-settings";
 import { ConnectedAppsSettings } from "~/components/settings/connected-apps-settings";
 import { SettingsRow } from "~/components/settings/settings-row";
 import { SettingsSection } from "~/components/settings/settings-section";
-import { Button, buttonVariants } from "~/components/ui/button";
+import { Button } from "~/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
@@ -32,20 +30,8 @@ export default function SettingsPage() {
   return (
     <>
       <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-3xl font-bold">Settings</CardTitle>
-            <CardDescription className="mt-2">Manage your profile and account.</CardDescription>
-          </div>
-
-          <Link
-            to={`/user/${data.username}`}
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
-          >
-            <ArrowLeft />
-            Back
-          </Link>
-        </div>
+        <CardTitle className="text-3xl font-bold">Settings</CardTitle>
+        <CardDescription className="mt-2">Manage your profile and account.</CardDescription>
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
