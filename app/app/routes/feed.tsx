@@ -19,7 +19,7 @@ export default function FeedPage() {
         <CardDescription className="mt-2">
           {user ? (
             <>
-              {user.onboarded && "Your profile: "}
+              {user.onboarded && "Signed in as "}
               <Link
                 to={user.onboarded ? `/user/${user.username}` : "/onboard"}
                 aria-label={user.onboarded ? `@${user.username}, your profile` : undefined}
