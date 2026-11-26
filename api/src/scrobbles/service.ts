@@ -29,6 +29,7 @@ export interface RecentScrobblesInput {
   readonly offset: number;
   readonly limit: number;
   readonly before?: number;
+  readonly includeAlbumArtists?: boolean;
 }
 
 export interface ScrobbleMonthsInput {
@@ -110,6 +111,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
           findRecentScrobblesByUserId(profile.id, {
             offset: input.offset,
             limit: input.limit,
+            includeAlbumArtists: input.includeAlbumArtists,
             before: input.before === undefined ? undefined : new Date(input.before * 1000),
           }),
         );

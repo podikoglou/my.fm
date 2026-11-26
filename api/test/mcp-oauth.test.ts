@@ -195,7 +195,7 @@ async function token(cookie: string, requestOrigin = origin) {
 async function callTool(
   accessToken: string,
   name: string,
-  args: Record<string, string | number | undefined> = {},
+  args: Record<string, string | number | string[] | undefined> = {},
 ) {
   const response = await request("/mcp", {
     method: "POST",
@@ -481,6 +481,22 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   });
 
   expect(JSON.parse(text(months))).toEqual([{ month: "2026-10", count: 9 }]);
+
+  expect(JSON.parse(text(recent))[0]).toEqual({
+    id: "8".padStart(32, "0"),
+    scrobbleDate: "2026-11-01T00:30:00.000Z",
+    track: { name: "Private song", artists: [] },
+    album: { name: "" },
+  });
+
+  const withImages = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "owner",
+    offset: 0,
+    limit: 1,
+    include: ["images"],
+  });
+
+  expect(JSON.parse(text(withImages))[0].album).toEqual({ name: "", imageUrl: "" });
   const summary = await callTool(accessToken, "get_summary", { username: "owner" });
   expect(JSON.parse(text(summary))).toMatchObject({
     totalScrobbles: 9,

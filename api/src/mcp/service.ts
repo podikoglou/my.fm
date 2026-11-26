@@ -16,6 +16,7 @@ import type { RateLimitBindingName } from "../rate-limits.ts";
 import { Scrobbles } from "../scrobbles/service.ts";
 import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
+import { presentRecentPlay, RecentExtras } from "./recent.ts";
 
 const TOOL_ANNOTATIONS = {
   readOnlyHint: true,
@@ -41,6 +42,7 @@ const GetRecentScrobblesInputSchema = Schema.Struct({
   offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
   before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  include: Schema.optionalKey(RecentExtras),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
@@ -294,6 +296,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                   .getRecent(
                     {
                       username: input.username,
+                      includeAlbumArtists: input.include?.includes("albumArtists") ?? false,
                       offset: input.offset,
                       limit: input.limit ?? 8,
                       before: input.before,
@@ -301,6 +304,9 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                     userId,
                   )
                   .pipe(
+                    Effect.map((items) =>
+                      items.map((item) => presentRecentPlay(item, input.include)),
+                    ),
                     Effect.map(toolData),
                     Effect.catchTags({
                       UserNotFoundError: () => Effect.succeed(toolError("User not found")),
