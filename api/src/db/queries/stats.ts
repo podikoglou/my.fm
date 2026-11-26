@@ -1,17 +1,10 @@
-import { sql, type SQL } from "drizzle-orm";
+import { Effect, Schema } from "effect";
+import { SqlClient, SqlSchema } from "effect/sql";
 
-import type { DrizzleDatabase } from "../service.ts";
+import { DateFromEpochSeconds } from "../columns.ts";
+import { asDbError } from "../service.ts";
+import type { User } from "../schema.ts";
 import type { ScrobbleRange } from "./scrobbles.ts";
-
-import {
-  albumArtists,
-  albums,
-  artists,
-  scrobbles,
-  trackArtists,
-  tracks,
-  type User,
-} from "../schema.ts";
 
 export type TopKind = "artists" | "albums" | "tracks";
 
@@ -30,8 +23,6 @@ export type TopEntityRow = {
   distinct: number;
 };
 
-type NullableRow<T> = { [K in keyof T]: T[K] | null };
-
 export type RankedEntities = {
   /** Every scrobble in the range, including ones without an entity of a kind. */
   total: number;
@@ -47,23 +38,23 @@ export type RankedEntities = {
  * counts toward the lead artist. A play without a catalog track falls back to
  * its stored artist name.
  */
-function entitiesOf(kind: TopKind): SQL {
+function entitiesOf(sql: SqlClient.SqlClient, kind: TopKind) {
   switch (kind) {
     case "artists":
       return sql`
-        SELECT 'artists' AS kind, coalesce(${artists.spotifyUri}, plays.artistName) AS key,
-          coalesce(${artists.name}, plays.artistName) AS name, NULL AS artist,
-          ${artists.spotifyUri} AS spotifyUri, sum(plays.plays) AS plays,
+        SELECT 'artists' AS kind, coalesce(artists.spotifyUri, plays.artistName) AS key,
+          coalesce(artists.name, plays.artistName) AS name, NULL AS artist,
+          artists.spotifyUri AS spotifyUri, sum(plays.plays) AS plays,
           min(plays.firstPlayed) AS firstPlayed, max(plays.lastPlayed) AS lastPlayed
         FROM plays
-        LEFT JOIN ${trackArtists} ON ${trackArtists.trackSpotifyUri} = plays.trackUri
-          AND ${trackArtists.position} = 0
-        LEFT JOIN ${artists} ON ${artists.spotifyUri} = ${trackArtists.artistSpotifyUri}
+        LEFT JOIN track_artists ON track_artists.track_spotify_uri = plays.trackUri
+          AND track_artists.position = 0
+        LEFT JOIN artists ON artists.spotifyUri = track_artists.artist_spotify_uri
         GROUP BY 2 HAVING key IS NOT NULL`;
     case "albums":
       return sql`
-        SELECT 'albums' AS kind, grouped.key, coalesce(${albums.name}, grouped.name) AS name,
-          coalesce(${artists.name}, grouped.artistName) AS artist, grouped.albumUri AS spotifyUri,
+        SELECT 'albums' AS kind, grouped.key, coalesce(albums.name, grouped.name) AS name,
+          coalesce(artists.name, grouped.artistName) AS artist, grouped.albumUri AS spotifyUri,
           grouped.plays, grouped.firstPlayed, grouped.lastPlayed
         FROM (
           SELECT coalesce(albumUri,
@@ -72,15 +63,15 @@ function entitiesOf(kind: TopKind): SQL {
             sum(plays) AS plays, min(firstPlayed) AS firstPlayed, max(lastPlayed) AS lastPlayed
           FROM plays GROUP BY 1 HAVING key IS NOT NULL
         ) AS grouped
-        LEFT JOIN ${albums} ON ${albums.spotifyUri} = grouped.albumUri
-        LEFT JOIN ${albumArtists} ON ${albumArtists.albumSpotifyUri} = grouped.albumUri
-          AND ${albumArtists.position} = 0
-        LEFT JOIN ${artists} ON ${artists.spotifyUri} = ${albumArtists.artistSpotifyUri}
-        WHERE coalesce(${albums.name}, grouped.name) IS NOT NULL`;
+        LEFT JOIN albums ON albums.spotifyUri = grouped.albumUri
+        LEFT JOIN album_artists ON album_artists.album_spotify_uri = grouped.albumUri
+          AND album_artists.position = 0
+        LEFT JOIN artists ON artists.spotifyUri = album_artists.artist_spotify_uri
+        WHERE coalesce(albums.name, grouped.name) IS NOT NULL`;
     case "tracks":
       return sql`
-        SELECT 'tracks' AS kind, grouped.key, coalesce(${tracks.name}, grouped.name) AS name,
-          coalesce(${artists.name}, grouped.artistName) AS artist, grouped.trackUri AS spotifyUri,
+        SELECT 'tracks' AS kind, grouped.key, coalesce(tracks.name, grouped.name) AS name,
+          coalesce(artists.name, grouped.artistName) AS artist, grouped.trackUri AS spotifyUri,
           grouped.plays, grouped.firstPlayed, grouped.lastPlayed
         FROM (
           SELECT coalesce(trackUri, normTrackKey,
@@ -89,12 +80,53 @@ function entitiesOf(kind: TopKind): SQL {
             sum(plays) AS plays, min(firstPlayed) AS firstPlayed, max(lastPlayed) AS lastPlayed
           FROM plays GROUP BY 1 HAVING key IS NOT NULL
         ) AS grouped
-        LEFT JOIN ${tracks} ON ${tracks.spotifyUri} = grouped.trackUri
-        LEFT JOIN ${trackArtists} ON ${trackArtists.trackSpotifyUri} = grouped.trackUri
-          AND ${trackArtists.position} = 0
-        LEFT JOIN ${artists} ON ${artists.spotifyUri} = ${trackArtists.artistSpotifyUri}
-        WHERE coalesce(${tracks.name}, grouped.name) IS NOT NULL`;
+        LEFT JOIN tracks ON tracks.spotifyUri = grouped.trackUri
+        LEFT JOIN track_artists ON track_artists.track_spotify_uri = grouped.trackUri
+          AND track_artists.position = 0
+        LEFT JOIN artists ON artists.spotifyUri = track_artists.artist_spotify_uri
+        WHERE coalesce(tracks.name, grouped.name) IS NOT NULL`;
   }
+}
+
+/**
+ * A leaderboard iteration. The ranked columns are null only on the row that
+ * carries the range's play total, which left-joins the ranking so the total
+ * survives a range where nothing ranks.
+ */
+const TopEntitiesRow = Schema.Struct({
+  total: Schema.Int,
+  kind: Schema.NullOr(Schema.Literals(["artists", "albums", "tracks"])),
+  name: Schema.NullOr(Schema.String),
+  artist: Schema.NullOr(Schema.String),
+  spotifyUri: Schema.NullOr(Schema.String),
+  plays: Schema.NullOr(Schema.Int),
+  firstPlayed: Schema.NullOr(DateFromEpochSeconds),
+  lastPlayed: Schema.NullOr(DateFromEpochSeconds),
+  distinct: Schema.NullOr(Schema.Int),
+});
+
+function toTopEntityRow(row: typeof TopEntitiesRow.Type): TopEntityRow | null {
+  if (
+    row.kind === null ||
+    row.name === null ||
+    row.plays === null ||
+    row.firstPlayed === null ||
+    row.lastPlayed === null ||
+    row.distinct === null
+  ) {
+    return null;
+  }
+
+  return {
+    kind: row.kind,
+    name: row.name,
+    artist: row.artist,
+    spotifyUri: row.spotifyUri,
+    plays: row.plays,
+    firstPlayed: Math.floor(row.firstPlayed.getTime() / 1000),
+    lastPlayed: Math.floor(row.lastPlayed.getTime() / 1000),
+    distinct: row.distinct,
+  };
 }
 
 /**
@@ -102,8 +134,7 @@ function entitiesOf(kind: TopKind): SQL {
  * Every kind derives from one grouping of the range, so asking for several
  * kinds reads the user's scrobbles once.
  */
-export async function findTopEntities(
-  db: DrizzleDatabase,
+export const findTopEntities = Effect.fn("stats.findTopEntities")(function* (
   userId: User["id"],
   {
     kinds,
@@ -111,41 +142,67 @@ export async function findTopEntities(
     since,
     until,
   }: ScrobbleRange & { kinds: readonly [TopKind, ...TopKind[]]; limit: number },
-): Promise<RankedEntities> {
-  // The totals row joins every ranked row, and stands alone when nothing ranks,
-  // so the play total survives a range without any entity of these kinds.
-  const rows = await db.all<{ total: number } & NullableRow<TopEntityRow>>(sql`
-    WITH plays AS MATERIALIZED (
-      SELECT ${scrobbles.trackSpotifyUri} AS trackUri, ${scrobbles.albumSpotifyUri} AS albumUri,
-        ${scrobbles.artistName} AS artistName, ${scrobbles.albumName} AS albumName,
-        ${scrobbles.trackName} AS trackName, ${scrobbles.normTrackKey} AS normTrackKey,
-        count(*) AS plays, min(${scrobbles.scrobbleDate}) AS firstPlayed,
-        max(${scrobbles.scrobbleDate}) AS lastPlayed
-      FROM ${scrobbles}
-      WHERE ${scrobbles.userId} = ${userId}
-        AND ${scrobbles.scrobbleDate} >= ${since ?? 0}
-        AND ${scrobbles.scrobbleDate} < ${until ?? Number.MAX_SAFE_INTEGER}
-      GROUP BY 1, 2, 3, 4, 5, 6
-    ),
-    entities AS (${sql.join(kinds.map(entitiesOf), sql` UNION ALL `)}),
-    ranked AS (
-      SELECT *,
-        row_number() OVER (PARTITION BY kind ORDER BY plays DESC, lastPlayed DESC) AS rank,
-        count(*) OVER (PARTITION BY kind) AS "distinct"
-      FROM entities
-    )
-    SELECT totals.total, ranked.kind, ranked.name, ranked.artist, ranked.spotifyUri,
-      ranked.plays, ranked.firstPlayed, ranked.lastPlayed, ranked."distinct"
-    FROM (SELECT coalesce(sum(plays), 0) AS total FROM plays) AS totals
-    LEFT JOIN ranked ON ranked.rank <= ${limit}
-    ORDER BY ranked.kind, ranked.rank
-  `);
+) {
+  const sql = yield* SqlClient.SqlClient;
+
+  const entities = sql.join(" UNION ALL ", false)(kinds.map((kind) => entitiesOf(sql, kind)));
+
+  // The totals row left-joins every ranked row, and stands alone when nothing
+  // ranks, so the play total survives a range without any entity of these kinds.
+  const query = SqlSchema.findAll({
+    Request: Schema.Struct({
+      userId: Schema.String,
+      since: Schema.Int,
+      until: Schema.Int,
+      limit: Schema.Int,
+    }),
+    Result: TopEntitiesRow,
+    execute: ({ userId, since, until, limit }) => sql`
+      WITH plays AS MATERIALIZED (
+        SELECT trackSpotifyUri AS trackUri, albumSpotifyUri AS albumUri,
+          artistName AS artistName, albumName AS albumName,
+          trackName AS trackName, normTrackKey AS normTrackKey,
+          count(*) AS plays, min(scrobbleDate) AS firstPlayed,
+          max(scrobbleDate) AS lastPlayed
+        FROM scrobbles
+        WHERE userId = ${userId}
+          AND scrobbleDate >= ${since}
+          AND scrobbleDate < ${until}
+        GROUP BY 1, 2, 3, 4, 5, 6
+      ),
+      entities AS (${entities}),
+      ranked AS (
+        SELECT *,
+          row_number() OVER (PARTITION BY kind ORDER BY plays DESC, lastPlayed DESC) AS rank,
+          count(*) OVER (PARTITION BY kind) AS "distinct"
+        FROM entities
+      )
+      SELECT totals.total, ranked.kind, ranked.name, ranked.artist, ranked.spotifyUri,
+        ranked.plays, ranked.firstPlayed, ranked.lastPlayed, ranked."distinct"
+      FROM (SELECT coalesce(sum(plays), 0) AS total FROM plays) AS totals
+      LEFT JOIN ranked ON ranked.rank <= ${limit}
+      ORDER BY ranked.kind, ranked.rank
+    `,
+  });
+
+  const rows = yield* asDbError(
+    query({
+      userId,
+      since: since ?? 0,
+      until: until ?? Number.MAX_SAFE_INTEGER,
+      limit,
+    }),
+  );
 
   return {
     total: rows[0]?.total ?? 0,
-    rows: rows.filter((row): row is { total: number } & TopEntityRow => row.kind !== null),
+    rows: rows.flatMap((row) => {
+      const entity = toTopEntityRow(row);
+
+      return entity === null ? [] : [entity];
+    }),
   };
-}
+});
 
 /** Unix-second ranges, each `[since, until)`. */
 export type CountRange = { since: number; until: number };
@@ -155,34 +212,44 @@ export type CountRange = { since: number; until: number };
  * the user's play-time index, so a scrobble is read once across disjoint
  * ranges and no table row is read.
  */
-export async function countScrobblesInRanges(
-  db: DrizzleDatabase,
+export const countScrobblesInRanges = Effect.fn("stats.countScrobblesInRanges")(function* (
   userId: User["id"],
   ranges: ReadonlyArray<CountRange>,
-): Promise<number[]> {
+) {
   if (ranges.length === 0) return [];
 
+  const sql = yield* SqlClient.SqlClient;
+
   // D1 caps bound parameters per statement, so the integer bounds are inlined.
-  const bounds = sql.raw(
-    ranges
-      .map(({ since, until }, index) => `(${index}, ${Math.floor(since)}, ${Math.floor(until)})`)
-      .join(", "),
+  const bounds = sql.join(
+    ", ",
+    false,
+  )(
+    ranges.map(({ since, until }, position) =>
+      sql.literal(`(${position}, ${Math.floor(since)}, ${Math.floor(until)})`),
+    ),
   );
 
-  const rows = await db.all<{ position: number; count: number }>(sql`
-    WITH bounds(position, since, until) AS (VALUES ${bounds})
-    SELECT position, (
-      SELECT count(*) FROM ${scrobbles}
-      WHERE ${scrobbles.userId} = ${userId}
-        AND ${scrobbles.scrobbleDate} >= bounds.since
-        AND ${scrobbles.scrobbleDate} < bounds.until
-    ) AS count
-    FROM bounds
-    ORDER BY position
-  `);
+  const query = SqlSchema.findAll({
+    Request: Schema.Struct({ userId: Schema.String }),
+    Result: Schema.Struct({ position: Schema.Int, count: Schema.Int }),
+    execute: ({ userId }) => sql`
+      WITH bounds(position, since, until) AS (VALUES ${bounds})
+      SELECT position, (
+        SELECT count(*) FROM scrobbles
+        WHERE scrobbles.userId = ${userId}
+          AND scrobbles.scrobbleDate >= bounds.since
+          AND scrobbles.scrobbleDate < bounds.until
+      ) AS count
+      FROM bounds
+      ORDER BY position
+    `,
+  });
+
+  const rows = yield* asDbError(query({ userId }));
 
   return rows.map((row) => row.count);
-}
+});
 
 /** A seek target: the first play at or after `at` before `until`, else the last one from `since`. */
 export type SamplePoint = { since: number; at: number; until: number };
@@ -197,53 +264,84 @@ export type SampledScrobble = {
   trackSpotifyUri: string | null;
 };
 
+const SampledScrobbleRow = Schema.Struct({
+  position: Schema.Int,
+  scrobbleDate: Schema.NullOr(DateFromEpochSeconds),
+  trackName: Schema.NullOr(Schema.String),
+  artistName: Schema.NullOr(Schema.String),
+  albumName: Schema.NullOr(Schema.String),
+  trackSpotifyUri: Schema.NullOr(Schema.String),
+});
+
 /**
  * One scrobble per point, found with two index seeks. A point whose range has
  * no scrobble is left out.
  */
-export async function findScrobblesAtPoints(
-  db: DrizzleDatabase,
+export const findScrobblesAtPoints = Effect.fn("stats.findScrobblesAtPoints")(function* (
   userId: User["id"],
   points: ReadonlyArray<SamplePoint>,
-): Promise<SampledScrobble[]> {
+) {
   if (points.length === 0) return [];
 
-  const values = sql.raw(
-    points
-      .map(
-        ({ since, at, until }, index) =>
-          `(${index}, ${Math.floor(since)}, ${Math.floor(at)}, ${Math.floor(until)})`,
-      )
-      .join(", "),
+  const sql = yield* SqlClient.SqlClient;
+
+  const values = sql.join(
+    ", ",
+    false,
+  )(
+    points.map(({ since, at, until }, position) =>
+      sql.literal(`(${position}, ${Math.floor(since)}, ${Math.floor(at)}, ${Math.floor(until)})`),
+    ),
   );
 
-  return db.all<SampledScrobble>(sql`
-    WITH points(position, since, at, until) AS (VALUES ${values}),
-    picks AS (
-      SELECT position, coalesce(
-        (SELECT ${scrobbles.id} FROM ${scrobbles}
-          WHERE ${scrobbles.userId} = ${userId}
-            AND ${scrobbles.scrobbleDate} >= points.at AND ${scrobbles.scrobbleDate} < points.until
-          ORDER BY ${scrobbles.scrobbleDate}, ${scrobbles.id} LIMIT 1),
-        (SELECT ${scrobbles.id} FROM ${scrobbles}
-          WHERE ${scrobbles.userId} = ${userId}
-            AND ${scrobbles.scrobbleDate} >= points.since AND ${scrobbles.scrobbleDate} < points.at
-          ORDER BY ${scrobbles.scrobbleDate} DESC, ${scrobbles.id} DESC LIMIT 1)
-      ) AS id
-      FROM points
-    )
-    SELECT picks.position AS position, ${scrobbles.scrobbleDate} AS scrobbleDate,
-      coalesce(${tracks.name}, ${scrobbles.trackName}) AS trackName,
-      coalesce(${artists.name}, ${scrobbles.artistName}) AS artistName,
-      coalesce(${albums.name}, ${scrobbles.albumName}) AS albumName,
-      ${scrobbles.trackSpotifyUri} AS trackSpotifyUri
-    FROM picks
-    JOIN ${scrobbles} ON ${scrobbles.id} = picks.id
-    LEFT JOIN ${tracks} ON ${tracks.spotifyUri} = ${scrobbles.trackSpotifyUri}
-    LEFT JOIN ${trackArtists} ON ${trackArtists.trackSpotifyUri} = ${scrobbles.trackSpotifyUri}
-      AND ${trackArtists.position} = 0
-    LEFT JOIN ${artists} ON ${artists.spotifyUri} = ${trackArtists.artistSpotifyUri}
-    LEFT JOIN ${albums} ON ${albums.spotifyUri} = ${scrobbles.albumSpotifyUri}
-    ORDER BY picks.position
-  `);
-}
+  const query = SqlSchema.findAll({
+    Request: Schema.Struct({ userId: Schema.String }),
+    Result: SampledScrobbleRow,
+    execute: ({ userId }) => sql`
+      WITH points(position, since, at, until) AS (VALUES ${values}),
+      picks AS (
+        SELECT position, coalesce(
+          (SELECT scrobbles.id FROM scrobbles
+            WHERE scrobbles.userId = ${userId}
+              AND scrobbles.scrobbleDate >= points.at AND scrobbles.scrobbleDate < points.until
+            ORDER BY scrobbles.scrobbleDate, scrobbles.id LIMIT 1),
+          (SELECT scrobbles.id FROM scrobbles
+            WHERE scrobbles.userId = ${userId}
+              AND scrobbles.scrobbleDate >= points.since AND scrobbles.scrobbleDate < points.at
+            ORDER BY scrobbles.scrobbleDate DESC, scrobbles.id DESC LIMIT 1)
+        ) AS id
+        FROM points
+      )
+      SELECT picks.position AS position, scrobbles.scrobbleDate AS scrobbleDate,
+        coalesce(tracks.name, scrobbles.trackName) AS trackName,
+        coalesce(artists.name, scrobbles.artistName) AS artistName,
+        coalesce(albums.name, scrobbles.albumName) AS albumName,
+        scrobbles.trackSpotifyUri AS trackSpotifyUri
+      FROM picks
+      JOIN scrobbles ON scrobbles.id = picks.id
+      LEFT JOIN tracks ON tracks.spotifyUri = scrobbles.trackSpotifyUri
+      LEFT JOIN track_artists ON track_artists.track_spotify_uri = scrobbles.trackSpotifyUri
+        AND track_artists.position = 0
+      LEFT JOIN artists ON artists.spotifyUri = track_artists.artist_spotify_uri
+      LEFT JOIN albums ON albums.spotifyUri = scrobbles.albumSpotifyUri
+      ORDER BY picks.position
+    `,
+  });
+
+  const rows = yield* asDbError(query({ userId }));
+
+  return rows.flatMap((row): SampledScrobble[] => {
+    if (row.scrobbleDate === null) return [];
+
+    return [
+      {
+        position: row.position,
+        scrobbleDate: Math.floor(row.scrobbleDate.getTime() / 1000),
+        trackName: row.trackName,
+        artistName: row.artistName,
+        albumName: row.albumName,
+        trackSpotifyUri: row.trackSpotifyUri,
+      },
+    ];
+  });
+});

@@ -644,7 +644,6 @@ export const findScrobbleEdges = Effect.fn("scrobbles.findEdges")(function* (
   return { earliest: earliest.value.date, latest: latest.value.date };
 });
 
-<<<<<<< HEAD
 export const countScrobblesByMonth = Effect.fn("scrobbles.countByMonth")(function* (
   userId: User["id"],
   { timeZone }: { timeZone: string },
@@ -659,14 +658,6 @@ export const countScrobblesByMonth = Effect.fn("scrobbles.countByMonth")(functio
 
   // D1 caps bound parameters per statement, so the bounds are inlined as
   // integers instead of bound.
-||||||| parent of 9f7004c (fix(api): format monthly range query)
-  const bounds = sql.join(", ", false)(
-    months.map(({ month, start }, index) =>
-      sql`(${sql.literal(`'${month}'`)}, ${sql.literal(String(start))}, ${sql.literal(
-        String(months[index - 1]?.start ?? Number.MAX_SAFE_INTEGER),
-      )})`,
-=======
->>>>>>> 9f7004c (fix(api): format monthly range query)
   const bounds = sql.join(
     ", ",
     false,
