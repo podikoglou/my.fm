@@ -32,6 +32,10 @@ export interface UsersService {
     id: User["id"],
     viewerId?: User["id"],
   ) => Effect.Effect<PublicUser, UserNotFoundError | ProfilePrivateError | DbError>;
+  readonly viewListeningProfile: (
+    username: string | undefined,
+    viewerId?: User["id"],
+  ) => Effect.Effect<PublicUser, UserNotFoundError | ProfilePrivateError | DbError>;
   readonly updateSettings: (
     userId: User["id"],
     values: { readonly isPrivate: boolean },
@@ -93,6 +97,17 @@ export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/us
         return yield* resolveVisibleProfile(profile, viewerId);
       });
 
+      const viewListeningProfile = Effect.fn("Users.viewListeningProfile")(function* (
+        username: string | undefined,
+        viewerId?: User["id"],
+      ) {
+        if (username !== undefined) return yield* viewProfileByUsername(username, viewerId);
+
+        if (viewerId !== undefined) return yield* viewProfileById(viewerId, viewerId);
+
+        return yield* new UserNotFoundError({ message: "User not found" });
+      });
+
       const updateSettings = Effect.fn("Users.updateSettings")(function* (
         userId: User["id"],
         values: { readonly isPrivate: boolean },
@@ -127,6 +142,7 @@ export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/us
         getMeForMcp,
         viewProfileByUsername,
         viewProfileById,
+        viewListeningProfile,
         updateSettings,
         onboard,
       });

@@ -35,6 +35,7 @@ const ToolsListResponseSchema = Schema.Struct({
     tools: Schema.Array(
       Schema.Struct({
         name: Schema.String,
+        inputSchema: Schema.Unknown,
         annotations: Schema.Struct({
           readOnlyHint: Schema.Boolean,
           destructiveHint: Schema.Boolean,
@@ -195,7 +196,7 @@ async function token(cookie: string, requestOrigin = origin) {
 async function callTool(
   accessToken: string,
   name: string,
-  args: Record<string, string | number | undefined> = {},
+  args: Record<string, string | number | string[] | undefined> = {},
 ) {
   const response = await request("/mcp", {
     method: "POST",
@@ -427,6 +428,10 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     "get_user",
   ]);
 
+  expect(tools.find(({ name }) => name === "get_recent_scrobbles")?.inputSchema).toMatchObject({
+    properties: { limit: { minimum: 1, maximum: 200, default: 50 } },
+  });
+
   for (const tool of tools) {
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
@@ -434,6 +439,54 @@ test("reads through all MCP tools with REST bounds and owner-only private access
       idempotentHint: true,
     });
   }
+
+  const page = async (cursor?: string) => {
+    const result = await callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      limit: 5,
+      until: Date.parse("2026-11-02T00:00:00Z") / 1000,
+      cursor,
+    });
+
+    return Schema.decodeUnknownSync(
+      Schema.Struct({
+        items: Schema.Array(Schema.Struct({ id: Schema.String })),
+        nextCursor: Schema.NullOr(Schema.String),
+      }),
+    )(JSON.parse(text(result)));
+  };
+
+  const unsupported = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "owner",
+    offset: 5,
+  });
+
+  expect(unsupported.isError).toBe(true);
+  const first = await page();
+  expect(first.items).toHaveLength(5);
+  expect(first.nextCursor).toEqual(expect.any(String));
+  const second = await page(first.nextCursor ?? undefined);
+  expect(second.nextCursor).toBeNull();
+  expect([...first.items, ...second.items].map(({ id }) => id)).toEqual(
+    Array.from({ length: 9 }, (_, index) => (8 - index).toString(16).padStart(32, "0")),
+  );
+
+  const playTime = Date.parse("2026-11-01T00:30:00Z") / 1000;
+
+  const inRange = async (since: number, until: number) => {
+    const result = await callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      limit: 1,
+      since,
+      until,
+    });
+
+    return Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(result)).items);
+  };
+
+  expect(await inRange(playTime, playTime + 1)).toHaveLength(1);
+  expect(await inRange(playTime + 1, playTime + 2)).toEqual([]);
+  expect(await inRange(playTime - 1, playTime)).toEqual([]);
 
   const me = await callTool(accessToken, "get_me");
   expect(me.isError).not.toBe(true);
@@ -452,36 +505,47 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     expect(text(result)).not.toContain("avatarUrl");
   }
 
-  const recent = await callTool(accessToken, "get_recent_scrobbles", {
-    username: "owner",
-    offset: 0,
-  });
+  const recent = await callTool(accessToken, "get_recent_scrobbles");
 
-  expect(Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)))).toHaveLength(8);
+  expect(
+    Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)).items),
+  ).toHaveLength(9);
 
   const empty = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
-    before: 0,
+    until: 0,
   });
 
-  expect(JSON.parse(text(empty))).toEqual([]);
+  expect(JSON.parse(text(empty))).toEqual({ items: [], nextCursor: null });
 
   const capped = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
-    limit: 9,
+    limit: 201,
   });
 
   expect(capped.isError).toBe(true);
 
   const months = await callTool(accessToken, "get_scrobble_months", {
-    username: "owner",
     timeZone: "America/Los_Angeles",
   });
 
   expect(JSON.parse(text(months))).toEqual([{ month: "2026-10", count: 9 }]);
-  const summary = await callTool(accessToken, "get_summary", { username: "owner" });
+  expect(JSON.parse(text(recent)).items[0]).toEqual({
+    id: "8".padStart(32, "0"),
+    scrobbleDate: "2026-11-01T00:30:00.000Z",
+    track: { name: "Private song", artists: [] },
+    album: { name: "" },
+  });
+
+  const withImages = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "owner",
+    limit: 1,
+    include: ["images"],
+  });
+
+  expect(JSON.parse(text(withImages)).items[0].album).toEqual({ name: "", imageUrl: "" });
+
+  const summary = await callTool(accessToken, "get_summary");
   expect(JSON.parse(text(summary))).toMatchObject({
     totalScrobbles: 9,
     topTracks: [{ name: "Private song", plays: 9, share: 1 }],
@@ -506,7 +570,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   for (const [name, args] of [
     ["get_user", { username: "private" }],
     ["get_user", { id: privateId }],
-    ["get_recent_scrobbles", { username: "private", offset: 0 }],
+    ["get_recent_scrobbles", { username: "private" }],
     ["get_scrobble_months", { username: "private" }],
     ["get_sample", { username: "private" }],
   ] as const) {
@@ -518,6 +582,62 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   const missing = await callTool(accessToken, "get_user", { username: "missing" });
   expect(missing.isError).toBe(true);
   expect(text(missing)).toBe("User not found");
+});
+
+test("returns 50 recent plays by default and accepts a full 200-play page", async () => {
+  const owner = await signIn({ id: "oauth-pages", email: "pages@example.com" });
+  await updateRows(env.DB, "users", { username: "pages", onboarded: true }, { id: owner.userId });
+  await insertRows(
+    env.DB,
+    "scrobbles",
+    Array.from({ length: 200 }, (_, index) => ({
+      id: index.toString(16).padStart(32, "0"),
+      userId: owner.userId,
+      scrobbleDate: new Date("2026-11-01T00:30:00Z"),
+      trackName: "Song",
+    })),
+  );
+  await insertRows(env.DB, "albums", {
+    spotifyUri: "spotify:album:1",
+    name: "Album",
+    releaseDate: "1999",
+    totalTracks: 1,
+    albumType: "album",
+    imageUrl: "",
+  });
+  await updateRows(
+    env.DB,
+    "scrobbles",
+    { albumSpotifyUri: "spotify:album:1" },
+    {
+      id: (199).toString(16).padStart(32, "0"),
+    },
+  );
+  const accessToken = await token(owner.cookie);
+
+  const page = await callTool(accessToken, "get_recent_scrobbles", { username: "pages" });
+  const { items } = JSON.parse(text(page));
+  expect(items).toHaveLength(50);
+  expect(items[0].album).toEqual({ name: "Album" });
+
+  const dates = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "pages",
+    include: ["albumReleaseDate"],
+    limit: 2,
+  });
+
+  expect(JSON.parse(text(dates)).items).toMatchObject([
+    { album: { releaseDate: "1999" } },
+    { album: { releaseDate: null } },
+  ]);
+
+  const full = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "pages",
+    limit: 200,
+  });
+
+  expect(JSON.parse(text(full)).items).toHaveLength(200);
+  expect(JSON.parse(text(full)).nextCursor).toBeNull();
 });
 
 test("enforces the real public-read budget keyed by authenticated user", async () => {
@@ -598,29 +718,26 @@ test("lists connected apps and revokes access", async () => {
   expect((await request(`/api/oauth/apps/${appId}`, { method: "DELETE" })).status).toBe(401);
 });
 
-test("rejects invalid before and empty username on MCP scrobble tools", async () => {
+test("rejects invalid until and empty username on MCP scrobble tools", async () => {
   const user = await signIn({ id: "oauth-validation", email: "validation@example.com" });
   const accessToken = await token(user.cookie);
 
-  const fractionalBefore = await callTool(accessToken, "get_recent_scrobbles", {
+  const fractionalUntil = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    offset: 0,
-    before: 12.5,
+    until: 12.5,
   });
 
-  expect(fractionalBefore.isError).toBe(true);
+  expect(fractionalUntil.isError).toBe(true);
 
-  const negativeBefore = await callTool(accessToken, "get_recent_scrobbles", {
+  const negativeUntil = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    offset: 0,
-    before: -1,
+    until: -1,
   });
 
-  expect(negativeBefore.isError).toBe(true);
+  expect(negativeUntil.isError).toBe(true);
 
   const emptyUsername = await callTool(accessToken, "get_recent_scrobbles", {
     username: "",
-    offset: 0,
   });
 
   expect(emptyUsername.isError).toBe(true);

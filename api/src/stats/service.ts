@@ -24,7 +24,7 @@ import { findGaps, type TimelineBucket, type TimelineGap } from "./timeline.ts";
 const SUMMARY_TOP_LIMIT = 5;
 const TIMELINE_GAP_LIMIT = 5;
 
-export type StatsRangeInput = ScrobbleRange & { readonly username: string };
+export type StatsRangeInput = ScrobbleRange & { readonly username?: string };
 
 export type TopInput = StatsRangeInput & {
   readonly kind: TopKind;
@@ -148,7 +148,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
         input: StatsRangeInput,
         viewerId?: User["id"],
       ) {
-        const profile = yield* users.viewProfileByUsername(input.username, viewerId);
+        const profile = yield* users.viewListeningProfile(input.username, viewerId);
         const range = toRange(input);
         const limit = SUMMARY_TOP_LIMIT;
 
@@ -182,7 +182,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
       });
 
       const getTop = Effect.fn("Stats.getTop")(function* (input: TopInput, viewerId?: User["id"]) {
-        const profile = yield* users.viewProfileByUsername(input.username, viewerId);
+        const profile = yield* users.viewListeningProfile(input.username, viewerId);
 
         const rows = yield* runDb(
           findTopEntities(profile.id, {
@@ -200,7 +200,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
         input: TimelineInput,
         viewerId?: User["id"],
       ) {
-        const profile = yield* users.viewProfileByUsername(input.username, viewerId);
+        const profile = yield* users.viewListeningProfile(input.username, viewerId);
         const range = toRange(input);
         const edges = yield* runDb(findScrobbleEdges(profile.id, range));
         const empty = { bucket: input.bucket, timeZone: input.timeZone };
@@ -246,7 +246,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
         input: SampleInput,
         viewerId?: User["id"],
       ) {
-        const profile = yield* users.viewProfileByUsername(input.username, viewerId);
+        const profile = yield* users.viewListeningProfile(input.username, viewerId);
 
         const edges = yield* runDb(findScrobbleEdges(profile.id, toRange(input)));
 

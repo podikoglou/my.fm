@@ -17,6 +17,8 @@ import { Scrobbles } from "../scrobbles/service.ts";
 import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 
+import { presentRecentPlay, RecentExtras } from "./recent.ts";
+
 const TOOL_ANNOTATIONS = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -27,6 +29,12 @@ const GetMeInputSchema = Schema.Struct({});
 
 const NonEmptyString = Schema.String.check(Schema.isMinLength(1));
 
+const ListenerUsername = Schema.optionalKey(
+  NonEmptyString.annotate({
+    description: "Defaults to the signed-in listener. Supply a username to read another profile.",
+  }),
+);
+
 const GetUserInputSchema = Schema.Struct({
   username: Schema.optional(NonEmptyString),
   id: Schema.optional(NanoidSchema),
@@ -36,15 +44,39 @@ const GetUserInputSchema = Schema.Struct({
   }),
 );
 
+const DEFAULT_RECENT_LIMIT = 50;
+
 const GetRecentScrobblesInputSchema = Schema.Struct({
-  username: NonEmptyString,
-  offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
-  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  include: Schema.optionalKey(RecentExtras),
+  username: ListenerUsername,
+  since: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Inclusive Unix seconds. For a local day use midnight in the listener's time zone.",
+    }),
+  ),
+  until: Schema.optionalKey(
+    StatsInputSchemas.unixSeconds.annotate({
+      description:
+        "Exclusive Unix seconds. For a local day use the next midnight in the same time zone.",
+    }),
+  ),
+  cursor: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
+    }),
+  ),
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 }))
+    .annotate({
+      default: DEFAULT_RECENT_LIMIT,
+      description: "Number of plays to return (1–200, default 50).",
+    })
+    .pipe(Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_RECENT_LIMIT))),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
-  username: NonEmptyString,
+  username: ListenerUsername,
   timeZone: Schema.optional(TimeZoneSchema),
 });
 
@@ -59,27 +91,27 @@ const StatsRangeFields = {
 };
 
 const GetSummaryInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: ListenerUsername,
   ...StatsRangeFields,
 });
 
 const GetTopInputSchema = Schema.Struct({
   q: Schema.optionalKey(StatsInputSchemas.nameQuery),
-  username: Schema.String,
+  username: ListenerUsername,
   kind: TopKindSchema,
   limit: Schema.optional(StatsInputSchemas.topLimit),
   ...StatsRangeFields,
 });
 
 const GetTimelineInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: ListenerUsername,
   bucket: TimelineBucketSchema,
   timeZone: Schema.optional(TimeZoneSchema),
   ...StatsRangeFields,
 });
 
 const GetSampleInputSchema = Schema.Struct({
-  username: Schema.String,
+  username: ListenerUsername,
   size: Schema.optional(StatsInputSchemas.sampleSize),
   seed: Schema.optional(StatsInputSchemas.sampleSeed),
   ...StatsRangeFields,
@@ -113,11 +145,15 @@ const MCP_TOOLS: ReadonlyArray<Tool> = [
   },
   {
     name: "get_recent_scrobbles",
+    description:
+      "List a profile's recorded plays, newest first. The upper time bound is exclusive and uses Unix seconds.",
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetRecentScrobblesInputSchema),
   },
   {
     name: "get_scrobble_months",
+    description:
+      "Count a profile's plays by calendar month, newest month first. Months with no plays are omitted. timeZone is an IANA zone such as Europe/Athens and defaults to UTC.",
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetScrobbleMonthsInputSchema),
   },
@@ -162,7 +198,11 @@ function toolData<T>(data: T): CallToolResult {
 
 const decodeGetMeInput = Schema.decodeUnknownEffect(GetMeInputSchema);
 const decodeGetUserInput = Schema.decodeUnknownEffect(GetUserInputSchema);
-const decodeGetRecentScrobblesInput = Schema.decodeUnknownEffect(GetRecentScrobblesInputSchema);
+
+const decodeGetRecentScrobblesInput = Schema.decodeUnknownEffect(GetRecentScrobblesInputSchema, {
+  onExcessProperty: "error",
+});
+
 const decodeGetScrobbleMonthsInput = Schema.decodeUnknownEffect(GetScrobbleMonthsInputSchema);
 const decodeGetPublicFeedInput = Schema.decodeUnknownEffect(GetPublicFeedInputSchema);
 const decodeGetSummaryInput = Schema.decodeUnknownEffect(GetSummaryInputSchema);
@@ -292,22 +332,24 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
 
               return yield* withRateLimit(userId, () =>
                 scrobbles
-                  .getRecent(
+                  .getRecentPage(
                     {
-                      username: input.username,
-                      offset: input.offset,
-                      limit: input.limit ?? 8,
-                      before: input.before,
+                      ...input,
+                      includeAlbumReleaseDate: input.include?.includes("albumReleaseDate"),
+                      includeAlbumArtists: input.include?.includes("albumArtists") ?? false,
                     },
                     userId,
                   )
                   .pipe(
-                    Effect.map(toolData),
+                    Effect.map(({ items, nextCursor }) =>
+                      toolData({
+                        items: items.map((item) => presentRecentPlay(item, input.include)),
+                        nextCursor,
+                      }),
+                    ),
                     Effect.catchTags({
-                      UserNotFoundError: () => Effect.succeed(toolError("User not found")),
-                      ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
-                      D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
+                      ...profileErrors,
+                      InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
                     }),
                   ),
               );
