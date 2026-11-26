@@ -14,7 +14,6 @@ import {
 import { RateLimiter } from "../rate-limit/service.ts";
 import type { RateLimitBindingName } from "../rate-limits.ts";
 import { Scrobbles } from "../scrobbles/service.ts";
-import { decodeFeedCursor, encodeFeedCursor } from "../scrobbles/cursor.ts";
 import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 
@@ -39,16 +38,10 @@ const GetUserInputSchema = Schema.Struct({
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
   username: NonEmptyString,
-  offset: Schema.optionalKey(
-    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).annotate({
-      description:
-        "Legacy mode: skip this many plays and return an array instead of a cursor page.",
-    }),
-  ),
   cursor: Schema.optionalKey(
     Schema.String.annotate({
       description:
-        "Omit offset to get a page of dated plays with items and nextCursor. Pass nextCursor here with the same filters for the following page. A null nextCursor means the range is complete.",
+        "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
     }),
   ),
   limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
@@ -300,52 +293,15 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
               }
 
               const input = decoded.success;
-              const paged = input.offset === undefined;
-
-              if (!paged && input.cursor !== undefined)
-                {return toolError("Provide either offset or cursor");}
-
-              const after =
-                input.cursor === undefined
-                  ? Result.succeed(null)
-                  : yield* decodeFeedCursor(input.cursor).pipe(Effect.result);
-
-              if (Result.isFailure(after)) return toolError("Invalid cursor");
-              const limit = input.limit ?? 8;
 
               return yield* withRateLimit(userId, () =>
-                scrobbles
-                  .getRecent(
-                    {
-                      username: input.username,
-                      offset: input.offset ?? 0,
-                      limit: paged ? limit + 1 : limit,
-                      pageAfter: paged ? after.success : undefined,
-                      before: input.before,
-                    },
-                    userId,
-                  )
-                  .pipe(
-                    Effect.map((rows) => {
-                      if (!paged) return toolData(rows);
-
-                      const items = rows.slice(0, limit);
-                      const last = items.at(-1);
-
-                      const nextCursor =
-                        rows.length > limit && last?.scrobbleDate
-                          ? encodeFeedCursor({ id: last.id, scrobbleDate: last.scrobbleDate })
-                          : null;
-
-                      return toolData({ items, nextCursor });
-                    }),
-                    Effect.catchTags({
-                      UserNotFoundError: () => Effect.succeed(toolError("User not found")),
-                      ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
-                      D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
-                    }),
-                  ),
+                scrobbles.getRecentPage({ ...input, limit: input.limit ?? 8 }, userId).pipe(
+                  Effect.map(toolData),
+                  Effect.catchTags({
+                    ...profileErrors,
+                    InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
+                  }),
+                ),
               );
             }
 

@@ -12,7 +12,6 @@ import {
   findRecordedPlaysBetween,
   persistPlays,
   type FeedItem,
-  type FeedCursor,
   type MonthlyScrobbleCount,
   type PersistPlaysOptions,
   type PlayRecord,
@@ -26,12 +25,19 @@ import { decodeFeedCursor, encodeFeedCursor } from "./cursor.ts";
 import type { InvalidCursorError } from "./errors.ts";
 
 export interface RecentScrobblesInput {
-  /** null starts the dated keyset page; undefined preserves offset pagination. */
-  readonly pageAfter?: FeedCursor | null;
   readonly username: string;
   readonly offset: number;
   readonly limit: number;
   readonly before?: number;
+}
+
+export interface RecentPageInput extends Omit<RecentScrobblesInput, "offset"> {
+  readonly cursor?: string;
+}
+
+interface RecentPage {
+  readonly items: ProjectedScrobble[];
+  readonly nextCursor: string | null;
 }
 
 export interface ScrobbleMonthsInput {
@@ -63,6 +69,13 @@ export interface ScrobblesApi {
     input: RecentScrobblesInput,
     viewerId?: User["id"],
   ) => Effect.Effect<ProjectedScrobble[], UserNotFoundError | ProfilePrivateError | DbError>;
+  readonly getRecentPage: (
+    input: RecentPageInput,
+    viewerId?: User["id"],
+  ) => Effect.Effect<
+    RecentPage,
+    InvalidCursorError | UserNotFoundError | ProfilePrivateError | DbError
+  >;
   readonly getMonths: (
     input: ScrobbleMonthsInput,
     viewerId?: User["id"],
@@ -110,16 +123,39 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
 
         return yield* runDb(
-          findRecentScrobblesByUserId(
-            profile.id,
-            {
-              offset: input.offset,
-              limit: input.limit,
-              before: input.before === undefined ? undefined : new Date(input.before * 1000),
-            },
-            input.pageAfter,
-          ),
+          findRecentScrobblesByUserId(profile.id, {
+            offset: input.offset,
+            limit: input.limit,
+            before: input.before === undefined ? undefined : new Date(input.before * 1000),
+          }),
         );
+      });
+
+      const getRecentPage = Effect.fn("Scrobbles.getRecentPage")(function* (
+        input: RecentPageInput,
+        viewerId?: User["id"],
+      ) {
+        const cursor = input.cursor === undefined ? null : yield* decodeFeedCursor(input.cursor);
+        const profile = yield* users.viewProfileByUsername(input.username, viewerId);
+
+        const rows = yield* runDb(
+          findRecentScrobblesByUserId(profile.id, {
+            pageAfter: cursor,
+            limit: input.limit + 1,
+            before: input.before === undefined ? undefined : new Date(input.before * 1000),
+          }),
+        );
+
+        const items = rows.slice(0, input.limit);
+        const last = items.at(-1);
+
+
+        const nextCursor =
+          rows.length > input.limit && last?.scrobbleDate
+            ? encodeFeedCursor({ id: last.id, scrobbleDate: last.scrobbleDate })
+            : null;
+
+        return { items, nextCursor };
       });
 
       const getMonths = Effect.fn("Scrobbles.getMonths")(function* (
@@ -150,6 +186,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         persistPlays: persist,
         findRecordedPlaysBetween: recordedBetween,
         getRecent,
+        getRecentPage,
         getMonths,
         getPublicFeed,
       });

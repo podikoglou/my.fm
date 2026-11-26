@@ -415,10 +415,15 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
   userId: User["id"],
   {
     before,
-    offset,
+    offset = 0,
     limit,
-  }: { before?: NonNullable<Scrobble["scrobbleDate"]>; offset: number; limit: number },
-  pageAfter?: FeedCursor | null,
+    pageAfter,
+  }: {
+    before?: NonNullable<Scrobble["scrobbleDate"]>;
+    offset?: number;
+    limit: number;
+    pageAfter?: FeedCursor | null;
+  },
 ) {
   const sql = yield* SqlClient.SqlClient;
 
