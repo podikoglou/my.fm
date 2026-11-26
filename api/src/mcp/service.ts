@@ -112,11 +112,15 @@ const MCP_TOOLS: ReadonlyArray<Tool> = [
   },
   {
     name: "get_recent_scrobbles",
+    description:
+      "List a profile's recorded plays, newest first. before is an exclusive upper bound in Unix seconds. offset skips that many matching plays.",
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetRecentScrobblesInputSchema),
   },
   {
     name: "get_scrobble_months",
+    description:
+      "Count a profile's plays by calendar month, newest month first. Months with no plays are omitted. timeZone is an IANA zone such as Europe/Athens and defaults to UTC.",
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetScrobbleMonthsInputSchema),
   },
