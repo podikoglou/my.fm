@@ -1,13 +1,13 @@
 import { env } from "cloudflare:workers";
 import { Effect, Layer } from "effect";
 import { http } from "msw";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 
 import { AuthConfig, AuthService } from "../src/auth/service.ts";
 import { findIngestionRun, recordIngestionRun } from "../src/db/queries/ingestionRuns.ts";
 import { DbLive } from "../src/db/service.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
-import { shouldFetchHistory, shouldFetchUser } from "../src/ingestion/schedule.ts";
+import { shouldFetchUser } from "../src/ingestion/schedule.ts";
 import { Ingestion } from "../src/ingestion/service.ts";
 import { Scrobbles } from "../src/scrobbles/service.ts";
 import { SpotifyClientError, SpotifyQuotaExceededError } from "../src/spotify/errors.ts";
@@ -15,7 +15,6 @@ import {
   SpotifyClient,
   type RecentlyPlayedOptions,
   type SpotifyPlay,
-  type SpotifyPlayback,
   type SpotifyUserClient,
 } from "../src/spotify/service.ts";
 import { Users } from "../src/users/service.ts";
@@ -112,10 +111,8 @@ function makeMockSpotifyLayer(
 function mockSpotifyFor(
   calls: FetchCall[],
   getPlays: (call: FetchCall) => ReadonlyArray<SpotifyPlay>,
-  getPlayback: () => SpotifyPlayback | null = () => null,
 ): Layer.Layer<SpotifyClient> {
   return makeMockSpotifyLayer((accessToken) => ({
-    getCurrentlyPlaying: () => Effect.succeed(getPlayback()),
     getRecentlyPlayedTracks: (limit, options) => {
       const call = { accessToken, limit, options };
       calls.push(call);
@@ -348,7 +345,6 @@ describe("Ingestion.run", () => {
     try {
       await runIngestionWith({
         spotifyLayer: makeMockSpotifyLayer((accessToken) => ({
-          getCurrentlyPlaying: () => Effect.succeed(null),
           getRecentlyPlayedTracks: () => {
             if (accessToken === "token-1") {
               return Effect.fail(new SpotifyClientError({ cause: new Error("Spotify down") }));
@@ -378,7 +374,6 @@ describe("Ingestion.run", () => {
     try {
       await runIngestionWith({
         spotifyLayer: makeMockSpotifyLayer((accessToken) => ({
-          getCurrentlyPlaying: () => Effect.succeed(null),
           getRecentlyPlayedTracks: () => {
             if (accessToken === "token-1") {
               return Effect.succeed({ items: [makePlay("not-a-valid-date")] });
@@ -413,7 +408,6 @@ describe("Ingestion.run", () => {
     try {
       await runIngestionWith({
         spotifyLayer: makeMockSpotifyLayer((accessToken) => ({
-          getCurrentlyPlaying: () => Effect.succeed(null),
           getRecentlyPlayedTracks: () => {
             seen.push(accessToken);
 
@@ -492,7 +486,6 @@ describe("Ingestion.run", () => {
     try {
       await runIngestionWith({
         spotifyLayer: makeMockSpotifyLayer(() => ({
-          getCurrentlyPlaying: () => Effect.succeed(null),
           getRecentlyPlayedTracks: () =>
             Effect.fail(new SpotifyQuotaExceededError({ retryAfterSeconds: 48 * 60 * 60 })),
         })),
@@ -737,138 +730,5 @@ describe("dynamic fetch intervals in Ingestion.run", () => {
     } finally {
       logs.restore();
     }
-  });
-});
-
-describe("now-playing polls in Ingestion.run", () => {
-  test("skips the history while the track of the last fetch still plays", async () => {
-    const db = env.DB;
-    await seedUser(db);
-
-    await updateRows(
-      db,
-      "users",
-      {
-        lastFetchedAt: new Date(now.getTime() - 3 * 60_000),
-        lastActiveAt: new Date(now.getTime() - 3 * 60_000),
-        lastRecentTracksFetchTime: new Date(now.getTime() - 5 * 60_000),
-      },
-      { id: "user-1" },
-    );
-
-    const calls: FetchCall[] = [];
-    const logs = captureLogs();
-
-    try {
-      await runIngestionWith({
-        spotifyLayer: mockSpotifyFor(
-          calls,
-          () => [],
-          () => ({ progressMs: 4 * 60_000 }),
-        ),
-      });
-
-      expect(calls).toHaveLength(0);
-    } finally {
-      logs.restore();
-    }
-  });
-
-  test("fetches the history when another track began after the last fetch", async () => {
-    const db = env.DB;
-    await seedUser(db);
-
-    await updateRows(
-      db,
-      "users",
-      {
-        lastFetchedAt: new Date(now.getTime() - 3 * 60_000),
-        lastActiveAt: new Date(now.getTime() - 3 * 60_000),
-        lastRecentTracksFetchTime: new Date(now.getTime() - 5 * 60_000),
-      },
-      { id: "user-1" },
-    );
-
-    const calls: FetchCall[] = [];
-    const logs = captureLogs();
-
-    try {
-      await runIngestionWith({
-        spotifyLayer: mockSpotifyFor(
-          calls,
-          () => [],
-          () => ({ progressMs: 60_000 }),
-        ),
-      });
-
-      expect(calls).toHaveLength(1);
-    } finally {
-      logs.restore();
-    }
-  });
-
-  test("does not ask an inactive user what plays", async () => {
-    const db = env.DB;
-    await seedUser(db);
-
-    await updateRows(
-      db,
-      "users",
-      {
-        lastFetchedAt: new Date(now.getTime() - 10 * 60_000),
-        lastActiveAt: null,
-        lastRecentTracksFetchTime: new Date(now.getTime() - 60 * 60_000),
-      },
-      { id: "user-1" },
-    );
-
-    const getCurrentlyPlaying = vi.fn(() => Effect.succeed(null));
-    const logs = captureLogs();
-
-    try {
-      await runIngestionWith({
-        spotifyLayer: makeMockSpotifyLayer(() => ({
-          getCurrentlyPlaying,
-          getRecentlyPlayedTracks: () => Effect.succeed({ items: [] }),
-        })),
-      });
-
-      expect(getCurrentlyPlaying).not.toHaveBeenCalled();
-    } finally {
-      logs.restore();
-    }
-  });
-});
-
-describe("shouldFetchHistory", () => {
-  const userState = {
-    lastFetchedAt: new Date(now.getTime() - 3 * 60_000),
-    lastActiveAt: new Date(now.getTime() - 3 * 60_000),
-    lastRecentTracksFetchTime: new Date(now.getTime() - 5 * 60_000),
-  };
-
-  test("skips the fetch while the track of the last fetch still plays", () => {
-    expect(shouldFetchHistory(userState, { progressMs: 4 * 60_000 }, now)).toBe(false);
-  });
-
-  test("fetches when the track began after the last fetch", () => {
-    expect(shouldFetchHistory(userState, { progressMs: 60_000 }, now)).toBe(true);
-  });
-
-  test("fetches a long track once the inactive interval has passed", () => {
-    expect(
-      shouldFetchHistory(
-        {
-          ...userState,
-          lastFetchedAt: new Date(now.getTime() - 10 * 60_000),
-        },
-        { progressMs: 12 * 60_000 },
-        now,
-      ),
-    ).toBe(true);
-  });
-
-  test("follows the intervals when nothing plays", () => {
-    expect(shouldFetchHistory(userState, null, now)).toBe(true);
   });
 });
