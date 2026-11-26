@@ -67,21 +67,23 @@ export const PrivacySettings = Html.component({
                 .class("settings-error")
                 .children(model.failed ? "Could not save your settings. Please try again." : null),
             ),
-            Switch(h, {
-              props: {
-                checked: model.pending ?? model.isPrivate,
-                disabled: model.pending !== null,
-              },
-              onToggle: ({ checked }) => Message.ChangedPrivacy({ isPrivate: checked }),
-              view: (parts) =>
-                parts
-                  .root(
-                    h.button
-                      .attrs({ id: "isPrivate", "aria-describedby": "isPrivate-description" })
-                      .class("settings-switch"),
-                  )
-                  .children(parts.thumb(h.span.class("settings-thumb"))),
-            }),
+            h.span.class("settings-switch-control").children(
+              Switch(h, {
+                props: {
+                  checked: model.pending ?? model.isPrivate,
+                  disabled: model.pending !== null,
+                },
+                onToggle: ({ checked }) => Message.ChangedPrivacy({ isPrivate: checked }),
+                view: (parts) =>
+                  parts
+                    .root(
+                      h.button
+                        .attrs({ id: "isPrivate", "aria-describedby": "isPrivate-description" })
+                        .class("settings-switch"),
+                    )
+                    .children(parts.thumb(h.span.class("settings-thumb"))),
+              }),
+            ),
           ),
         ),
       ),

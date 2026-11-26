@@ -138,7 +138,22 @@ export const SettingsPage = Html.component({
                   "href",
                   AppRoute.print(AppRoute.User({ params: { username: model.profile.username } })),
                 )
-                .children(h.span.attr("aria-hidden", "true").children("← "), "Back")
+                .children(
+                  h
+                    .el("svg")
+                    .attrs({
+                      "aria-hidden": "true",
+                      class: "size-4",
+                      viewBox: "0 0 24 24",
+                      fill: "none",
+                      stroke: "currentColor",
+                      "stroke-width": "2",
+                      "stroke-linecap": "round",
+                      "stroke-linejoin": "round",
+                    })
+                    .children(h.el("path").attr("d", "m12 19-7-7 7-7M19 12H5")),
+                  "Back",
+                )
             : null,
         ),
         model._tag === "Ready"

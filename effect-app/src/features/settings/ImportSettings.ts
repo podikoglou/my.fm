@@ -119,6 +119,7 @@ export const ImportSettings = Html.component({
                 h.span("Import listening history"),
                 h.p("Upload a listening history CSV export (up to 10 MB)."),
                 h.div
+                  .class("settings-import-status")
                   .attr("role", "status")
                   .children(
                     latest

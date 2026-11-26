@@ -54,30 +54,43 @@ export const AppearanceSettings = Html.component({
               Settled: () => undefined,
             },
             view: (select) =>
-              h.div
-                .class("settings-row")
-                .children(
-                  select.label(h.div).children("Theme"),
-                  select
-                    .trigger(h.button.class("settings-select"))
-                    .children(select.value(h.span), select.icon(h.span).children("▾")),
-                  select
-                    .positioner(h.div.class("settings-select-positioner"))
-                    .children(
-                      select
-                        .popup(h.div.class("settings-select-menu"))
-                        .children(
-                          themeOptions.map(({ value, label }) =>
-                            select
-                              .item({ element: h.div, value })
-                              .children(
-                                select.itemText(h.div).children(label),
-                                select.itemIndicator({ element: h.span, value })?.children("✓"),
-                              ),
-                          ),
-                        ),
-                    ),
+              h.div.class("settings-row").children(
+                select.label(h.div).children("Theme"),
+                select.trigger(h.button.class("settings-select")).children(
+                  select.value(h.span),
+                  select.icon(h.span.class("settings-select-icon")).children(
+                    h
+                      .el("svg")
+                      .attrs({
+                        "aria-hidden": "true",
+                        class: "size-4",
+                        viewBox: "0 0 24 24",
+                        fill: "none",
+                        stroke: "currentColor",
+                        "stroke-width": "2",
+                        "stroke-linecap": "round",
+                        "stroke-linejoin": "round",
+                      })
+                      .children(h.el("path").attr("d", "m6 9 6 6 6-6")),
+                  ),
                 ),
+                select
+                  .positioner(h.div.class("settings-select-positioner"))
+                  .children(
+                    select
+                      .popup(h.div.class("settings-select-menu"))
+                      .children(
+                        themeOptions.map(({ value, label }) =>
+                          select
+                            .item({ element: h.div, value })
+                            .children(
+                              select.itemText(h.div).children(label),
+                              select.itemIndicator({ element: h.span, value })?.children("✓"),
+                            ),
+                        ),
+                      ),
+                  ),
+              ),
           }),
         ),
       ),
