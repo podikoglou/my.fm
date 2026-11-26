@@ -5,11 +5,29 @@ import {
   SessionUserSchema,
 } from "@my.fm/api";
 import { Query, UiSchema } from "@effect/ui";
-import { Effect, Schema } from "effect";
+import { Context, Effect, Layer, Queue, Schema, Stream } from "effect";
 
 import { apiClient } from "../../lib/api";
 import { authClient } from "../../lib/auth";
 import { MonthSchema, PAGE_SIZE, toMonths } from "./history-timeline";
+
+export class ProfileSession extends Context.Service<
+  ProfileSession,
+  { readonly changes: Stream.Stream<string | null> }
+>()("profile/ProfileSession") {
+  static readonly layer = Layer.succeed(this, {
+    changes: Stream.callback<string | null>((queue) =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          authClient.useSession.subscribe(({ data, isPending }) => {
+            if (!isPending) Queue.offerUnsafe(queue, data?.user.id ?? null);
+          }),
+        ),
+        (unsubscribe) => Effect.sync(unsubscribe),
+      ),
+    ),
+  });
+}
 
 export const ProfileLookupError = Schema.Literals(["private", "not_found"]);
 

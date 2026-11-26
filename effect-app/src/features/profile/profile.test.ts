@@ -13,7 +13,7 @@ import {
   totalPlays,
 } from "./history-timeline";
 import { HistoryTimelineMessage, HistoryTimelineNoDeps } from "./HistoryTimeline";
-import { ProfilePageNoDeps } from "./ProfilePage";
+import { ProfilePageMessage, ProfilePageNoDeps } from "./ProfilePage";
 import { ViewerSchema } from "./queries";
 import { UserTrackListNoDeps } from "./UserTrackList";
 
@@ -210,6 +210,21 @@ describe("ProfilePage views", () => {
       .loaded("viewer", incompleteViewer);
 
     scene.expect(Locator.text("River Park")).toBeAbsent();
+  });
+
+  test("invalidates viewer query when the auth session drops after initial load", () => {
+    const story = Story.start(ProfilePageNoDeps, { username: "river" })
+      .loaded("profile", sampleProfile)
+      .loaded("viewer", ownerViewer);
+
+    story.send(ProfilePageMessage.ChangedSession({ userId: "user-river" }));
+    expect(story.model).toEqual({ hasSession: true, sessionUserId: "user-river" });
+    expect(story.current.pending).toHaveLength(0);
+
+    story.send(ProfilePageMessage.ChangedSession({ userId: null }));
+    expect(story.model).toEqual({ hasSession: true, sessionUserId: null });
+    expect(story.current.pending).toHaveLength(1);
+    expect(story.current.pending[0]?.command.name).toBe("InvalidateViewer");
   });
 });
 
