@@ -1,5 +1,7 @@
 import type { Html } from "@effect/ui/html";
 
+import { HideFailedImage } from "../../components/HideFailedImage";
+
 function initials(name: string): string {
   const split = name.split(" ");
 
@@ -31,11 +33,13 @@ export function UserAvatar<M>(
         )
         .children(initials(options.name)),
       options.avatarUrl !== null &&
-        h.img.attrs({
-          "data-slot": "avatar-image",
-          src: options.avatarUrl,
-          alt: "User",
-          class: "absolute inset-0 size-full object-cover",
-        }),
+        h.img
+          .attrs({
+            "data-slot": "avatar-image",
+            src: options.avatarUrl,
+            alt: "User",
+            class: "absolute inset-0 size-full object-cover",
+          })
+          .onMount(HideFailedImage()),
     );
 }
