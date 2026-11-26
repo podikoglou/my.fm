@@ -1,4 +1,5 @@
 import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
 
 import { AppearanceSettings } from "~/components/settings/appearance-settings";
@@ -18,6 +19,7 @@ import { useSignOut } from "~/hooks/use-sign-out";
 import { importErrorMessage } from "~/lib/import-error-message";
 
 export default function SettingsPage() {
+  const [isEmailVisible, setIsEmailVisible] = useState(false);
   const { data } = useCurrentUser();
   const privacy = usePrivacySetting();
   const { inputRef, uploadImport, handleFileChange, openFilePicker } = useImportUpload();
@@ -63,9 +65,24 @@ export default function SettingsPage() {
                   <p className="truncate text-sm font-normal text-muted-foreground">
                     @{data.username}
                   </p>
-                  <p className="text-sm font-normal wrap-anywhere text-muted-foreground">
-                    {data.email}
-                  </p>
+                  {isEmailVisible ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsEmailVisible(false)}
+                      className="cursor-pointer text-left text-sm font-normal wrap-anywhere text-muted-foreground transition-colors hover:text-foreground"
+                      title="Click to hide email"
+                    >
+                      {data.email}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsEmailVisible(true)}
+                      className="block h-4 w-36 cursor-pointer rounded bg-muted transition-colors hover:bg-muted-foreground/30"
+                      aria-label="Reveal email"
+                      title="Click to reveal email"
+                    />
+                  )}
                   <div role="status" className="text-sm font-normal text-destructive">
                     {signOut.isError && <p>Could not sign out. Try again.</p>}
                   </div>
