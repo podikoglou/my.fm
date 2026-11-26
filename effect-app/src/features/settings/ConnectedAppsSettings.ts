@@ -214,7 +214,7 @@ export const ConnectedAppsSettings = Html.component({
                       .children(
                         "Paste this into your agent. The first request opens a browser window where you allow access.",
                       ),
-                    h.pre(model.instructions),
+                    h.pre.attr("tabindex", "0").children(model.instructions),
                     h.div.class("settings-dialog-actions").children(
                       h.div
                         .attr("role", "status")

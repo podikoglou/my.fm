@@ -174,6 +174,14 @@ test.describe("signed-in account", () => {
     await page.getByRole("button", { name: "Connect an agent" }).click();
     const dialog = page.getByRole("dialog", { name: "Connect an agent" });
     await expect(dialog.getByText(/Paste this into your agent/)).toBeVisible();
+    const copy = dialog.getByRole("button", { name: "Copy" });
+    await expect(copy).toBeEnabled();
+    await copy.focus();
+    await page.keyboard.press("Shift+Tab");
+    const prompt = dialog.locator("pre");
+    await expect(prompt).toBeFocused();
+    await page.keyboard.press("PageDown");
+    await expect.poll(() => prompt.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
     await dialog.getByRole("button", { name: "Done" }).click();
     await expect(dialog).toHaveCount(0);
     const app = page.getByRole("link", { name: "Wave Reader" });
