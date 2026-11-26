@@ -2,7 +2,6 @@ import { ArrowRight } from "lucide-react";
 import { Link } from "react-router";
 
 import { FeedTrackList } from "~/components/feed-track-list";
-import { buttonVariants } from "~/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { useSignedInUser } from "~/hooks/use-current-user";
 
@@ -24,14 +23,13 @@ export default function FeedPage() {
               <Link
                 to={user.onboarded ? `/user/${user.username}` : "/onboard"}
                 aria-label={user.onboarded ? `@${user.username}, your profile` : undefined}
-                className={buttonVariants({
-                  variant: "link",
-                  size: "sm",
-                  className: "-my-1 h-7 gap-1 px-0 align-baseline underline underline-offset-4",
-                })}
+                className="rounded-sm py-1 font-medium whitespace-nowrap text-foreground underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
               >
                 {user.onboarded ? `@${user.username}` : "Set up your profile"}
-                <ArrowRight aria-hidden="true" className="size-3 rtl:rotate-180" />
+                <ArrowRight
+                  aria-hidden="true"
+                  className="ms-1 inline size-3 align-[-0.125em] rtl:rotate-180"
+                />
               </Link>
             </>
           ) : (
