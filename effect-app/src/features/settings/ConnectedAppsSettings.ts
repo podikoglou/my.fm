@@ -26,9 +26,13 @@ const Message = UiSchema.TaggedEnum({
 function appLink(uri: string | undefined) {
   if (!uri) return undefined;
 
-  const url = URL.parse(uri);
+  try {
+    const { protocol } = new URL(uri);
 
-  return url?.protocol === "https:" || url?.protocol === "http:" ? url.href : undefined;
+    return protocol === "https:" || protocol === "http:" ? uri : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 class ConnectedApps extends Query.Service<ConnectedApps>()("settings/ConnectedApps", {
