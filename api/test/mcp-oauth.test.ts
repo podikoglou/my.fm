@@ -435,6 +435,30 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     });
   }
 
+  const page = async (cursor?: string) => {
+    const result = await callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      limit: 5,
+      cursor,
+    });
+
+    return Schema.decodeUnknownSync(
+      Schema.Struct({
+        items: Schema.Array(Schema.Struct({ id: Schema.String })),
+        nextCursor: Schema.NullOr(Schema.String),
+      }),
+    )(JSON.parse(text(result)));
+  };
+
+  const first = await page();
+  expect(first.items).toHaveLength(5);
+  expect(first.nextCursor).toEqual(expect.any(String));
+  const second = await page(first.nextCursor ?? undefined);
+  expect(second.nextCursor).toBeNull();
+  expect([...first.items, ...second.items].map(({ id }) => id)).toEqual(
+    Array.from({ length: 9 }, (_, index) => (8 - index).toString(16).padStart(32, "0")),
+  );
+
   const me = await callTool(accessToken, "get_me");
   expect(me.isError).not.toBe(true);
   expect(JSON.parse(text(me))).toEqual({

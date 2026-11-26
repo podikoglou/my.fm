@@ -12,6 +12,7 @@ import {
   findRecordedPlaysBetween,
   persistPlays,
   type FeedItem,
+  type FeedCursor,
   type MonthlyScrobbleCount,
   type PersistPlaysOptions,
   type PlayRecord,
@@ -25,6 +26,8 @@ import { decodeFeedCursor, encodeFeedCursor } from "./cursor.ts";
 import type { InvalidCursorError } from "./errors.ts";
 
 export interface RecentScrobblesInput {
+  /** null starts the dated keyset page; undefined preserves offset pagination. */
+  readonly pageAfter?: FeedCursor | null;
   readonly username: string;
   readonly offset: number;
   readonly limit: number;
@@ -107,11 +110,15 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
 
         return yield* runDb(
-          findRecentScrobblesByUserId(profile.id, {
-            offset: input.offset,
-            limit: input.limit,
-            before: input.before === undefined ? undefined : new Date(input.before * 1000),
-          }),
+          findRecentScrobblesByUserId(
+            profile.id,
+            {
+              offset: input.offset,
+              limit: input.limit,
+              before: input.before === undefined ? undefined : new Date(input.before * 1000),
+            },
+            input.pageAfter,
+          ),
         );
       });
 

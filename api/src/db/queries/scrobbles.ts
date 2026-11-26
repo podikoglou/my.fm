@@ -418,8 +418,15 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
     offset,
     limit,
   }: { before?: NonNullable<Scrobble["scrobbleDate"]>; offset: number; limit: number },
+  pageAfter?: FeedCursor | null,
 ) {
   const sql = yield* SqlClient.SqlClient;
+
+  const pageFilter = pageAfter
+    ? sql`AND (s.scrobbleDate, s.id) < (${Math.floor(pageAfter.scrobbleDate.getTime() / 1000)}, ${pageAfter.id})`
+    : pageAfter === null
+      ? sql`AND s.scrobbleDate IS NOT NULL`
+      : sql``;
 
   const beforeFilter = before
     ? sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`
@@ -438,6 +445,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
             s.coverArtUrl, s.artistName, s.albumName, s.trackName, s.userId
           FROM scrobbles AS s
           WHERE s.userId = ${userId} ${beforeFilter}
+            ${pageFilter}
           ORDER BY s.scrobbleDate DESC, s.id DESC
           LIMIT ${limit} OFFSET ${offset}
         )
