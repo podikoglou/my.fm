@@ -38,14 +38,16 @@ const GetUserInputSchema = Schema.Struct({
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
   username: NonEmptyString,
+  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
   cursor: Schema.optionalKey(
     Schema.String.annotate({
       description:
         "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
     }),
   ),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
-  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 })).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(8)),
+  ),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
@@ -295,7 +297,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
               const input = decoded.success;
 
               return yield* withRateLimit(userId, () =>
-                scrobbles.getRecentPage({ ...input, limit: input.limit ?? 8 }, userId).pipe(
+                scrobbles.getRecentPage(input, userId).pipe(
                   Effect.map(toolData),
                   Effect.catchTags({
                     ...profileErrors,
