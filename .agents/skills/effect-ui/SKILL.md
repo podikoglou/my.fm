@@ -13,8 +13,11 @@ description: Use when rebuilding or changing the my.fm browser frontend with Eff
    property types before investigating inference failures.
 2. Start with the existing URL, API and visible states. Keep the API Worker,
    same-origin requests, credential modes, OAuth return paths, forwarded
-   Host and SPA fallback contracts. For shared UI, decide who owns the
-   state and whether state restoration may retain user-specific data.
+   Host and SPA fallback contracts. Set `restore: false` on each component
+   whose Model or queries hold auth-bound data. A parent opt-out or session
+   render guard does not protect a child's snapshot. Keep live cache isolation
+   on sign-out and check Back for stale data; see
+   [history guidance](../../../docs/EFFECT-UI.md#keep-auth-bound-state-out-of-browser-history).
 3. Write a pure component transition first: schema for Model and messages,
    `init`, `update`, and HTML `view`. Pass props down and map child events up.
    Use stable keys, and only re-key to reset an instance intentionally.
