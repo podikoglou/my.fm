@@ -113,7 +113,7 @@ const MCP_TOOLS: ReadonlyArray<Tool> = [
   {
     name: "get_recent_scrobbles",
     description:
-      "List a profile's recorded plays, newest first. before is an exclusive upper bound in Unix seconds. offset skips that many matching plays.",
+      "List a profile's recorded plays, newest first. The upper time bound is exclusive and uses Unix seconds.",
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetRecentScrobblesInputSchema),
   },
