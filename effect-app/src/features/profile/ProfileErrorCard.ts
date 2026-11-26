@@ -22,10 +22,7 @@ export function ProfileErrorCard<M>(
     .children(
       graphic,
       h.div.children(
-        h.div
-          .attr("data-slot", "card-title")
-          .class("text-3xl leading-none font-bold")
-          .children(title),
+        h.div.attr("data-slot", "card-title").class("text-3xl font-bold").children(title),
         h.div
           .attr("data-slot", "card-description")
           .class("mt-2 text-sm text-muted-foreground")
