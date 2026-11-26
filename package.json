@@ -3,7 +3,8 @@
   "workspaces": [
     "app/",
     "api/",
-    "effect-app/"
+    "effect-app/",
+    "parity/"
   ],
   "scripts": {
     "prepare": "effect-tsgo patch --no-typescript --oxlint --tsrs --skip-missing",

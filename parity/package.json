@@ -1,0 +1,18 @@
+{
+  "name": "@my.fm/parity",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:current": "PARITY_TARGET=current playwright test",
+    "test:next": "PARITY_TARGET=next playwright test",
+    "baselines:update": "PARITY_TARGET=current playwright test --grep @visual --update-snapshots=all",
+    "typecheck": "tsgo",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check"
+  },
+  "devDependencies": {
+    "@my.fm/api": "workspace:*",
+    "@playwright/test": "1.58.2",
+    "@types/node": "^22"
+  }
+}
