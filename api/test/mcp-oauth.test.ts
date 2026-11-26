@@ -1,13 +1,11 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { Schema } from "effect";
 import { expect, test } from "vitest";
 
-import { scrobbles, users } from "../src/db/schema.ts";
-import { createDatabase } from "../src/db/service.ts";
 import { RATE_LIMITS } from "../src/rate-limits.ts";
 import worker from "../src/worker.ts";
+import { insertRows, updateRows } from "./d1.ts";
 import { signIn } from "./session.ts";
 
 test("Spotify sign-in round-trips the onboarding destination and OAuth query", async () => {
@@ -334,14 +332,15 @@ test("denies consent safely, rejects invalid requests and enforces PKCE", async 
 
 test("reads through all MCP tools with REST bounds and owner-only private access", async () => {
   const owner = await signIn({ id: "oauth-owner", email: "owner@example.com" });
-  const db = createDatabase(env.DB);
-  await db
-    .update(users)
-    .set({ username: "owner", onboarded: true, isPrivate: true })
-    .where(eq(users.id, owner.userId));
+  await updateRows(
+    env.DB,
+    "users",
+    { username: "owner", onboarded: true, isPrivate: true },
+    { id: owner.userId },
+  );
   const publicId = "V1StGXR8_Z5jdHi6B-myT";
   const privateId = "V1StGXR8_Z5jdHi6B-myU";
-  await db.insert(users).values([
+  await insertRows(env.DB, "users", [
     {
       id: publicId,
       username: "public",
@@ -361,7 +360,9 @@ test("reads through all MCP tools with REST bounds and owner-only private access
       updatedAt: new Date(),
     },
   ]);
-  await db.insert(scrobbles).values(
+  await insertRows(
+    env.DB,
+    "scrobbles",
     Array.from({ length: 9 }, (_, index) => ({
       id: index.toString(16).padStart(32, "0"),
       userId: owner.userId,
@@ -369,7 +370,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
       scrobbleDate: new Date("2026-11-01T00:30:00Z"),
     })),
   );
-  await db.insert(scrobbles).values({
+  await insertRows(env.DB, "scrobbles", {
     id: "a".repeat(32),
     userId: publicId,
     trackName: "Public song",

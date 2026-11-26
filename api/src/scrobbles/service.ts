@@ -3,6 +3,7 @@ import { Context, Effect, Layer } from "effect";
 import type { DbError } from "../db/errors.ts";
 import type { Scrobble, User } from "../db/schema.ts";
 import type { ProfilePrivateError, UserNotFoundError } from "../users/errors.ts";
+import type { DatabaseRequirements } from "../db/service.ts";
 
 import {
   countScrobblesByMonth,
@@ -17,7 +18,8 @@ import {
   type ProjectedScrobble,
   type RecordedPlay,
 } from "../db/queries/scrobbles.ts";
-import { Db } from "../db/service.ts";
+import { D1Client } from "@effect/sql-d1";
+import { SqlClient } from "effect/sql";
 import { Users } from "../users/service.ts";
 import { decodeFeedCursor, encodeFeedCursor } from "./cursor.ts";
 import type { InvalidCursorError } from "./errors.ts";
@@ -70,17 +72,24 @@ export interface ScrobblesApi {
 export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
   "@my.fm/api/scrobbles/Scrobbles",
 ) {
-  static readonly layer: Layer.Layer<Scrobbles, never, Db | Users> = Layer.effect(
+  static readonly layer: Layer.Layer<Scrobbles, never, Users | DatabaseRequirements> = Layer.effect(
     Scrobbles,
     Effect.gen(function* () {
-      const db = yield* Db;
+      const sql = yield* SqlClient.SqlClient;
+      const d1 = yield* D1Client.D1Client;
       const users = yield* Users;
+
+      const runDb = <A, E>(effect: Effect.Effect<A, E, DatabaseRequirements>) =>
+        effect.pipe(
+          Effect.provideService(SqlClient.SqlClient, sql),
+          Effect.provideService(D1Client.D1Client, d1),
+        );
 
       const persist = Effect.fn("Scrobbles.persistPlays")(function* (
         plays: ReadonlyArray<PlayRecord>,
         options?: PersistPlaysOptions,
       ) {
-        return yield* db.query((client) => persistPlays(client, plays, options));
+        return yield* runDb(persistPlays(plays, options));
       });
 
       const recordedBetween = Effect.fn("Scrobbles.findRecordedPlaysBetween")(function* (
@@ -88,7 +97,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         from: NonNullable<Scrobble["scrobbleDate"]>,
         to: NonNullable<Scrobble["scrobbleDate"]>,
       ) {
-        return yield* db.query((client) => findRecordedPlaysBetween(client, userId, from, to));
+        return yield* runDb(findRecordedPlaysBetween(userId, from, to));
       });
 
       const getRecent = Effect.fn("Scrobbles.getRecent")(function* (
@@ -97,8 +106,8 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
       ) {
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
 
-        return yield* db.query((client) =>
-          findRecentScrobblesByUserId(client, profile.id, {
+        return yield* runDb(
+          findRecentScrobblesByUserId(profile.id, {
             offset: input.offset,
             limit: input.limit,
             before: input.before === undefined ? undefined : new Date(input.before * 1000),
@@ -112,9 +121,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
       ) {
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
 
-        return yield* db.query((client) =>
-          countScrobblesByMonth(client, profile.id, { timeZone: input.timeZone }),
-        );
+        return yield* runDb(countScrobblesByMonth(profile.id, { timeZone: input.timeZone }));
       });
 
       const getPublicFeed = Effect.fn("Scrobbles.getPublicFeed")(function* (
@@ -123,9 +130,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         const cursor =
           input.cursor === undefined ? undefined : yield* decodeFeedCursor(input.cursor);
 
-        const items = yield* db.query((client) =>
-          findPublicFeed(client, { cursor, limit: input.limit + 1 }),
-        );
+        const items = yield* runDb(findPublicFeed({ cursor, limit: input.limit + 1 }));
 
         const page = items.slice(0, input.limit);
         const last = page.at(-1);

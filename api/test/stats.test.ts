@@ -1,18 +1,8 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 
-import {
-  albumArtists,
-  albums,
-  artists,
-  scrobbles,
-  trackArtists,
-  tracks,
-  users,
-} from "../src/db/schema.ts";
-import { createDatabase } from "../src/db/service.ts";
 import worker from "../src/worker.ts";
+import { insertRows, updateRows } from "./d1.ts";
 import { baseUrl } from "./session.ts";
 
 const userId = "V1StGXR8_Z5jdHi6B-myT";
@@ -29,9 +19,7 @@ function get(path: string, ip = `198.51.100.${(clients += 1)}`) {
 }
 
 async function seed() {
-  const db = createDatabase(env.DB);
-
-  await db.insert(users).values({
+  await insertRows(env.DB, "users", {
     id: userId,
     username: "alex",
     name: "Alex",
@@ -40,12 +28,14 @@ async function seed() {
     onboarded: true,
   });
 
-  await db.insert(artists).values([
+  await insertRows(env.DB, "artists", [
     { spotifyUri: "spotify:artist:1", name: "First Artist" },
     { spotifyUri: "spotify:artist:2", name: "Second Artist" },
   ]);
 
-  await db.insert(albums).values(
+  await insertRows(
+    env.DB,
+    "albums",
     [1, 2].map((index) => ({
       spotifyUri: `spotify:album:${index}`,
       name: `Album ${index}`,
@@ -56,7 +46,9 @@ async function seed() {
     })),
   );
 
-  await db.insert(tracks).values(
+  await insertRows(
+    env.DB,
+    "tracks",
     [1, 2].map((index) => ({
       spotifyUri: `spotify:track:${index}`,
       name: `Track ${index}`,
@@ -68,13 +60,15 @@ async function seed() {
   );
 
   // Track 2 features First Artist, but only its lead artist is credited a play.
-  await db.insert(trackArtists).values([
+  await insertRows(env.DB, "track_artists", [
     { trackSpotifyUri: "spotify:track:1", artistSpotifyUri: "spotify:artist:1", position: 0 },
     { trackSpotifyUri: "spotify:track:2", artistSpotifyUri: "spotify:artist:2", position: 0 },
     { trackSpotifyUri: "spotify:track:2", artistSpotifyUri: "spotify:artist:1", position: 1 },
   ]);
 
-  await db.insert(albumArtists).values(
+  await insertRows(
+    env.DB,
+    "album_artists",
     [1, 2].map((index) => ({
       albumSpotifyUri: `spotify:album:${index}`,
       artistSpotifyUri: `spotify:artist:${index}`,
@@ -90,7 +84,7 @@ async function seed() {
     scrobbleDate: new Date(date),
   });
 
-  await db.insert(scrobbles).values([
+  await insertRows(env.DB, "scrobbles", [
     play("jan-1", 1, "2026-01-05T10:00:00Z"),
     play("jan-2", 1, "2026-01-06T10:00:00Z"),
     play("jan-3", 1, "2026-01-07T10:00:00Z"),
@@ -105,8 +99,6 @@ async function seed() {
       scrobbleDate: new Date("2026-04-04T10:00:00Z"),
     },
   ]);
-
-  return db;
 }
 
 describe("profile stats", () => {
@@ -167,9 +159,9 @@ describe("profile stats", () => {
   });
 
   test("counts plays in the range when none of them has an album", async () => {
-    const db = await seed();
+    await seed();
 
-    await db.insert(scrobbles).values({
+    await insertRows(env.DB, "scrobbles", {
       id: "bare",
       userId,
       trackName: "Bare Song",
@@ -241,9 +233,9 @@ describe("profile stats", () => {
   });
 
   test("rejects a timeline with more buckets than one call allows", async () => {
-    const db = await seed();
+    await seed();
 
-    await db.insert(scrobbles).values({
+    await insertRows(env.DB, "scrobbles", {
       id: "old",
       userId,
       trackName: "Old Song",
@@ -276,7 +268,7 @@ describe("profile stats", () => {
   });
 
   test("rejects unbounded inputs and hides private profiles", async () => {
-    const db = await seed();
+    await seed();
 
     for (const path of [
       "getTop?username=alex&kind=artists&limit=51",
@@ -288,7 +280,7 @@ describe("profile stats", () => {
       expect((await get(path)).status).toBe(400);
     }
 
-    await db.update(users).set({ isPrivate: true }).where(eq(users.id, userId));
+    await updateRows(env.DB, "users", { isPrivate: true }, { id: userId });
 
     expect((await get("getSummary?username=alex")).status).toBe(403);
     expect((await get("getSummary?username=missing")).status).toBe(404);

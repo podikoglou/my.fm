@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { API_DEV_PORT } from "../../dev.ts";
 import { AuthConfig } from "./auth/service.ts";
-import { Db } from "./db/service.ts";
+import { DbLive } from "./db/service.ts";
 import { Imports } from "./import/service.ts";
 import { Ingestion } from "./ingestion/service.ts";
 import { handleOAuthEdgeRequest } from "./oauth/edge.ts";
@@ -15,9 +15,9 @@ import { RATE_LIMITS, type RateLimitBindingName } from "./rate-limits.ts";
 import { ImportsStorage } from "./storage/service.ts";
 import { IngestionLive } from "./worker.ts";
 
-/** D1 database with the drizzle-kit migrations. */
+/** D1 database with the handwritten SQL migrations. */
 export const Database = Cloudflare.D1.Database("Database", {
-  migrations: fileURLToPath(new URL("../drizzle/", import.meta.url).href),
+  migrations: fileURLToPath(new URL("../migrations/", import.meta.url).href),
 });
 
 export const ImportsBucket = Cloudflare.R2.Bucket("ImportsBucket");
@@ -87,7 +87,7 @@ export default class Worker extends Cloudflare.Workers.Worker<Worker>()(
       );
 
       return Layer.mergeAll(
-        Db.layerFromBinding(rawDb),
+        DbLive(rawDb),
         ImportsStorage.layerFromBinding(rawBucket),
         RateLimiter.layerFromBindings({
           AUTH_RATE_LIMIT: rawAuthLimiter,

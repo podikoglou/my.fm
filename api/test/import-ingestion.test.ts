@@ -2,24 +2,25 @@ import { env } from "cloudflare:workers";
 import { Effect, Layer } from "effect";
 import { describe, expect, test } from "vitest";
 
-import { findActiveImportForCron, insertImport } from "../src/db/queries/imports.ts";
 import {
-  albums,
-  artists,
-  imports,
-  scrobbles,
-  trackArtists,
-  tracks,
-  users,
-} from "../src/db/schema.ts";
-import { createDatabase, Db, type DrizzleDatabase } from "../src/db/service.ts";
+  findActiveImportForCron as findActiveImportForCronEffect,
+  insertImport as insertImportEffect,
+} from "../src/db/queries/imports.ts";
+import { DbLive } from "../src/db/service.ts";
 import { getImportR2Key } from "../src/import/csv.ts";
 import type { GqlTrack } from "../src/import/graphql.ts";
 import { Imports, type ImportTickOptions } from "../src/import/service.ts";
 import { INGESTION_EVENTS } from "../src/ingestion/events.ts";
 import { ImportsStorage } from "../src/storage/service.ts";
 import type { WorkerBindings } from "../src/worker.ts";
-import { createBatchWriteLimitDatabase, createStatementWriteLimitDatabase } from "./d1.ts";
+import {
+  createBatchWriteLimitDatabase,
+  createStatementWriteLimitDatabase,
+  executeSql,
+  insertRows,
+  runSql,
+  selectRows,
+} from "./d1.ts";
 import { captureLogs } from "./logs.ts";
 
 const FAILING_CSV =
@@ -31,7 +32,7 @@ function runImportTick(targetEnv: WorkerBindings, options?: ImportTickOptions) {
   const layer = Imports.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
-        Db.layerFromBinding(targetEnv.DB),
+        DbLive(targetEnv.DB),
         ImportsStorage.layerFromBinding(targetEnv.IMPORTS_BUCKET),
       ),
     ),
@@ -46,16 +47,25 @@ function runImportTick(targetEnv: WorkerBindings, options?: ImportTickOptions) {
   );
 }
 
+function insertImport(database: D1Database, values: Parameters<typeof insertImportEffect>[0]) {
+  return runSql(database, insertImportEffect(values));
+}
+
+function findActiveImportForCron(database: D1Database) {
+  return runSql(database, findActiveImportForCronEffect());
+}
+
 async function seedImport(
   targetEnv: WorkerBindings,
-  db: DrizzleDatabase,
+  db: D1Database,
   values: { id: string; userId: string; username: string; createdAt: Date },
 ) {
-  await db.insert(users).values({
+  await insertRows(db, "users", {
     id: values.userId,
     username: values.username,
     name: values.username,
     email: `${values.username}@example.com`,
+    updatedAt: values.createdAt,
   });
 
   await targetEnv.IMPORTS_BUCKET.put(getImportR2Key(values.id), FAILING_CSV);
@@ -74,38 +84,25 @@ async function seedImport(
   });
 }
 
-async function seedRecordedPlay(db: DrizzleDatabase, userId: string, scrobbleDate: Date) {
+async function seedRecordedPlay(db: D1Database, userId: string, scrobbleDate: Date) {
   const artistUri = "spotify:artist:recorded-artist-1";
   const trackUri = "spotify:track:recorded-track-1";
 
-  await db
-    .insert(artists)
-    .values({
-      spotifyUri: artistUri,
-      name: "Anderson .Paak",
-    })
-    .onConflictDoNothing();
-
-  await db
-    .insert(tracks)
-    .values({
-      spotifyUri: trackUri,
-      name: "Come Home",
-      releaseDate: "2019",
-      imageUrl: "https://example.com/ventura.jpg",
-    })
-    .onConflictDoNothing();
-
-  await db
-    .insert(trackArtists)
-    .values({
-      trackSpotifyUri: trackUri,
-      artistSpotifyUri: artistUri,
-      position: 0,
-    })
-    .onConflictDoNothing();
-
-  await db.insert(scrobbles).values({
+  await executeSql(db, "INSERT OR IGNORE INTO artists (spotifyUri, name) VALUES (?, ?)", [
+    artistUri,
+    "Anderson .Paak",
+  ]);
+  await executeSql(
+    db,
+    "INSERT OR IGNORE INTO tracks (spotifyUri, name, releaseDate, imageUrl) VALUES (?, ?, ?, ?)",
+    [trackUri, "Come Home", "2019", "https://example.com/ventura.jpg"],
+  );
+  await executeSql(
+    db,
+    "INSERT OR IGNORE INTO track_artists (track_spotify_uri, artist_spotify_uri, position) VALUES (?, ?, ?)",
+    [trackUri, artistUri, 0],
+  );
+  await insertRows(db, "scrobbles", {
     id: `spotify-${userId}-${scrobbleDate.getTime()}`,
     userId,
     trackSpotifyUri: trackUri,
@@ -127,14 +124,15 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("marks pending import failed when R2 file is missing", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const userId = "user-missing-r2";
 
-    await db.insert(users).values({
+    await insertRows(db, "users", {
       id: userId,
       username: "user_missing_r2",
       name: "Missing R2",
       email: "missing-r2@example.com",
+      updatedAt: new Date(),
     });
 
     await insertImport(db, {
@@ -154,21 +152,22 @@ describe("CSV import ingestion tick", () => {
 
     expect(result.status).toBe("failed");
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("failed");
     expect(row?.error).toContain("File not found");
   });
 
   test("processes rows, resolves metadata, persists canonical entities, and cleans up R2", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const userId = "user-full-import";
 
-    await db.insert(users).values({
+    await insertRows(db, "users", {
       id: userId,
       username: "user_full",
       name: "User Full",
       email: "full@example.com",
+      updatedAt: new Date(),
     });
 
     const csvContent =
@@ -232,7 +231,7 @@ describe("CSV import ingestion tick", () => {
     expect(result.status).toBe("completed");
     expect(result.processed).toBe(2);
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("completed");
     expect(row?.processedRows).toBe(2);
@@ -240,25 +239,25 @@ describe("CSV import ingestion tick", () => {
 
     expect(await env.IMPORTS_BUCKET.get(r2Key)).toBeNull();
 
-    const storedArtists = await db.select().from(artists);
+    const storedArtists = await selectRows(db, "artists");
 
     expect(storedArtists).toHaveLength(1);
     expect(storedArtists[0]?.name).toBe("Anderson .Paak");
     expect(storedArtists[0]?.spotifyUri).toBe("spotify:artist:spotify-artist-1");
 
-    const storedAlbums = await db.select().from(albums);
+    const storedAlbums = await selectRows(db, "albums");
 
     expect(storedAlbums).toHaveLength(1);
     expect(storedAlbums[0]?.name).toBe("Ventura");
     expect(storedAlbums[0]?.spotifyUri).toBe("spotify:album:spotify-album-1");
 
-    const storedTracks = await db.select().from(tracks);
+    const storedTracks = await selectRows(db, "tracks");
 
     expect(storedTracks).toHaveLength(1);
     expect(storedTracks[0]?.name).toBe("Come Home");
     expect(storedTracks[0]?.spotifyUri).toBe("spotify:track:spotify-track-1");
 
-    const storedScrobbles = await db.select().from(scrobbles);
+    const storedScrobbles = await selectRows(db, "scrobbles");
 
     expect(storedScrobbles).toHaveLength(2);
 
@@ -277,14 +276,15 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("handles track with album Spotify URI but missing track Spotify URI without foreign key failure", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const userId = "user-partial-match";
 
-    await db.insert(users).values({
+    await insertRows(db, "users", {
       id: userId,
       username: "user_partial",
       name: "User Partial",
       email: "partial@example.com",
+      updatedAt: new Date(),
     });
 
     const csvContent =
@@ -333,7 +333,7 @@ describe("CSV import ingestion tick", () => {
     expect(runResult.status).toBe("completed");
     expect(runResult.processed).toBe(1);
 
-    const storedScrobbles = await db.select().from(scrobbles);
+    const storedScrobbles = await selectRows(db, "scrobbles");
 
     expect(storedScrobbles).toHaveLength(1);
     expect(storedScrobbles[0]?.trackName).toBe("ONCE UPON A TIME (FREESTYLE)");
@@ -343,7 +343,7 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("keeps the album name from the file on a play that stays unresolved", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-unresolved",
@@ -360,7 +360,7 @@ describe("CSV import ingestion tick", () => {
 
     expect(result.status).toBe("completed");
 
-    const stored = await db.select().from(scrobbles);
+    const stored = await selectRows(db, "scrobbles");
 
     expect(stored).toHaveLength(2);
     expect(stored.map((scrobble) => scrobble.albumName)).toEqual(
@@ -369,7 +369,7 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("skips a row that ingestion recorded from Spotify minutes apart", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-overlapping",
@@ -388,21 +388,21 @@ describe("CSV import ingestion tick", () => {
 
     expect(result).toMatchObject({ status: "completed", processed: 1, skipped: 1 });
 
-    const stored = await db.select().from(scrobbles);
+    const stored = await selectRows(db, "scrobbles");
 
     expect(stored).toHaveLength(2);
     expect(stored.map((scrobble) => scrobble.trackName)).toEqual(
       expect.arrayContaining(["Summerhouse", null]),
     );
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.processedRows).toBe(1);
     expect(row?.skippedRows).toBe(1);
   });
 
   test("skips one row per recorded play when a track is on repeat", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-repeat",
@@ -428,11 +428,11 @@ describe("CSV import ingestion tick", () => {
     });
 
     expect(result).toMatchObject({ status: "completed", processed: 2, skipped: 1 });
-    expect(await db.select().from(scrobbles)).toHaveLength(3);
+    expect(await selectRows(db, "scrobbles")).toHaveLength(3);
   });
 
   test("matches each row to its nearest recorded play", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const firstStart = 1_644_436_588_000;
     const secondStart = firstStart + 8 * 60_000;
 
@@ -460,11 +460,11 @@ describe("CSV import ingestion tick", () => {
     });
 
     expect(result).toMatchObject({ status: "completed", processed: 0, skipped: 2 });
-    expect(await db.select().from(scrobbles)).toHaveLength(2);
+    expect(await selectRows(db, "scrobbles")).toHaveLength(2);
   });
 
   test("imports a row whose track was recorded at another time", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-replayed",
@@ -482,11 +482,11 @@ describe("CSV import ingestion tick", () => {
     });
 
     expect(result).toMatchObject({ status: "completed", processed: 2, skipped: 0 });
-    expect(await db.select().from(scrobbles)).toHaveLength(3);
+    expect(await selectRows(db, "scrobbles")).toHaveLength(3);
   });
 
   test("keeps the import processing with an unmoved cursor when a metadata batch fails", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-flaky",
@@ -500,7 +500,7 @@ describe("CSV import ingestion tick", () => {
     await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
     await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("processing");
     expect(row?.cursor).toBe(0);
@@ -509,7 +509,7 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("marks the import failed after three consecutive batch failures", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-doomed",
@@ -524,7 +524,7 @@ describe("CSV import ingestion tick", () => {
       await runImportTick(env, { batchLimit: 500, throttleMs: 0, fetchBatch });
     }
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("failed");
     expect(row?.error).toContain("repeated metadata batch errors");
@@ -540,7 +540,7 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("resets the failure counter after a successful run", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-recovered",
@@ -568,7 +568,7 @@ describe("CSV import ingestion tick", () => {
     expect(result.status).toBe("completed");
     expect(result.processed).toBe(2);
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("completed");
     expect(row?.cursor).toBe(3);
@@ -576,7 +576,7 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("a permanently failing import does not block another user's import", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-stuck",
@@ -610,7 +610,7 @@ describe("CSV import ingestion tick", () => {
 
     expect(result.status).toBe("completed");
 
-    const rows = await db.select().from(imports);
+    const rows = await selectRows(db, "imports");
     const stuck = rows.find((row) => row.id === "import-stuck");
     const next = rows.find((row) => row.id === "import-next");
 
@@ -620,7 +620,7 @@ describe("CSV import ingestion tick", () => {
   });
 
   test("a run that finishes late does not write over a newer run's progress", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
 
     await seedImport(env, db, {
       id: "import-overlap",
@@ -651,12 +651,12 @@ describe("CSV import ingestion tick", () => {
 
     expect(late).toEqual({ status: "superseded", processed: 0 });
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("completed");
     expect(row?.cursor).toBe(3);
     expect(row?.processedRows).toBe(2);
-    expect(await db.select().from(scrobbles)).toHaveLength(2);
+    expect(await selectRows(db, "scrobbles")).toHaveLength(2);
 
     const next = await runImportTick(env, {
       batchLimit: 1,
@@ -669,7 +669,7 @@ describe("CSV import ingestion tick", () => {
 
   test("pauses without bookkeeping when D1 rejects the batch with its daily limit", async () => {
     const limited = { ...env, DB: createBatchWriteLimitDatabase(env.DB) };
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const logs = captureLogs();
 
     await seedImport(env, db, {
@@ -691,7 +691,7 @@ describe("CSV import ingestion tick", () => {
       logs.restore();
     }
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("processing");
     expect(row?.attemptCount).toBe(0);
@@ -704,7 +704,7 @@ describe("CSV import ingestion tick", () => {
 
   test("does not abandon the import across repeated quota pauses", async () => {
     const limited = { ...env, DB: createBatchWriteLimitDatabase(env.DB) };
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const logs = captureLogs();
 
     await seedImport(env, db, {
@@ -731,7 +731,7 @@ describe("CSV import ingestion tick", () => {
       logs.restore();
     }
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("processing");
     expect(row?.attemptCount).toBe(0);
@@ -745,7 +745,7 @@ describe("CSV import ingestion tick", () => {
 
   test("pauses when the first status write is the failure", async () => {
     const limited = { ...env, DB: createStatementWriteLimitDatabase(env.DB) };
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     const logs = captureLogs();
 
     await seedImport(env, db, {
@@ -767,7 +767,7 @@ describe("CSV import ingestion tick", () => {
       logs.restore();
     }
 
-    const [row] = await db.select().from(imports);
+    const [row] = await selectRows(db, "imports");
 
     expect(row?.status).toBe("pending");
     expect(row?.attemptCount).toBe(0);

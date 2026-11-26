@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import type { SqlError } from "effect/sql";
 
 /**
  * The distinctive part of the binding's daily-limit messages. The full text
@@ -11,7 +12,7 @@ const D1_WRITE_LIMIT_MARKER = "Your account has exceeded D1's free tier daily ro
 const D1_READ_LIMIT_MARKER = "Your account has exceeded D1's free tier daily row read limit";
 
 /**
- * How many errors one cause chain may hold. Drizzle adds one wrapper around
+ * How many errors one cause chain may hold. Effect SQL adds a wrapper around
  * the binding's error, so four covers the known shapes and stops a loop.
  */
 const MAX_CAUSE_DEPTH = 4;
@@ -70,9 +71,8 @@ export type DbError = D1QuotaExceededError | D1QueryError;
 /**
  * Classify an error as D1 refusing the account's daily free-tier limit.
  *
- * Drizzle wraps a single-statement binding error in DrizzleQueryError and
- * keeps the message on the cause, while a batch error arrives unwrapped, so
- * the match walks the chain.
+ * Effect SQL wraps D1 errors in SqlError and keeps the binding error in the
+ * reason's cause, while a batch error may have another wrapper.
  */
 export function getD1QuotaError(error: Error): D1QuotaFailure | null {
   let current: Error | null = error;
@@ -96,7 +96,7 @@ export function getD1QuotaError(error: Error): D1QuotaFailure | null {
  * Flatten an error and its cause chain into a plain object.
  *
  * Workers Logs drops `.cause` when an Error is a log argument, so a wrapped
- * D1 failure would show only Drizzle's `Failed query: ...` line. The causes
+ * D1 failure would show only the query wrapper's `Failed query: ...` line. The causes
  * array carries the binding's message into the log instead.
  */
 export function describeError(error: Error): ErrorDescription {
@@ -112,7 +112,7 @@ export function describeError(error: Error): ErrorDescription {
   return { name: error.name, message: error.message, causes };
 }
 
-/** Classify a thrown D1/Drizzle error into a typed `DbError`. */
+/** Classify a thrown D1 error into a typed `DbError`. */
 export function classifyDbError(error: Error): DbError {
   const quota = getD1QuotaError(error);
   const description = describeError(error);
@@ -122,4 +122,9 @@ export function classifyDbError(error: Error): DbError {
   }
 
   return new D1QueryError({ description });
+}
+
+/** Preserve D1 quota classification through the Effect SQL error wrapper. */
+export function mapSqlError(error: SqlError.SqlError): DbError {
+  return classifyDbError(new Error(error.message, { cause: error.reason.cause }));
 }

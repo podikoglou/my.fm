@@ -1,9 +1,11 @@
 import { env } from "cloudflare:workers";
-import { Schema } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import { http } from "msw";
 import { describe, expect, test } from "vitest";
 
-import worker from "../src/worker.ts";
+import { AuthService } from "../src/auth/service.ts";
+import worker, { makeWorkerInfraLayer } from "../src/worker.ts";
+import { queryRows } from "./d1.ts";
 import { network } from "./network.ts";
 
 const baseUrl = "https://app.test";
@@ -91,5 +93,55 @@ describe("auth routes", () => {
 
     expect(row?.username).toBeTypeOf("string");
     expect(row?.username.length).toBeGreaterThan(0);
+
+    const [timestamps] = await queryRows<{
+      userCreatedAtType: string;
+      userCreatedAt: number;
+      sessionCreatedAtType: string;
+      sessionCreatedAt: number;
+      expiresAtType: string;
+      expiresAt: number;
+    }>(
+      env.DB,
+      `SELECT
+        typeof(users.createdAt) AS userCreatedAtType,
+        users.createdAt AS userCreatedAt,
+        typeof(sessions.created_at) AS sessionCreatedAtType,
+        sessions.created_at AS sessionCreatedAt,
+        typeof(sessions.expires_at) AS expiresAtType,
+        sessions.expires_at AS expiresAt
+      FROM users
+      JOIN sessions ON sessions.user_id = users.id
+      WHERE users.email = ?
+      LIMIT 1`,
+      ["spotify@example.com"],
+    );
+
+    expect(timestamps?.userCreatedAtType).toBe("integer");
+    expect(timestamps?.sessionCreatedAtType).toBe("integer");
+    expect(timestamps?.expiresAtType).toBe("integer");
+    expect(timestamps!.userCreatedAt).toBeLessThan(10_000_000_000);
+    expect(timestamps!.sessionCreatedAt).toBeGreaterThan(10_000_000_000);
+    expect(timestamps!.expiresAt).toBeGreaterThan(timestamps!.sessionCreatedAt);
+
+    const projectedSessions = await Effect.runPromise(
+      Effect.gen(function* () {
+        const auth = yield* AuthService;
+
+        return yield* Effect.promise(async () => {
+          const context = await auth.raw.$context;
+
+          return context.adapter.findMany<{ id: string }>({
+            model: "sessions",
+            where: [],
+            limit: 1,
+            select: ["id"],
+          });
+        });
+      }).pipe(Effect.provide(AuthService.layer.pipe(Layer.provide(makeWorkerInfraLayer(env))))),
+    );
+
+    expect(projectedSessions).toHaveLength(1);
+    expect(projectedSessions[0]?.id).toBeTypeOf("string");
   });
 });

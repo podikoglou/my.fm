@@ -1,5 +1,5 @@
-import { DrizzleQueryError } from "drizzle-orm/errors";
 import { Predicate } from "effect";
+import * as SqlError from "effect/sql/SqlError";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -8,6 +8,7 @@ import {
   D1QuotaExceededError,
   describeError,
   getD1QuotaError,
+  mapSqlError,
 } from "../src/db/errors.ts";
 
 // The exact message the D1 binding throws, kept here so the classifier and the
@@ -22,13 +23,14 @@ const READ_LIMIT_MESSAGE =
   "Upgrade to a paid plan or wait until tomorrow (midnight UTC) to continue. " +
   "See https://developers.cloudflare.com/d1/platform/limits/ for more details.";
 
-/** A wrapper with a write-limit error at the bottom, as Drizzle produces it. */
-function wrappedWriteLimit(): Error {
-  return new DrizzleQueryError(
-    'insert into "ingestion_runs" (id) values (?)',
-    undefined,
-    new Error(WRITE_LIMIT_MESSAGE),
-  );
+/** A write-limit error wrapped by Effect SQL. */
+function wrappedWriteLimit(): SqlError.SqlError {
+  return new SqlError.SqlError({
+    reason: new SqlError.UnknownError({
+      cause: new Error(WRITE_LIMIT_MESSAGE),
+      message: "SQL query failed",
+    }),
+  });
 }
 
 /** An error chain of the given labels over a bottom error. */
@@ -51,7 +53,7 @@ describe("getD1QuotaError", () => {
     expect(getD1QuotaError(new Error(READ_LIMIT_MESSAGE))).toEqual({ limit: "row-read" });
   });
 
-  test("finds the limit under a drizzle wrapper", () => {
+  test("finds the limit under a SqlError wrapper", () => {
     expect(getD1QuotaError(wrappedWriteLimit())).toEqual({ limit: "row-write" });
   });
 
@@ -74,9 +76,9 @@ describe("getD1QuotaError", () => {
 describe("describeError", () => {
   test("carries the cause messages below the wrapper", () => {
     expect(describeError(wrappedWriteLimit())).toEqual({
-      name: "DrizzleQueryError",
-      message: 'Failed query: insert into "ingestion_runs" (id) values (?)',
-      causes: [WRITE_LIMIT_MESSAGE],
+      name: "effect/sql/SqlError",
+      message: "SQL query failed",
+      causes: expect.arrayContaining([WRITE_LIMIT_MESSAGE]),
     });
   });
 
@@ -94,7 +96,7 @@ describe("describeError", () => {
 
 describe("classifyDbError", () => {
   test("maps quota errors to D1QuotaExceededError", () => {
-    const error = classifyDbError(wrappedWriteLimit());
+    const error = mapSqlError(wrappedWriteLimit());
 
     expect(error).toBeInstanceOf(D1QuotaExceededError);
     expect(error._tag).toBe("D1QuotaExceededError");

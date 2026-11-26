@@ -12,7 +12,8 @@ import {
   onboardUser,
   updateUserSettings,
 } from "../db/queries/users.ts";
-import { Db } from "../db/service.ts";
+import { SqlClient } from "effect/sql";
+import type { SqlClient as SqlClientService } from "effect/sql/SqlClient";
 import type { ProfilePrivateError } from "./errors.ts";
 import { AlreadyOnboardedError, UserNotFoundError } from "./errors.ts";
 import { resolveVisibleProfile, toMcpMeUser, toMeUser } from "./visibility.ts";
@@ -42,13 +43,16 @@ export interface UsersService {
 }
 
 export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/users/Users") {
-  static readonly layer = Layer.effect(
+  static readonly layer: Layer.Layer<Users, never, SqlClientService> = Layer.effect(
     Users,
     Effect.gen(function* () {
-      const db = yield* Db;
+      const sql = yield* SqlClient.SqlClient;
+
+      const runDb = <A, E>(effect: Effect.Effect<A, E, SqlClientService>) =>
+        effect.pipe(Effect.provideService(SqlClient.SqlClient, sql));
 
       const findById = Effect.fn("Users.findById")(function* (id: User["id"]) {
-        return yield* db.query((drizzle) => findUserById(drizzle, id));
+        return yield* runDb(findUserById(id));
       });
 
       const getMe = Effect.fn("Users.getMe")(function* (userId: User["id"]) {
@@ -75,7 +79,7 @@ export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/us
         username: string,
         viewerId?: User["id"],
       ) {
-        const profile = yield* db.query((drizzle) => findUserByUsernamePublic(drizzle, username));
+        const profile = yield* runDb(findUserByUsernamePublic(username));
 
         return yield* resolveVisibleProfile(profile, viewerId);
       });
@@ -84,7 +88,7 @@ export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/us
         id: User["id"],
         viewerId?: User["id"],
       ) {
-        const profile = yield* db.query((drizzle) => findUserByIdPublic(drizzle, id));
+        const profile = yield* runDb(findUserByIdPublic(id));
 
         return yield* resolveVisibleProfile(profile, viewerId);
       });
@@ -93,7 +97,7 @@ export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/us
         userId: User["id"],
         values: { readonly isPrivate: boolean },
       ) {
-        yield* db.query((drizzle) => updateUserSettings(drizzle, userId, values));
+        yield* runDb(updateUserSettings(userId, values));
 
         return { isPrivate: values.isPrivate };
       });
@@ -112,7 +116,7 @@ export class Users extends Context.Service<Users, UsersService>()("@my.fm/api/us
           return yield* new AlreadyOnboardedError({ message: "Already onboarded" });
         }
 
-        yield* db.query((drizzle) => onboardUser(drizzle, userId, values));
+        yield* runDb(onboardUser(userId, values));
 
         return { ok: true as const };
       });

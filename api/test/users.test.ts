@@ -1,22 +1,19 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 import { describe, expect, test } from "vitest";
 
 import { findUserByIdPublic, findUserByUsernamePublic } from "../src/db/queries/users.ts";
-import { users } from "../src/db/schema.ts";
-import { createDatabase, Db } from "../src/db/service.ts";
+import { DbLive } from "../src/db/service.ts";
 import { Users } from "../src/users/service.ts";
 import worker from "../src/worker.ts";
+import { insertRows, queryRows, runSql, updateRows } from "./d1.ts";
 import { baseUrl, signIn } from "./session.ts";
 
 const userId = "V1StGXR8_Z5jdHi6B-myT";
 const now = new Date("2026-11-11T12:00:00.000Z");
 
 async function seed() {
-  const db = createDatabase(env.DB);
-
-  await db.insert(users).values({
+  await insertRows(env.DB, "users", {
     id: userId,
     username: "alex",
     name: "Alex",
@@ -25,21 +22,19 @@ async function seed() {
     updatedAt: now,
     onboarded: true,
   });
-
-  return { db };
 }
 
 function runUsers<A, E>(effect: Effect.Effect<A, E, Users>) {
-  const layer = Users.layer.pipe(Layer.provide(Db.layerFromBinding(env.DB)));
+  const layer = Users.layer.pipe(Layer.provide(DbLive(env.DB)));
 
   return Effect.runPromise(effect.pipe(Effect.provide(layer)));
 }
 
 describe("user service and queries", () => {
   test("resolves a private profile for its owner and hides it from others", async () => {
-    const { db } = await seed();
+    await seed();
 
-    await db.update(users).set({ isPrivate: true }).where(eq(users.id, userId));
+    await updateRows(env.DB, "users", { isPrivate: true }, { id: userId });
 
     const mcpMe = await runUsers(
       Effect.gen(function* () {
@@ -106,10 +101,10 @@ describe("user service and queries", () => {
   });
 
   test("limits public lookups to the public columns", async () => {
-    const { db } = await seed();
+    await seed();
 
-    const byUsername = await findUserByUsernamePublic(db, "alex");
-    const byId = await findUserByIdPublic(db, userId);
+    const byUsername = await runSql(env.DB, findUserByUsernamePublic("alex"));
+    const byId = await runSql(env.DB, findUserByIdPublic(userId));
 
     expect(byUsername).toEqual({
       id: userId,
@@ -148,9 +143,9 @@ describe("anonymous user reads", () => {
   });
 
   test("hides a private profile from an anonymous visitor", async () => {
-    const { db } = await seed();
+    await seed();
 
-    await db.update(users).set({ isPrivate: true }).where(eq(users.id, userId));
+    await updateRows(env.DB, "users", { isPrivate: true }, { id: userId });
 
     const responses = await Promise.all([
       worker.fetch(new Request(`${baseUrl}/api/user/byUsername?username=alex`), env),
@@ -164,9 +159,9 @@ describe("anonymous user reads", () => {
   });
 
   test("treats an account that has not onboarded as not found", async () => {
-    const { db } = await seed();
+    await seed();
 
-    await db.update(users).set({ onboarded: false }).where(eq(users.id, userId));
+    await updateRows(env.DB, "users", { onboarded: false }, { id: userId });
 
     const responses = await Promise.all([
       worker.fetch(new Request(`${baseUrl}/api/user/byUsername?username=alex`), env),
@@ -231,11 +226,13 @@ describe("settings routes", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ isPrivate: true });
 
-    const user = await createDatabase(env.DB).query.users.findFirst({
-      where: { id: owner.userId },
-    });
+    const [user] = await queryRows<{ isPrivate: number }>(
+      env.DB,
+      "SELECT isPrivate FROM users WHERE id = ?",
+      [owner.userId],
+    );
 
-    expect(user?.isPrivate).toBe(true);
+    expect(user?.isPrivate).toBe(1);
   });
 
   test("rejects an invalid privacy value", async () => {
@@ -257,10 +254,12 @@ describe("settings routes", () => {
     const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
     const other = await signIn({ id: "spotify-other", email: "other@example.com" });
 
-    await createDatabase(env.DB)
-      .update(users)
-      .set({ username: "alex", name: "Alex", onboarded: true })
-      .where(eq(users.id, owner.userId));
+    await updateRows(
+      env.DB,
+      "users",
+      { username: "alex", name: "Alex", onboarded: true },
+      { id: owner.userId },
+    );
 
     const settings = await worker.fetch(
       new Request(`${baseUrl}/api/user/settings`, {
@@ -306,13 +305,15 @@ describe("onboarding route", () => {
     expect(first.status).toBe(200);
     expect(await first.json()).toEqual({ ok: true });
 
-    const updated = await createDatabase(env.DB).query.users.findFirst({
-      where: { id: owner.userId },
-    });
+    const [updated] = await queryRows<{ username: string; name: string; onboarded: number }>(
+      env.DB,
+      "SELECT username, name, onboarded FROM users WHERE id = ?",
+      [owner.userId],
+    );
 
     expect(updated?.username).toBe("alex_fm");
     expect(updated?.name).toBe("Alex P.");
-    expect(updated?.onboarded).toBe(true);
+    expect(updated?.onboarded).toBe(1);
 
     const repeat = await worker.fetch(
       new Request(`${baseUrl}/api/user/onboard`, {
@@ -336,10 +337,12 @@ describe("profile visibility", () => {
     const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
     const other = await signIn({ id: "spotify-other", email: "other@example.com" });
 
-    await createDatabase(env.DB)
-      .update(users)
-      .set({ username: "alex", name: "Alex", onboarded: true, isPrivate: true })
-      .where(eq(users.id, owner.userId));
+    await updateRows(
+      env.DB,
+      "users",
+      { username: "alex", name: "Alex", onboarded: true, isPrivate: true },
+      { id: owner.userId },
+    );
 
     const headers = { cookie: other.cookie };
 
@@ -357,10 +360,12 @@ describe("profile visibility", () => {
   test("shows a private profile to its owner", async () => {
     const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
 
-    await createDatabase(env.DB)
-      .update(users)
-      .set({ username: "alex", name: "Alex", onboarded: true, isPrivate: true })
-      .where(eq(users.id, owner.userId));
+    await updateRows(
+      env.DB,
+      "users",
+      { username: "alex", name: "Alex", onboarded: true, isPrivate: true },
+      { id: owner.userId },
+    );
 
     const response = await worker.fetch(
       new Request(`${baseUrl}/api/user/byUsername?username=alex`, {
@@ -382,10 +387,12 @@ describe("profile visibility", () => {
     const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
     const other = await signIn({ id: "spotify-other", email: "other@example.com" });
 
-    await createDatabase(env.DB)
-      .update(users)
-      .set({ username: "alex", name: "Alex", onboarded: true })
-      .where(eq(users.id, owner.userId));
+    await updateRows(
+      env.DB,
+      "users",
+      { username: "alex", name: "Alex", onboarded: true },
+      { id: owner.userId },
+    );
 
     const response = await worker.fetch(
       new Request(`${baseUrl}/api/user/byUsername?username=alex`, {

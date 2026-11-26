@@ -58,7 +58,8 @@ Useful commands:
 - `bun run lint` and `bun run fmt` check and format the code.
 - `bun run typecheck` typechecks the packages.
 - `bun run typecheck:infra` typechecks the root Alchemy stack.
-- `bun run db:generate` writes new migrations after a schema change.
+- Write handwritten SQL migrations under `api/migrations/<timestamp>_<name>/migration.sql`;
+  existing migration files are immutable.
 
 ## Demo
 

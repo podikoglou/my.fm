@@ -1,4 +1,6 @@
 import { Context, Effect, Layer } from "effect";
+import { SqlClient } from "effect/sql";
+import type { SqlClient as SqlClientService } from "effect/sql/SqlClient";
 
 import type { DbError } from "../db/errors.ts";
 import type { User } from "../db/schema.ts";
@@ -13,7 +15,6 @@ import {
   type RankedEntities,
   type TopKind,
 } from "../db/queries/stats.ts";
-import { Db } from "../db/service.ts";
 import { calendarBuckets, type CalendarUnit } from "../time-zone.ts";
 import { Users } from "../users/service.ts";
 import { TimelineTooLongError } from "./errors.ts";
@@ -130,11 +131,14 @@ function toRange({ since, until }: ScrobbleRange): ScrobbleRange {
 const toSeconds = (date: Date) => Math.floor(date.getTime() / 1000);
 
 export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/Stats") {
-  static readonly layer: Layer.Layer<Stats, never, Db | Users> = Layer.effect(
+  static readonly layer: Layer.Layer<Stats, never, Users | SqlClientService> = Layer.effect(
     Stats,
     Effect.gen(function* () {
-      const db = yield* Db;
+      const sql = yield* SqlClient.SqlClient;
       const users = yield* Users;
+
+      const runDb = <A, E>(effect: Effect.Effect<A, E, SqlClientService>) =>
+        effect.pipe(Effect.provideService(SqlClient.SqlClient, sql));
 
       const getSummary = Effect.fn("Stats.getSummary")(function* (
         input: StatsRangeInput,
@@ -144,15 +148,18 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
         const range = toRange(input);
         const limit = SUMMARY_TOP_LIMIT;
 
-        const [edges, top] = yield* db.query((client) =>
-          Promise.all([
-            findScrobbleEdges(client, profile.id, range),
-            findTopEntities(client, profile.id, {
-              ...range,
-              kinds: ["artists", "albums", "tracks"],
-              limit,
-            }),
-          ]),
+        const [edges, top] = yield* runDb(
+          Effect.all(
+            [
+              findScrobbleEdges(profile.id, range),
+              findTopEntities(profile.id, {
+                ...range,
+                kinds: ["artists", "albums", "tracks"],
+                limit,
+              }),
+            ],
+            { concurrency: "unbounded" },
+          ),
         );
 
         const artists = toTopEntities("artists", top);
@@ -173,8 +180,8 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
       const getTop = Effect.fn("Stats.getTop")(function* (input: TopInput, viewerId?: User["id"]) {
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
 
-        const rows = yield* db.query((client) =>
-          findTopEntities(client, profile.id, {
+        const rows = yield* runDb(
+          findTopEntities(profile.id, {
             ...toRange(input),
             kinds: [input.kind],
             limit: input.limit,
@@ -190,7 +197,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
       ) {
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
         const range = toRange(input);
-        const edges = yield* db.query((client) => findScrobbleEdges(client, profile.id, range));
+        const edges = yield* runDb(findScrobbleEdges(profile.id, range));
         const empty = { bucket: input.bucket, timeZone: input.timeZone };
 
         if (!edges) {
@@ -209,9 +216,8 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
           return yield* new TimelineTooLongError({ message: TIMELINE_TOO_LONG });
         }
 
-        const counts = yield* db.query((client) =>
+        const counts = yield* runDb(
           countScrobblesInRanges(
-            client,
             profile.id,
             calendar.map(({ start, end }) => ({
               since: Math.max(start, range.since ?? start),
@@ -237,9 +243,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
       ) {
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
 
-        const edges = yield* db.query((client) =>
-          findScrobbleEdges(client, profile.id, toRange(input)),
-        );
+        const edges = yield* runDb(findScrobbleEdges(profile.id, toRange(input)));
 
         if (!edges) return [];
 
@@ -250,7 +254,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
           input.seed,
         );
 
-        const rows = yield* db.query((client) => findScrobblesAtPoints(client, profile.id, points));
+        const rows = yield* runDb(findScrobblesAtPoints(profile.id, points));
 
         return rows.map((row) => ({
           playedAt: new Date(row.scrobbleDate * 1000),

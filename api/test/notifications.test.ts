@@ -3,10 +3,9 @@ import { Schema } from "effect";
 import { describe, expect, test } from "vitest";
 
 import { SPOTIFY_REAUTH_TYPE } from "../src/notifications/spotify-reauth.ts";
-import { notifications } from "../src/db/schema.ts";
-import { createDatabase } from "../src/db/service.ts";
 import worker from "../src/worker.ts";
 import { baseUrl, signIn } from "./session.ts";
+import { insertRows, queryRows } from "./d1.ts";
 
 const OUTDATED_SCOPE = "user-read-private user-read-email user-read-recently-played";
 
@@ -28,9 +27,15 @@ async function listNotifications(cookie: string) {
 }
 
 async function findAcknowledgedAt(id: string) {
-  const row = await createDatabase(env.DB).query.notifications.findFirst({ where: { id } });
+  const [row] = await queryRows<{ acknowledgedAt: number | null }>(
+    env.DB,
+    "SELECT acknowledgedAt FROM notifications WHERE id = ?",
+    [id],
+  );
 
-  return row?.acknowledgedAt;
+  return row?.acknowledgedAt === null || row?.acknowledgedAt === undefined
+    ? null
+    : new Date(row.acknowledgedAt);
 }
 
 describe("notifications", () => {
@@ -53,13 +58,19 @@ describe("notifications", () => {
     const owner = await signIn({ id: "owner-account", email: "owner@example.com" });
     const other = await signIn({ id: "other-account", email: "other@example.com" });
 
-    const [notification] = await createDatabase(env.DB)
-      .insert(notifications)
-      .values({ userId: owner.userId, type: "test", title: "Welcome", body: "Welcome body" })
-      .returning();
+    const notification = {
+      id: crypto.randomUUID(),
+      userId: owner.userId,
+      type: "test",
+      title: "Welcome",
+      body: "Welcome body",
+      createdAt: new Date(),
+    };
+
+    await insertRows(env.DB, "notifications", [notification]);
 
     const response = await worker.fetch(
-      new Request(`${baseUrl}/api/notifications/${notification!.id}/acknowledge`, {
+      new Request(`${baseUrl}/api/notifications/${notification.id}/acknowledge`, {
         method: "POST",
         headers: { cookie: other.cookie },
       }),
@@ -67,7 +78,7 @@ describe("notifications", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(await findAcknowledgedAt(notification!.id)).toBeNull();
+    expect(await findAcknowledgedAt(notification.id)).toBeNull();
   });
 
   test("asks an outdated Spotify grant to sign in again until it has the scope", async () => {

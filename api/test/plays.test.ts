@@ -3,25 +3,15 @@ import { Effect, Layer } from "effect";
 import { describe, expect, test, vi } from "vitest";
 
 import type { PlayRecord } from "../src/db/queries/scrobbles.ts";
-import {
-  albumArtists,
-  albums,
-  artists,
-  scrobbles,
-  trackArtists,
-  tracks,
-  users,
-} from "../src/db/schema.ts";
-import { createDatabase, Db } from "../src/db/service.ts";
+import { DbLive } from "../src/db/service.ts";
 import { Scrobbles } from "../src/scrobbles/service.ts";
 import { Users } from "../src/users/service.ts";
+import { insertRows, selectRows } from "./d1.ts";
 
 const now = new Date("2026-11-20T12:00:00.000Z");
 
 async function seedUser(userId = "user-1") {
-  const db = createDatabase(env.DB);
-
-  await db.insert(users).values({
+  await insertRows(env.DB, "users", {
     id: userId,
     username: `user-${userId}`,
     name: "Test User",
@@ -31,7 +21,7 @@ async function seedUser(userId = "user-1") {
 }
 
 function runScrobbles<A, E>(effect: Effect.Effect<A, E, Scrobbles>) {
-  const dbLayer = Db.layerFromBinding(env.DB);
+  const dbLayer = DbLive(env.DB);
   const usersLayer = Users.layer.pipe(Layer.provide(dbLayer));
   const layer = Scrobbles.layer.pipe(Layer.provide(Layer.mergeAll(dbLayer, usersLayer)));
 
@@ -40,7 +30,7 @@ function runScrobbles<A, E>(effect: Effect.Effect<A, E, Scrobbles>) {
 
 describe("persistPlays", () => {
   test("persists catalog entities and scrobble in dependency order", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser("user-1");
 
     const play: PlayRecord = {
@@ -81,14 +71,14 @@ describe("persistPlays", () => {
       }),
     );
 
-    const storedArtists = await db.select().from(artists).orderBy(artists.spotifyUri);
+    const storedArtists = await selectRows(db, "artists", "spotifyUri");
     expect(storedArtists.map((a) => a.name)).toEqual([
       "Primary Artist",
       "Featured Artist",
       "Producer Artist",
     ]);
 
-    const [album] = await db.select().from(albums);
+    const [album] = await selectRows(db, "albums");
     expect(album).toMatchObject({
       spotifyUri: "spotify:album:1",
       name: "Test Album",
@@ -98,7 +88,7 @@ describe("persistPlays", () => {
       imageUrl: "https://example.com/album.jpg",
     });
 
-    const [track] = await db.select().from(tracks);
+    const [track] = await selectRows(db, "tracks");
     expect(track).toMatchObject({
       spotifyUri: "spotify:track:1",
       name: "Test Track",
@@ -106,7 +96,7 @@ describe("persistPlays", () => {
       duration: 200_000,
     });
 
-    const storedTrackArtists = await db.select().from(trackArtists).orderBy(trackArtists.position);
+    const storedTrackArtists = await selectRows(db, "track_artists", "position");
     expect(
       storedTrackArtists.map(({ artistSpotifyUri, position }) => [artistSpotifyUri, position]),
     ).toEqual([
@@ -114,7 +104,7 @@ describe("persistPlays", () => {
       ["spotify:artist:2", 1],
     ]);
 
-    const storedAlbumArtists = await db.select().from(albumArtists).orderBy(albumArtists.position);
+    const storedAlbumArtists = await selectRows(db, "album_artists", "position");
     expect(
       storedAlbumArtists.map(({ artistSpotifyUri, position }) => [artistSpotifyUri, position]),
     ).toEqual([
@@ -122,7 +112,7 @@ describe("persistPlays", () => {
       ["spotify:artist:3", 1],
     ]);
 
-    const [scrobble] = await db.select().from(scrobbles);
+    const [scrobble] = await selectRows(db, "scrobbles");
     expect(scrobble).toMatchObject({
       id: "scrobble-1",
       userId: "user-1",
@@ -133,7 +123,7 @@ describe("persistPlays", () => {
   });
 
   test("persists an unresolved play without catalog entities", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser("user-2");
 
     const play: PlayRecord = {
@@ -155,7 +145,7 @@ describe("persistPlays", () => {
       }),
     );
 
-    const [scrobble] = await db.select().from(scrobbles);
+    const [scrobble] = await selectRows(db, "scrobbles");
     expect(scrobble).toMatchObject({
       id: "scrobble-unresolved",
       userId: "user-2",
@@ -169,7 +159,7 @@ describe("persistPlays", () => {
   });
 
   test("is idempotent when storing the same play multiple times", async () => {
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser("user-3");
 
     const play: PlayRecord = {
@@ -202,15 +192,15 @@ describe("persistPlays", () => {
       }),
     );
 
-    expect(await db.select().from(scrobbles)).toHaveLength(1);
-    expect(await db.select().from(tracks)).toHaveLength(1);
-    expect(await db.select().from(albums)).toHaveLength(1);
-    expect(await db.select().from(artists)).toHaveLength(1);
+    expect(await selectRows(db, "scrobbles")).toHaveLength(1);
+    expect(await selectRows(db, "tracks")).toHaveLength(1);
+    expect(await selectRows(db, "albums")).toHaveLength(1);
+    expect(await selectRows(db, "artists")).toHaveLength(1);
   });
 
   test("chunks plays into bounded batches", async () => {
     const batchSpy = vi.spyOn(env.DB, "batch");
-    const db = createDatabase(env.DB);
+    const db = env.DB;
     await seedUser("user-4");
 
     const plays: PlayRecord[] = Array.from({ length: 5 }, (_, i) => ({
@@ -229,6 +219,6 @@ describe("persistPlays", () => {
 
     // 5 plays chunked by 2 = 3 batches (2 + 2 + 1)
     expect(batchSpy).toHaveBeenCalledTimes(3);
-    expect(await db.select().from(scrobbles)).toHaveLength(5);
+    expect(await selectRows(db, "scrobbles")).toHaveLength(5);
   });
 });

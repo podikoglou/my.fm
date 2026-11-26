@@ -1,31 +1,20 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { Effect, Layer, Schema } from "effect";
 import { describe, expect, test } from "vitest";
 
 import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../src/db/queries/scrobbles.ts";
-import {
-  albumArtists,
-  albums,
-  artists,
-  scrobbles,
-  trackArtists,
-  tracks,
-  users,
-} from "../src/db/schema.ts";
-import { createDatabase, Db } from "../src/db/service.ts";
+import { DbLive } from "../src/db/service.ts";
 import { Scrobbles } from "../src/scrobbles/service.ts";
 import { Users } from "../src/users/service.ts";
 import worker from "../src/worker.ts";
 import { baseUrl, signIn } from "./session.ts";
+import { insertRows, runSql, updateRows } from "./d1.ts";
 
 const userId = "V1StGXR8_Z5jdHi6B-myT";
 const now = new Date("2026-11-11T12:00:00.000Z");
 
 async function seed() {
-  const db = createDatabase(env.DB);
-
-  await db.insert(users).values({
+  await insertRows(env.DB, "users", {
     id: userId,
     username: "alex",
     name: "Alex",
@@ -35,12 +24,12 @@ async function seed() {
     onboarded: true,
   });
 
-  await db.insert(artists).values([
+  await insertRows(env.DB, "artists", [
     { spotifyUri: "spotify:artist:1", name: "First Artist" },
     { spotifyUri: "spotify:artist:2", name: "Second Artist" },
   ]);
 
-  await db.insert(albums).values({
+  await insertRows(env.DB, "albums", {
     spotifyUri: "spotify:album:1",
     name: "An Album",
     releaseDate: "2026",
@@ -49,7 +38,7 @@ async function seed() {
     imageUrl: "https://example.com/album.jpg",
   });
 
-  await db.insert(tracks).values({
+  await insertRows(env.DB, "tracks", {
     spotifyUri: "spotify:track:1",
     name: "A Track",
     trackNumber: 1,
@@ -59,18 +48,18 @@ async function seed() {
   });
 
   // Insert the second artist first so the route's sort is observable.
-  await db.insert(trackArtists).values([
+  await insertRows(env.DB, "track_artists", [
     { trackSpotifyUri: "spotify:track:1", artistSpotifyUri: "spotify:artist:2", position: 1 },
     { trackSpotifyUri: "spotify:track:1", artistSpotifyUri: "spotify:artist:1", position: 0 },
   ]);
 
-  await db.insert(albumArtists).values({
+  await insertRows(env.DB, "album_artists", {
     albumSpotifyUri: "spotify:album:1",
     artistSpotifyUri: "spotify:artist:1",
     position: 0,
   });
 
-  await db.insert(scrobbles).values([
+  await insertRows(env.DB, "scrobbles", [
     {
       id: "scrobble-old",
       userId,
@@ -87,11 +76,11 @@ async function seed() {
     },
   ]);
 
-  return { db };
+  return { db: env.DB };
 }
 
 function runScrobbles<A, E>(effect: Effect.Effect<A, E, Scrobbles>) {
-  const dbLayer = Db.layerFromBinding(env.DB);
+  const dbLayer = DbLive(env.DB);
   const usersLayer = Users.layer.pipe(Layer.provide(dbLayer));
   const layer = Scrobbles.layer.pipe(Layer.provide(Layer.mergeAll(dbLayer, usersLayer)));
 
@@ -100,9 +89,9 @@ function runScrobbles<A, E>(effect: Effect.Effect<A, E, Scrobbles>) {
 
 describe("scrobble service visibility and validation", () => {
   test("hides a private profile's scrobbles and months from other users and the public feed", async () => {
-    const { db } = await seed();
+    await seed();
 
-    await db.update(users).set({ isPrivate: true }).where(eq(users.id, userId));
+    await updateRows(env.DB, "users", { isPrivate: true }, { id: userId });
 
     const otherRecent = await runScrobbles(
       Effect.gen(function* () {
@@ -192,7 +181,7 @@ describe("scrobble queries", () => {
   test("returns recent scrobbles with their artists in newest-first order", async () => {
     const { db } = await seed();
 
-    const recent = await findRecentScrobblesByUserId(db, userId, { offset: 0, limit: 8 });
+    const recent = await runSql(db, findRecentScrobblesByUserId(userId, { offset: 0, limit: 8 }));
 
     expect(recent.map((scrobble) => scrobble.id)).toEqual(["scrobble-new", "scrobble-old"]);
 
@@ -210,7 +199,7 @@ describe("scrobble queries", () => {
   test("projects unlinked scrobbles from stored fallback names and cover art", async () => {
     const { db } = await seed();
 
-    await db.insert(scrobbles).values({
+    await insertRows(db, "scrobbles", {
       id: "scrobble-unlinked",
       userId,
       trackName: "Ghost Track",
@@ -220,7 +209,8 @@ describe("scrobble queries", () => {
       scrobbleDate: new Date("2026-11-12T12:00:00.000Z"),
     });
 
-    const recent = await findRecentScrobblesByUserId(db, userId, { offset: 0, limit: 1 });
+    const recent = await runSql(db, findRecentScrobblesByUserId(userId, { offset: 0, limit: 1 }));
+
     const [scrobble] = recent;
 
     expect(scrobble?.id).toBe("scrobble-unlinked");
@@ -241,11 +231,14 @@ describe("scrobble queries", () => {
   test("returns only scrobbles played before the given time", async () => {
     const { db } = await seed();
 
-    const recent = await findRecentScrobblesByUserId(db, userId, {
-      before: new Date("2026-11-11T00:00:00.000Z"),
-      offset: 0,
-      limit: 8,
-    });
+    const recent = await runSql(
+      db,
+      findRecentScrobblesByUserId(userId, {
+        before: new Date("2026-11-11T00:00:00.000Z"),
+        offset: 0,
+        limit: 8,
+      }),
+    );
 
     expect(recent.map((scrobble) => scrobble.id)).toEqual(["scrobble-old"]);
   });
@@ -253,7 +246,7 @@ describe("scrobble queries", () => {
   test("counts scrobbles per month in the viewer's time zone", async () => {
     const { db } = await seed();
 
-    await db.insert(scrobbles).values([
+    await insertRows(db, "scrobbles", [
       {
         id: "scrobble-october",
         userId,
@@ -271,12 +264,12 @@ describe("scrobble queries", () => {
       },
     ]);
 
-    expect(await countScrobblesByMonth(db, userId, { timeZone: "UTC" })).toEqual([
+    expect(await runSql(db, countScrobblesByMonth(userId, { timeZone: "UTC" }))).toEqual([
       { month: "2026-11", count: 2 },
       { month: "2026-10", count: 1 },
       { month: "2026-09", count: 1 },
     ]);
-    expect(await countScrobblesByMonth(db, userId, { timeZone: "Europe/Athens" })).toEqual([
+    expect(await runSql(db, countScrobblesByMonth(userId, { timeZone: "Europe/Athens" }))).toEqual([
       { month: "2026-11", count: 3 },
       { month: "2026-10", count: 1 },
     ]);
@@ -287,7 +280,7 @@ describe("scrobble queries", () => {
 
     // Havana skipped 1 April 2012 00:00-01:00, so April starts at 01:00 CDT
     // (05:00 UTC) and 00:30 UTC-5 is still the end of March.
-    await db.insert(scrobbles).values([
+    await insertRows(db, "scrobbles", [
       {
         id: "scrobble-march",
         userId,
@@ -304,7 +297,7 @@ describe("scrobble queries", () => {
       },
     ]);
 
-    const months = await countScrobblesByMonth(db, userId, { timeZone: "America/Havana" });
+    const months = await runSql(db, countScrobblesByMonth(userId, { timeZone: "America/Havana" }));
 
     expect(months.slice(-2)).toEqual([
       { month: "2012-04", count: 1 },
@@ -347,10 +340,12 @@ describe("scrobble routes", () => {
     const owner = await signIn({ id: "spotify-owner", email: "owner@example.com" });
     const other = await signIn({ id: "spotify-other", email: "other@example.com" });
 
-    await createDatabase(env.DB)
-      .update(users)
-      .set({ username: "alex", name: "Alex", onboarded: true, isPrivate: true })
-      .where(eq(users.id, owner.userId));
+    await updateRows(
+      env.DB,
+      "users",
+      { username: "alex", name: "Alex", onboarded: true, isPrivate: true },
+      { id: owner.userId },
+    );
 
     const responses = await Promise.all([
       worker.fetch(new Request(`${baseUrl}/api/scrobble/getRecent?username=alex&offset=0`), env),

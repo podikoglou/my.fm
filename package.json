@@ -20,8 +20,7 @@
     "lint": "bun run --cwd app typegen && oxlint",
     "lint:fix": "bun run lint --fix",
     "typecheck": "turbo typecheck",
-    "test": "turbo test",
-    "db:generate": "turbo db:generate"
+    "test": "turbo test"
   },
   "devDependencies": {
     "@alchemy.run/cloudflare": "2.0.0-beta.85",
@@ -37,7 +36,7 @@
     "@types/bun": "^1.3.12",
     "@typescript/native-preview": "^7.0.0-dev.20260423.1",
     "alchemy": "2.0.0-beta.85",
-    "effect": "^4.1.4",
+    "effect": "^4.1.5",
     "oxfmt": "^0.41.0",
     "oxlint": "1.94.0",
     "tsrs": "7.1.0-beta.tsrs3",
