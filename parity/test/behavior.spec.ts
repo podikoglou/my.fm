@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { account, consent, spotifyLogin } from "./data";
+import { account, consent, notification, spotifyLogin } from "./data";
 import { expect, test } from "./fixtures";
 
 const consentQuery = "?client_id=wave-reader&state=parity";
@@ -128,6 +128,17 @@ test.describe("signed-in account", () => {
     await expect(page).toHaveURL(/\/settings$/);
     await page.getByRole("link", { name: "Back" }).click();
     await expect(page).toHaveURL(/\/user\/river$/);
+  });
+
+  test("profile navigation does not save notifications in browser history", async ({ page }) => {
+    await page.goto("/user/river");
+    await expect(page.getByRole("button", { name: notification.title })).toBeVisible();
+    await page.getByRole("link", { name: "Settings" }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/user\/river$/);
+
+    expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain(notification.id);
   });
 
   test("settings hides email by default and persists a privacy change across reload", async ({
