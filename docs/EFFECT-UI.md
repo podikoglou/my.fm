@@ -122,12 +122,33 @@ do not make simple screens feature services by default.
   decisions in the UI and keep API-side authorization unchanged.
 - BrowserRouter has link interception, document scroll, focus, announcements,
   and back/forward handling. Its window scroll behavior does not establish
-  parity for my.fm's independently scrolling feed/history panels. Upstream
-  documents history restoration of component Models and query results: review
-  the [history restore and redaction notes][llms] before storing user-specific
-  data, consent parameters, or secrets. `restore: false` opts a component out,
-  not its entire subtree. Verify sign-out followed by Back
-  cannot repaint private data or restore a previous viewer's state.
+  parity for my.fm's independently scrolling feed/history panels.
+
+### Keep auth-bound state out of browser history
+
+When leaving an entry, the [Router][router] snapshots component Models
+**and query results** and can write them to `history.state`. A session
+render guard or sign-out cache clear does not erase earlier snapshots.
+Set `Html.component({ ..., restore: false })` on **each component whose
+Model or queries hold data tied to the signed-in user or viewer**.
+At the pin, [`stateRestore.ts`][state-restore] skips both saving and reading
+that component's snapshot, including old saved state. The opt-out does not
+propagate to children or erase existing history entries. A `restore`
+function that only clears Model fields leaves query results eligible to save.
+
+Apply this to the shared session/current-user and notification owners,
+`/settings` (account, privacy, imports and connected apps), viewer-dependent
+`/user/:username` profile and history results, the `/onboard` form, and
+`/oauth/authorize` consent state. The anonymous feed does not need this
+opt-out for its public results. See the
+[NotificationList fix][notification-restore] for an example.
+
+Keep live query eviction or session scoping on sign-out as well: history
+opt-out neither clears the live cache nor controls server hydration.
+See the [upstream history and redaction guidance][llms] for those limits.
+Test navigation and then sign-out followed by Back: newly saved entries
+should contain no auth-bound snapshots, and the UI must not show data
+from the previous viewer.
 
 ## Queries, commands and forms
 
@@ -268,10 +289,12 @@ changing scroll behavior.
 [route]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/src/Route.ts
 [route-test]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/test/Route.test.ts
 [router]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/src/Router.ts
+[state-restore]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/src/internal/stateRestore.ts
+[notification-restore]: https://github.com/podikoglou/my.fm/commit/d930284c7f3dce41de9cdaa383c04d8f82a4647f
 [browser-router]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/src/html/BrowserRouter.ts
 [routing]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/examples/routing/src/App.ts
 [auth]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/examples/auth/src/App.ts
-[llms]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/LLMS.md
+[llms]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/LLMS.md#history-restore
 [query]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/src/Query.ts
 [posts]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/examples/launch/src/queries/effect/Posts.ts
 [infinite-tests]: https://github.com/Effect-TS/ui/blob/1ba208776ee27c98dfa9e724e30e050309d9648e/packages/ui/test/InfiniteData.test.ts
