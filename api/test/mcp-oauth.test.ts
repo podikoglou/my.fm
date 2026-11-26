@@ -35,6 +35,7 @@ const ToolsListResponseSchema = Schema.Struct({
     tools: Schema.Array(
       Schema.Struct({
         name: Schema.String,
+        inputSchema: Schema.Unknown,
         annotations: Schema.Struct({
           readOnlyHint: Schema.Boolean,
           destructiveHint: Schema.Boolean,
@@ -427,6 +428,10 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     "get_user",
   ]);
 
+  expect(tools.find(({ name }) => name === "get_recent_scrobbles")?.inputSchema).toMatchObject({
+    properties: { limit: { minimum: 1, maximum: 200, default: 50 } },
+  });
+
   for (const tool of tools) {
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
@@ -489,7 +494,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   expect(
     Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)).items),
-  ).toHaveLength(8);
+  ).toHaveLength(9);
 
   const empty = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
@@ -500,7 +505,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   const capped = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    limit: 9,
+    limit: 201,
   });
 
   expect(capped.isError).toBe(true);
@@ -548,6 +553,33 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   const missing = await callTool(accessToken, "get_user", { username: "missing" });
   expect(missing.isError).toBe(true);
   expect(text(missing)).toBe("User not found");
+});
+
+test("returns 50 recent plays by default and accepts a full 200-play page", async () => {
+  const owner = await signIn({ id: "oauth-pages", email: "pages@example.com" });
+  await updateRows(env.DB, "users", { username: "pages", onboarded: true }, { id: owner.userId });
+  await insertRows(
+    env.DB,
+    "scrobbles",
+    Array.from({ length: 200 }, (_, index) => ({
+      id: index.toString(16).padStart(32, "0"),
+      userId: owner.userId,
+      scrobbleDate: new Date("2026-11-01T00:30:00Z"),
+      trackName: "Song",
+    })),
+  );
+  const accessToken = await token(owner.cookie);
+
+  const page = await callTool(accessToken, "get_recent_scrobbles", { username: "pages" });
+  expect(JSON.parse(text(page)).items).toHaveLength(50);
+
+  const full = await callTool(accessToken, "get_recent_scrobbles", {
+    username: "pages",
+    limit: 200,
+  });
+
+  expect(JSON.parse(text(full)).items).toHaveLength(200);
+  expect(JSON.parse(text(full)).nextCursor).toBeNull();
 });
 
 test("enforces the real public-read budget keyed by authenticated user", async () => {

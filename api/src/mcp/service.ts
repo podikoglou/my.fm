@@ -36,6 +36,8 @@ const GetUserInputSchema = Schema.Struct({
   }),
 );
 
+const DEFAULT_RECENT_LIMIT = 50;
+
 const GetRecentScrobblesInputSchema = Schema.Struct({
   username: NonEmptyString,
   before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
@@ -45,9 +47,12 @@ const GetRecentScrobblesInputSchema = Schema.Struct({
         "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
     }),
   ),
-  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 })).pipe(
-    Schema.withDecodingDefaultKey(Effect.succeed(8)),
-  ),
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 }))
+    .annotate({
+      default: DEFAULT_RECENT_LIMIT,
+      description: "Number of plays to return (1–200, default 50).",
+    })
+    .pipe(Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_RECENT_LIMIT))),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
