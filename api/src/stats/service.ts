@@ -26,7 +26,11 @@ const TIMELINE_GAP_LIMIT = 5;
 
 export type StatsRangeInput = ScrobbleRange & { readonly username: string };
 
-export type TopInput = StatsRangeInput & { readonly kind: TopKind; readonly limit: number };
+export type TopInput = StatsRangeInput & {
+  readonly kind: TopKind;
+  readonly limit: number;
+  readonly q?: string;
+};
 
 export type TimelineInput = StatsRangeInput & {
   readonly bucket: CalendarUnit;
@@ -184,6 +188,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
           findTopEntities(profile.id, {
             ...toRange(input),
             kinds: [input.kind],
+            q: input.q,
             limit: input.limit,
           }),
         );
