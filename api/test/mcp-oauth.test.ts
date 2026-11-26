@@ -35,6 +35,7 @@ const ToolsListResponseSchema = Schema.Struct({
     tools: Schema.Array(
       Schema.Struct({
         name: Schema.String,
+        inputSchema: Schema.Unknown,
         annotations: Schema.Struct({
           readOnlyHint: Schema.Boolean,
           destructiveHint: Schema.Boolean,
@@ -427,6 +428,10 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     "get_user",
   ]);
 
+  expect(tools.find(({ name }) => name === "get_recent_scrobbles")?.inputSchema).toMatchObject({
+    properties: { limit: { minimum: 1, maximum: 200, default: 50 } },
+  });
+
   for (const tool of tools) {
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
@@ -552,7 +557,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
 test("returns 50 recent plays by default and accepts a full 200-play page", async () => {
   const owner = await signIn({ id: "oauth-pages", email: "pages@example.com" });
-  await updateRows(env.DB, "users", { username: "pages" }, { id: owner.userId });
+  await updateRows(env.DB, "users", { username: "pages", onboarded: true }, { id: owner.userId });
   await insertRows(
     env.DB,
     "scrobbles",
