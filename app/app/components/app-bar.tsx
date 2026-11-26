@@ -1,74 +1,65 @@
-import { Settings } from "lucide-react";
-import { NavLink, useLocation } from "react-router";
+import { House, LogIn, type LucideIcon, Settings, UserRound } from "lucide-react";
+import { NavLink, useLocation, type NavLinkProps } from "react-router";
 
 import { useViewer } from "~/hooks/use-current-user";
 import { signInWithSpotify } from "~/lib/auth-guard";
 
-import { Button, buttonVariants } from "./ui/button";
-import { UserAvatar } from "./user-avatar";
+import { Button } from "./ui/button";
 
-const profileLink = buttonVariants({
-  variant: "ghost",
-  className: "h-11 px-2 aria-[current=page]:bg-muted",
-});
+function AppBarLink({
+  to,
+  label,
+  icon: Icon,
+}: Pick<NavLinkProps, "to"> & {
+  label: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end
+      aria-label={label}
+      title={label}
+      className="group grid min-h-11 place-items-center rounded-lg text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground aria-[current=page]:text-foreground"
+    >
+      <span className="grid h-8 w-14 place-items-center rounded-full group-hover:bg-muted/50 group-aria-[current=page]:bg-muted">
+        <Icon aria-hidden="true" className="size-5 group-aria-[current=page]:stroke-[2.5]" />
+      </span>
+    </NavLink>
+  );
+}
 
 export function AppBar() {
   const { user, signedOut } = useViewer();
   const location = useLocation();
 
   return (
-    <nav aria-label="App" className="mx-6 flex min-h-11 shrink-0 items-center gap-1 border-b pb-2">
-      <NavLink
-        to="/feed"
-        aria-label="my.fm feed"
-        title="Feed"
-        className={buttonVariants({
-          variant: "ghost",
-          className: "-ms-2 me-auto h-11 px-2 text-xl font-bold tracking-tight",
-        })}
-      >
-        my.fm
-      </NavLink>
+    <nav
+      aria-label="App"
+      className="grid shrink-0 auto-cols-fr grid-flow-col border-t bg-card px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+    >
+      <AppBarLink to="/feed" label="Feed" icon={House} />
 
       {user && (
         <>
-          <NavLink
+          <AppBarLink
             to={user.onboarded ? `/user/${user.username}` : "/onboard"}
-            className={profileLink}
-          >
-            <span aria-hidden="true">
-              <UserAvatar
-                name={user.name}
-                avatarUrl={user.avatarUrl}
-                className="size-6"
-                fallbackClassName="text-xs"
-              />
-            </span>
-            My profile
-          </NavLink>
-          <NavLink
-            to="/settings"
-            aria-label="Settings"
-            title="Settings"
-            className={buttonVariants({
-              variant: "ghost",
-              size: "icon",
-              className:
-                "-me-2 size-11 text-muted-foreground aria-[current=page]:bg-muted aria-[current=page]:text-foreground",
-            })}
-          >
-            <Settings aria-hidden="true" className="size-[18px]" />
-          </NavLink>
+            label="My profile"
+            icon={UserRound}
+          />
+          <AppBarLink to="/settings" label="Settings" icon={Settings} />
         </>
       )}
 
       {signedOut && (
         <Button
           variant="ghost"
-          className="h-11"
+          className="h-11 text-muted-foreground"
+          aria-label="Sign in"
+          title="Sign in"
           onClick={() => signInWithSpotify(location.pathname)}
         >
-          Sign in
+          <LogIn aria-hidden="true" className="size-5" />
         </Button>
       )}
     </nav>
