@@ -505,9 +505,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     expect(text(result)).not.toContain("avatarUrl");
   }
 
-  const recent = await callTool(accessToken, "get_recent_scrobbles", {
-    username: "owner",
-  });
+  const recent = await callTool(accessToken, "get_recent_scrobbles");
 
   expect(
     Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)).items),
@@ -528,7 +526,6 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   expect(capped.isError).toBe(true);
 
   const months = await callTool(accessToken, "get_scrobble_months", {
-    username: "owner",
     timeZone: "America/Los_Angeles",
   });
 
@@ -548,7 +545,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   expect(JSON.parse(text(withImages)).items[0].album).toEqual({ name: "", imageUrl: "" });
 
-  const summary = await callTool(accessToken, "get_summary", { username: "owner" });
+  const summary = await callTool(accessToken, "get_summary");
   expect(JSON.parse(text(summary))).toMatchObject({
     totalScrobbles: 9,
     topTracks: [{ name: "Private song", plays: 9, share: 1 }],

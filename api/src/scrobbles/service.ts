@@ -31,7 +31,11 @@ export interface RecentScrobblesInput {
   readonly before?: number;
 }
 
-export interface RecentPageInput extends Omit<RecentScrobblesInput, "offset" | "before"> {
+export interface RecentPageInput extends Omit<
+  RecentScrobblesInput,
+  "offset" | "before" | "username"
+> {
+  readonly username?: string;
   readonly since?: number;
   readonly until?: number;
   readonly cursor?: string;
@@ -44,7 +48,7 @@ interface RecentPage {
 }
 
 export interface ScrobbleMonthsInput {
-  readonly username: string;
+  readonly username?: string;
   readonly timeZone: string;
 }
 
@@ -139,7 +143,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         viewerId?: User["id"],
       ) {
         const cursor = input.cursor === undefined ? null : yield* decodeFeedCursor(input.cursor);
-        const profile = yield* users.viewProfileByUsername(input.username, viewerId);
+        const profile = yield* users.viewListeningProfile(input.username, viewerId);
 
         const rows = yield* runDb(
           findRecentScrobblesByUserId(profile.id, {
@@ -166,7 +170,7 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         input: ScrobbleMonthsInput,
         viewerId?: User["id"],
       ) {
-        const profile = yield* users.viewProfileByUsername(input.username, viewerId);
+        const profile = yield* users.viewListeningProfile(input.username, viewerId);
 
         return yield* runDb(countScrobblesByMonth(profile.id, { timeZone: input.timeZone }));
       });
