@@ -91,7 +91,7 @@ function detail(h: Html.H<typeof OAuthConsentMessage.Type>, label: string, value
 }
 
 const buttonClass =
-  "h-9 flex-1 rounded-md px-4 text-sm font-medium focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50";
+  "inline-flex h-9 flex-1 items-center justify-center rounded-md px-4 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50";
 
 export const OAuthConsentPage = Html.component({
   name: "OAuthConsentPage",
@@ -147,7 +147,7 @@ export const OAuthConsentPage = Html.component({
             )
             .children(
               h.header
-                .class("px-6")
+                .class("grid auto-rows-min grid-rows-[auto_auto] gap-1.5 px-6")
                 .children(
                   h.h1.class("text-3xl font-bold").children("Connect an app"),
                   h.p.class("mt-2 text-sm text-muted-foreground").children(description),
@@ -177,7 +177,7 @@ export const OAuthConsentPage = Html.component({
                   h.div
                     .attr("role", "alert")
                     .class(
-                      "rounded-lg border border-danger-border bg-danger px-4 py-3 text-sm text-danger-foreground",
+                      "rounded-lg border border-danger-border bg-danger px-4 py-3 text-sm text-danger-foreground/70",
                     )
                     .children(error),
                 consent &&

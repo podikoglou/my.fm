@@ -98,7 +98,7 @@ const OnboardCommands = Layer.mergeAll(
 );
 
 const inputClass =
-  "h-9 w-full rounded-md border bg-input px-3 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive";
+  "h-9 w-full rounded-md border bg-input px-3 py-1 text-base shadow-xs transition-[color,box-shadow,border-color] outline-none hover:border-ring/70 placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/50 md:text-sm";
 
 function formField(
   h: Html.H<typeof OnboardMessage.Type>,
@@ -109,7 +109,10 @@ function formField(
   error?: string,
 ) {
   return h.div.class("flex flex-col gap-2").children(
-    h.label.attr("for", field).class("text-sm font-medium").children(label),
+    h.label
+      .attr("for", field)
+      .class("text-sm leading-none font-medium select-none", error && "text-destructive")
+      .children(label),
     h.input
       .ref(fieldRefs[field])
       .attr("id", field)
@@ -222,7 +225,7 @@ export const OnboardPage = Html.component({
             h.button
               .attr("type", "submit")
               .class(
-                "h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80",
+                "inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-all duration-200 outline-none hover:bg-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/50",
               )
               .children("Submit"),
           ),
