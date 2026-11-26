@@ -77,7 +77,7 @@ export function FeedTrackList() {
   }
 
   return (
-    <div className="h-full space-y-1 overflow-y-auto pr-1">
+    <div className="timeline-scroll h-full space-y-1 overflow-y-auto pr-1">
       {scrobbles.map((scrobble) => (
         <FeedTrack
           key={scrobble.id}
