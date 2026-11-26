@@ -1,6 +1,7 @@
 import { Command, Component, Head, Query, Router, UiSchema } from "@effect/ui";
 import { Html, HtmlHead } from "@effect/ui/html";
 import { Effect, Option, Schema } from "effect";
+import { AsyncResult } from "effect/reactivity";
 
 import { icon } from "./components/icon";
 import { AuthErrorPage, makeAuthFlowLayer } from "./features/auth/AuthErrorPage";
@@ -21,11 +22,29 @@ export function readLocation(route: typeof AppRoute.Type): typeof AppLocation.Ty
   return { route, search: window.location.search };
 }
 
+export const refreshViewerAfterOnboarding = Effect.gen(function* () {
+  const viewer = yield* GetViewer.peek({});
+
+  yield* GetViewer.invalidate({});
+
+  if (
+    AsyncResult.isSuccess(viewer) &&
+    viewer.value._tag === "SignedIn" &&
+    !viewer.value.user.onboarded
+  ) {
+    yield* GetViewer.get({}).pipe(Effect.ignore);
+  }
+});
+
 const invalidateCurrentUser = Effect.serviceOption(Query.Cache).pipe(
   Effect.flatMap(
     Option.match({
       onNone: () => Effect.void,
-      onSome: (cache) => GetViewer.invalidate({}).pipe(Effect.provideService(Query.Cache, cache)),
+      onSome: (cache) =>
+        refreshViewerAfterOnboarding.pipe(
+          Effect.provide(GetViewer.layer),
+          Effect.provideService(Query.Cache, cache),
+        ),
     }),
   ),
 );
