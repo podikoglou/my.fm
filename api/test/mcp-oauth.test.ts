@@ -435,6 +435,48 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     });
   }
 
+  const page = async (cursor?: string) => {
+    const result = await callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      limit: 5,
+      until: Date.parse("2026-11-02T00:00:00Z") / 1000,
+      cursor,
+    });
+
+    return Schema.decodeUnknownSync(
+      Schema.Struct({
+        items: Schema.Array(Schema.Struct({ id: Schema.String })),
+        nextCursor: Schema.NullOr(Schema.String),
+      }),
+    )(JSON.parse(text(result)));
+  };
+
+  const first = await page();
+  expect(first.items).toHaveLength(5);
+  expect(first.nextCursor).toEqual(expect.any(String));
+  const second = await page(first.nextCursor ?? undefined);
+  expect(second.nextCursor).toBeNull();
+  expect([...first.items, ...second.items].map(({ id }) => id)).toEqual(
+    Array.from({ length: 9 }, (_, index) => (8 - index).toString(16).padStart(32, "0")),
+  );
+
+  const playTime = Date.parse("2026-11-01T00:30:00Z") / 1000;
+
+  const inRange = async (since: number, until: number) => {
+    const result = await callTool(accessToken, "get_recent_scrobbles", {
+      username: "owner",
+      limit: 1,
+      since,
+      until,
+    });
+
+    return Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(result)).items);
+  };
+
+  expect(await inRange(playTime, playTime + 1)).toHaveLength(1);
+  expect(await inRange(playTime + 1, playTime + 2)).toEqual([]);
+  expect(await inRange(playTime - 1, playTime)).toEqual([]);
+
   const me = await callTool(accessToken, "get_me");
   expect(me.isError).not.toBe(true);
   expect(JSON.parse(text(me))).toEqual({
@@ -454,37 +496,21 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   const recent = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
   });
 
-  expect(Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)))).toHaveLength(8);
+  expect(
+    Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(recent)).items),
+  ).toHaveLength(8);
 
   const empty = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
-    before: 0,
+    until: 0,
   });
 
-  expect(JSON.parse(text(empty))).toEqual([]);
-
-  const playTime = Date.parse("2026-11-01T00:30:00Z") / 1000;
-
-  const inRange = (since: number, until: number) =>
-    callTool(accessToken, "get_recent_scrobbles", {
-      username: "owner",
-      offset: 0,
-      limit: 1,
-      since,
-      until,
-    });
-
-  expect(JSON.parse(text(await inRange(playTime, playTime + 1)))).toHaveLength(1);
-  expect(JSON.parse(text(await inRange(playTime + 1, playTime + 2)))).toEqual([]);
-  expect(JSON.parse(text(await inRange(playTime - 1, playTime)))).toEqual([]);
+  expect(JSON.parse(text(empty))).toEqual({ items: [], nextCursor: null });
 
   const capped = await callTool(accessToken, "get_recent_scrobbles", {
     username: "owner",
-    offset: 0,
     limit: 9,
   });
 
@@ -521,7 +547,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   for (const [name, args] of [
     ["get_user", { username: "private" }],
     ["get_user", { id: privateId }],
-    ["get_recent_scrobbles", { username: "private", offset: 0 }],
+    ["get_recent_scrobbles", { username: "private" }],
     ["get_scrobble_months", { username: "private" }],
     ["get_sample", { username: "private" }],
   ] as const) {
@@ -613,29 +639,26 @@ test("lists connected apps and revokes access", async () => {
   expect((await request(`/api/oauth/apps/${appId}`, { method: "DELETE" })).status).toBe(401);
 });
 
-test("rejects invalid before and empty username on MCP scrobble tools", async () => {
+test("rejects invalid until and empty username on MCP scrobble tools", async () => {
   const user = await signIn({ id: "oauth-validation", email: "validation@example.com" });
   const accessToken = await token(user.cookie);
 
-  const fractionalBefore = await callTool(accessToken, "get_recent_scrobbles", {
+  const fractionalUntil = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    offset: 0,
-    before: 12.5,
+    until: 12.5,
   });
 
-  expect(fractionalBefore.isError).toBe(true);
+  expect(fractionalUntil.isError).toBe(true);
 
-  const negativeBefore = await callTool(accessToken, "get_recent_scrobbles", {
+  const negativeUntil = await callTool(accessToken, "get_recent_scrobbles", {
     username: "alex",
-    offset: 0,
-    before: -1,
+    until: -1,
   });
 
-  expect(negativeBefore.isError).toBe(true);
+  expect(negativeUntil.isError).toBe(true);
 
   const emptyUsername = await callTool(accessToken, "get_recent_scrobbles", {
     username: "",
-    offset: 0,
   });
 
   expect(emptyUsername.isError).toBe(true);

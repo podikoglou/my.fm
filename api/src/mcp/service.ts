@@ -37,22 +37,28 @@ const GetUserInputSchema = Schema.Struct({
 );
 
 const GetRecentScrobblesInputSchema = Schema.Struct({
+  username: NonEmptyString,
   since: Schema.optionalKey(
     StatsInputSchemas.unixSeconds.annotate({
       description:
-        "Inclusive lower bound in Unix seconds. For a local day, use midnight in the listener's IANA time zone.",
+        "Inclusive Unix seconds. For a local day use midnight in the listener's time zone.",
     }),
   ),
   until: Schema.optionalKey(
     StatsInputSchemas.unixSeconds.annotate({
       description:
-        "Exclusive upper bound in Unix seconds. For a local day, use the next local midnight. If before is also set, the earlier bound applies.",
+        "Exclusive Unix seconds. For a local day use the next midnight in the same time zone.",
     }),
   ),
-  username: NonEmptyString,
-  offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 }))),
-  before: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  cursor: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "Pass the previous page’s nextCursor with the same filters to continue. Omit it for the first page. A null nextCursor means all dated plays in the range have been returned.",
+    }),
+  ),
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 })).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(8)),
+  ),
 });
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
@@ -302,29 +308,13 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
               const input = decoded.success;
 
               return yield* withRateLimit(userId, () =>
-                scrobbles
-                  .getRecent(
-                    {
-                      username: input.username,
-                      offset: input.offset,
-                      limit: input.limit ?? 8,
-                      before:
-                        input.before === undefined
-                          ? input.until
-                          : Math.min(input.before, input.until ?? input.before),
-                      since: input.since,
-                    },
-                    userId,
-                  )
-                  .pipe(
-                    Effect.map(toolData),
-                    Effect.catchTags({
-                      UserNotFoundError: () => Effect.succeed(toolError("User not found")),
-                      ProfilePrivateError: () => Effect.succeed(toolError("Profile is private")),
-                      D1QuotaExceededError: (err) => Effect.succeed(toolError(err.message)),
-                      D1QueryError: (err) => Effect.succeed(toolError(err.description.message)),
-                    }),
-                  ),
+                scrobbles.getRecentPage(input, userId).pipe(
+                  Effect.map(toolData),
+                  Effect.catchTags({
+                    ...profileErrors,
+                    InvalidCursorError: () => Effect.succeed(toolError("Invalid cursor")),
+                  }),
+                ),
               );
             }
 

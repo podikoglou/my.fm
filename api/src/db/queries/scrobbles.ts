@@ -414,24 +414,35 @@ function projectAlbum(group: ScrobbleProjectionGroup): ProjectedAlbum {
 export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUserId")(function* (
   userId: User["id"],
   {
-    before,
     since,
-    offset,
+    before,
+    offset = 0,
     limit,
+    pageAfter,
   }: {
-    before?: NonNullable<Scrobble["scrobbleDate"]>;
     since?: number;
-    offset: number;
+    before?: NonNullable<Scrobble["scrobbleDate"]>;
+    offset?: number;
     limit: number;
+    pageAfter?: FeedCursor | null;
   },
 ) {
   const sql = yield* SqlClient.SqlClient;
 
-  const beforeFilter = before
-    ? sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`
-    : sql``;
+  const lowerBound = since === undefined ? sql`` : sql`AND s.scrobbleDate >= ${since}`;
 
-  const sinceFilter = since === undefined ? sql`` : sql`AND s.scrobbleDate >= ${since}`;
+  // A single upper bound lets SQLite seek directly to the start of this page.
+  const upperBound = (() => {
+    if (before && (!pageAfter || before <= pageAfter.scrobbleDate)) {
+      return sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`;
+    }
+
+    if (pageAfter) {
+      return sql`AND (s.scrobbleDate, s.id) < (${Math.floor(pageAfter.scrobbleDate.getTime() / 1000)}, ${pageAfter.id})`;
+    }
+
+    return pageAfter === null ? sql`AND s.scrobbleDate IS NOT NULL` : sql``;
+  })();
 
   const find = SqlSchema.findAll({
     Request: Schema.Struct({
@@ -445,7 +456,7 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
           SELECT s.id, s.scrobbleDate, s.trackSpotifyUri, s.albumSpotifyUri,
             s.coverArtUrl, s.artistName, s.albumName, s.trackName, s.userId
           FROM scrobbles AS s
-          WHERE s.userId = ${userId} ${beforeFilter} ${sinceFilter}
+          WHERE s.userId = ${userId} ${lowerBound} ${upperBound}
           ORDER BY s.scrobbleDate DESC, s.id DESC
           LIMIT ${limit} OFFSET ${offset}
         )
