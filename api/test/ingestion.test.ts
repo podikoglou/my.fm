@@ -411,7 +411,9 @@ describe("Ingestion.run", () => {
           getRecentlyPlayedTracks: () => {
             seen.push(accessToken);
 
-            return Effect.fail(new SpotifyQuotaExceededError({ retryAfterSeconds: 600 }));
+            return Effect.fail(
+              new SpotifyQuotaExceededError({ retryAfterSeconds: 600, reason: null }),
+            );
           },
         })),
       });
@@ -487,7 +489,12 @@ describe("Ingestion.run", () => {
       await runIngestionWith({
         spotifyLayer: makeMockSpotifyLayer(() => ({
           getRecentlyPlayedTracks: () =>
-            Effect.fail(new SpotifyQuotaExceededError({ retryAfterSeconds: 48 * 60 * 60 })),
+            Effect.fail(
+              new SpotifyQuotaExceededError({
+                retryAfterSeconds: 48 * 60 * 60,
+                reason: "QUOTA_EXCEEDED",
+              }),
+            ),
         })),
       });
 

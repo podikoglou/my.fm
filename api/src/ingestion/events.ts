@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 
 import type { IngestionStatus } from "../db/queries/ingestionRuns.ts";
+import type { SpotifyQuotaReason } from "../spotify/errors.ts";
 
 /**
  * Stable event names for ingestion log entries.
@@ -38,6 +39,7 @@ export type IngestionEventFields =
       readonly plays: number;
       readonly failures: number;
       readonly retryAfterSeconds?: number | null;
+      readonly reason?: SpotifyQuotaReason | null;
     }
   | {
       readonly event: typeof INGESTION_EVENTS.runSkipped;

@@ -403,6 +403,7 @@ export class Ingestion extends Context.Service<Ingestion, IngestionApi>()(
               plays: totalPlays,
               failures,
               retryAfterSeconds: outcome.error.retryAfterSeconds,
+              reason: outcome.error.reason,
             });
 
             return;

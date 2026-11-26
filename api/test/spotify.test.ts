@@ -4,7 +4,11 @@ import { http } from "msw";
 import { describe, expect, test } from "vitest";
 
 import { AuthConfig } from "../src/auth/service.ts";
-import { getSpotifyQuotaError, SpotifyQuotaExceededError } from "../src/spotify/errors.ts";
+import {
+  getSpotifyQuotaError,
+  parseQuotaReason,
+  SpotifyQuotaExceededError,
+} from "../src/spotify/errors.ts";
 import { SpotifyClient } from "../src/spotify/service.ts";
 import { network } from "./network.ts";
 
@@ -42,7 +46,7 @@ describe("getSpotifyQuotaError", () => {
 
   test("reports the retry window from a client quota error", () => {
     const quota = getSpotifyQuotaError(
-      new SpotifyQuotaExceededError({ retryAfterSeconds: 66_362 }),
+      new SpotifyQuotaExceededError({ retryAfterSeconds: 66_362, reason: null }),
     );
 
     expect(quota).toBeInstanceOf(SpotifyQuotaExceededError);
@@ -80,6 +84,7 @@ describe("SpotifyClient.getRecentlyPlayedTracks", () => {
 
       if (error instanceof SpotifyQuotaExceededError) {
         expect(error.retryAfterSeconds).toBe(66_362);
+        expect(error.reason).toBe("QUOTA_EXCEEDED");
       }
     }
   });
@@ -108,6 +113,36 @@ describe("SpotifyClient.getRecentlyPlayedTracks", () => {
 
       if (error instanceof SpotifyQuotaExceededError) {
         expect(error.retryAfterSeconds).toBeNull();
+        expect(error.reason).toBe("QUOTA_EXCEEDED");
+      }
+    }
+  });
+
+  test("reports no rejection reason when the 429 body is empty", async () => {
+    network.use(
+      http.get(
+        "https://api.spotify.com/v1/me/player/recently-played",
+        () => new Response("", { status: 429, headers: { "retry-after": "30" } }),
+      ),
+    );
+
+    const exit = await runWithSpotify(
+      Effect.gen(function* () {
+        const spotify = yield* SpotifyClient;
+
+        return yield* spotify.forAccessToken("token-1").getRecentlyPlayedTracks(50);
+      }),
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+
+    if (Exit.isFailure(exit)) {
+      const error = Cause.squash(exit.cause);
+
+      expect(error).toBeInstanceOf(SpotifyQuotaExceededError);
+
+      if (error instanceof SpotifyQuotaExceededError) {
+        expect(error.reason).toBeNull();
       }
     }
   });
@@ -150,5 +185,24 @@ describe("SpotifyClient.getRecentlyPlayedTracks", () => {
         }
       }
     }
+  });
+});
+
+describe("parseQuotaReason", () => {
+  test("reads the reason from a quota rejection body", async () => {
+    const response = Response.json(quotaBody);
+
+    expect(await parseQuotaReason(response)).toBe("QUOTA_EXCEEDED");
+  });
+
+  test("returns null for a body without a reason", async () => {
+    const response = Response.json({ error: { status: 429, message: "Too many requests" } });
+
+    expect(await parseQuotaReason(response)).toBeNull();
+  });
+
+  test("returns null for a non-JSON body", async () => {
+    expect(await parseQuotaReason(new Response(""))).toBeNull();
+    expect(await parseQuotaReason(new Response("<html>429</html>"))).toBeNull();
   });
 });

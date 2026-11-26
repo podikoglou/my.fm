@@ -4,6 +4,7 @@ import { Context, Effect, Layer } from "effect";
 import { AuthConfig } from "../auth/service.ts";
 import {
   getSpotifyQuotaError,
+  parseQuotaReason,
   parseRetryAfter,
   SpotifyClientError,
   SpotifyQuotaExceededError,
@@ -71,6 +72,7 @@ async function spotifyFetch(
   if (response.status === 429) {
     throw new SpotifyQuotaExceededError({
       retryAfterSeconds: parseRetryAfter(response.headers.get("retry-after")),
+      reason: await parseQuotaReason(response),
     });
   }
 
