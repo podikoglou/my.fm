@@ -136,7 +136,7 @@ export const FeedPageNoDeps = Html.component({
       h.header
         .class("grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6")
         .children(
-          h.h1.class("text-3xl leading-none font-bold").children("Feed"),
+          h.h1.class("text-3xl font-bold").children("Feed"),
           h.p
             .class("mt-2 text-sm text-muted-foreground")
             .children("The latest scrobbles from everyone."),

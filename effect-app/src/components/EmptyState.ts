@@ -8,7 +8,7 @@ export function EmptyState<M>(h: Html.H<M>, title: string, description: string) 
     .children(
       icon(h, "listMusic", "size-16 text-muted-foreground opacity-50"),
       h.div.children(
-        h.h2.class("text-3xl leading-none font-bold").children(title),
+        h.h2.class("text-3xl font-bold").children(title),
         h.p.class("mt-2 text-sm text-muted-foreground").children(description),
       ),
     );
