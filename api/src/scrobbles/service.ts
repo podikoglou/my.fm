@@ -149,7 +149,6 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         const items = rows.slice(0, input.limit);
         const last = items.at(-1);
 
-
         const nextCursor =
           rows.length > input.limit && last?.scrobbleDate
             ? encodeFeedCursor({ id: last.id, scrobbleDate: last.scrobbleDate })
