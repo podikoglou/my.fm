@@ -5,6 +5,15 @@ import { expect, test } from "./fixtures";
 
 const consentQuery = "?client_id=wave-reader&state=parity";
 
+test("failed feed artwork shows only the music fallback", async ({ page }) => {
+  await page.route("https://fixtures.example.test/cover.svg", (route) => route.abort());
+  await page.goto("/feed");
+  const cover = page.getByRole("link", { name: "Open Coastlines on Spotify" }).first();
+  await expect(cover.locator("img")).toBeHidden();
+  await expect(cover.locator('[data-slot="avatar-fallback"]')).toBeVisible();
+  await expect(cover.locator("svg")).toBeVisible();
+});
+
 function requestTo(page: Page, method: string, path: string) {
   return page.waitForRequest(
     (request) => request.method() === method && new URL(request.url()).pathname === path,
