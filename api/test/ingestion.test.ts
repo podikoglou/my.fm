@@ -347,7 +347,14 @@ describe("Ingestion.run", () => {
         spotifyLayer: makeMockSpotifyLayer((accessToken) => ({
           getRecentlyPlayedTracks: () => {
             if (accessToken === "token-1") {
-              return Effect.fail(new SpotifyClientError({ cause: new Error("Spotify down") }));
+              return Effect.fail(
+                new SpotifyClientError({
+                  status: null,
+                  reason: null,
+                  requestId: null,
+                  cause: new Error("Spotify down"),
+                }),
+              );
             }
 
             return Effect.succeed({ items: [makePlay("2026-11-11T11:55:00.000Z")] });
@@ -359,6 +366,52 @@ describe("Ingestion.run", () => {
       expect(logs.named(INGESTION_EVENTS.runComplete)).toEqual([
         expect.objectContaining({ status: "partial", failures: 1, fetched: 1, plays: 1 }),
       ]);
+    } finally {
+      logs.restore();
+    }
+  });
+
+  test("logs Spotify's status, reason and request id when a fetch fails", async () => {
+    await seedUser(env.DB, { accessToken: "secret-access-token" });
+
+    network.use(
+      http.get("https://api.spotify.com/v1/me/player/recently-played", async () =>
+        Response.json(
+          { error: { status: 401, message: "The access token expired" } },
+          { status: 401, headers: { "request-id": "spotify-request-1" } },
+        ),
+      ),
+    );
+
+    const logs = captureLogs();
+
+    try {
+      await runIngestionWith({
+        spotifyLayer: SpotifyClient.layer.pipe(
+          Layer.provide(
+            AuthConfig.layer({
+              betterAuthSecret: env.BETTER_AUTH_SECRET,
+              spotifyClientId: env.SPOTIFY_CLIENT_ID,
+              spotifyClientSecret: env.SPOTIFY_CLIENT_SECRET,
+            }),
+          ),
+        ),
+      });
+
+      const failures = logs.messages.filter((args) => args[0] === INGESTION_EVENTS.accountFailed);
+
+      expect(failures).toEqual([
+        [
+          INGESTION_EVENTS.accountFailed,
+          "user-1",
+          expect.objectContaining({
+            status: 401,
+            reason: "The access token expired",
+            requestId: "spotify-request-1",
+          }),
+        ],
+      ]);
+      expect(JSON.stringify(failures)).not.toContain("secret-access-token");
     } finally {
       logs.restore();
     }

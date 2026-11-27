@@ -1,6 +1,13 @@
 import { Effect } from "effect";
 
 import type { IngestionStatus } from "../db/queries/ingestionRuns.ts";
+import {
+  D1QueryError,
+  D1QuotaExceededError,
+  describeError,
+  type ErrorDescription,
+} from "../db/errors.ts";
+import { SpotifyClientError } from "../spotify/errors.ts";
 
 /**
  * Stable event names for ingestion log entries.
@@ -57,6 +64,39 @@ export function logIngestionEvent(fields: IngestionEventFields): Effect.Effect<v
 
 export type IngestionFailureDetail = string | number | Error;
 
+type FailureDescription =
+  | ErrorDescription
+  | (ErrorDescription & Pick<SpotifyClientError, "status" | "reason" | "requestId">);
+
+/**
+ * Workers Logs serialises an Error argument to its stack and drops its fields
+ * and cause, so a failure is logged as a plain object. Only names, messages
+ * and Spotify's response metadata are copied, never request data such as
+ * tokens.
+ */
+function describeFailure(error: Error): FailureDescription {
+  if (error instanceof D1QueryError || error instanceof D1QuotaExceededError) {
+    return { ...error.description, causes: [...error.description.causes] };
+  }
+
+  const description = describeError(error);
+
+  if (error instanceof SpotifyClientError) {
+    return {
+      ...description,
+      status: error.status,
+      reason: error.reason,
+      requestId: error.requestId,
+    };
+  }
+
+  return description;
+}
+
+function toLogArgument(detail: IngestionFailureDetail): string | number | FailureDescription {
+  return detail instanceof Error ? describeFailure(detail) : detail;
+}
+
 export function logIngestionFailure(
   event:
     | typeof INGESTION_EVENTS.accountFailed
@@ -70,17 +110,19 @@ export function logIngestionFailure(
   ...details: ReadonlyArray<IngestionFailureDetail>
 ): Effect.Effect<void> {
   return Effect.sync(() => {
+    const args = details.map(toLogArgument);
+
     if (
       event === INGESTION_EVENTS.quotaExhausted ||
       event === INGESTION_EVENTS.userMissing ||
       event === INGESTION_EVENTS.d1WriteLimit ||
       event === INGESTION_EVENTS.d1ReadLimit
     ) {
-      console.warn(event, ...details);
+      console.warn(event, ...args);
 
       return;
     }
 
-    console.error(event, ...details);
+    console.error(event, ...args);
   });
 }

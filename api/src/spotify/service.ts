@@ -7,6 +7,7 @@ import {
   parseRetryAfter,
   SpotifyClientError,
   SpotifyQuotaExceededError,
+  spotifyResponseError,
 } from "./errors.ts";
 
 export interface SpotifyArtist {
@@ -59,8 +60,10 @@ export interface SpotifyClientApi {
 }
 
 /**
- * Wrap `fetch` so HTTP 429 responses throw `SpotifyQuotaExceededError` with
- * the parsed `Retry-After` header before `@spotify/web-api-ts-sdk` discards it.
+ * Wrap `fetch` so failed responses throw before `@spotify/web-api-ts-sdk`
+ * replaces them with a bare message: HTTP 429 becomes
+ * `SpotifyQuotaExceededError` with the parsed `Retry-After` header, and any
+ * other failure a `SpotifyClientError` with Spotify's status and reason.
  */
 async function spotifyFetch(
   input: Parameters<typeof fetch>[0],
@@ -74,10 +77,18 @@ async function spotifyFetch(
     });
   }
 
+  if (!response.ok) {
+    throw await spotifyResponseError(response);
+  }
+
   return response;
 }
 
 function classifySpotifyError(cause: unknown): SpotifyQuotaExceededError | SpotifyClientError {
+  if (cause instanceof SpotifyClientError) {
+    return cause;
+  }
+
   if (cause instanceof SpotifyQuotaExceededError || cause instanceof Error) {
     const quota = getSpotifyQuotaError(cause);
 
@@ -86,7 +97,7 @@ function classifySpotifyError(cause: unknown): SpotifyQuotaExceededError | Spoti
     }
   }
 
-  return new SpotifyClientError({ cause });
+  return new SpotifyClientError({ status: null, reason: null, requestId: null, cause });
 }
 
 function makeSdkUserClient(clientId: string, accessToken: string): SpotifyUserClient {

@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
 
 const SDK_QUOTA_ERROR_MESSAGE = "The app has exceeded its rate limits.";
 
@@ -16,13 +16,40 @@ export class SpotifyQuotaExceededError extends Schema.TaggedError<
   retryAfterSeconds: Schema.NullOr(Schema.Finite),
 }) {}
 
-/** Raised when a Spotify API call fails for a non-quota reason. */
+/**
+ * Raised when a Spotify API call fails for a non-quota reason.
+ *
+ * `status`, `reason` and `requestId` come from Spotify's response and are null
+ * when the call failed before one arrived; `cause` then holds what was thrown.
+ */
 export class SpotifyClientError extends Schema.TaggedError<
   SpotifyClientError,
   { readonly brand: unique symbol }
 >()("SpotifyClientError", {
+  status: Schema.NullOr(Schema.Int),
+  /** Spotify's `error.message`, which names the failure without echoing the request. */
+  reason: Schema.NullOr(Schema.String),
+  requestId: Schema.NullOr(Schema.String),
   cause: Schema.Defect(),
 }) {}
+
+const SpotifyErrorBody = Schema.fromJsonString(
+  Schema.Struct({ error: Schema.Struct({ message: Schema.String }) }),
+);
+
+const decodeSpotifyErrorBody = Schema.decodeUnknownOption(SpotifyErrorBody);
+
+/** Read the status, reason and request id from a failed Spotify response. */
+export async function spotifyResponseError(response: Response): Promise<SpotifyClientError> {
+  const body = decodeSpotifyErrorBody(await response.text());
+
+  return new SpotifyClientError({
+    status: response.status,
+    reason: Option.match(body, { onNone: () => null, onSome: ({ error }) => error.message }),
+    requestId: response.headers.get("request-id"),
+    cause: null,
+  });
+}
 
 /**
  * Parse a `Retry-After` header value in whole seconds.
