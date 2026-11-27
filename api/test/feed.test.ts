@@ -218,7 +218,10 @@ describe("public feed", () => {
 
     expect(first.headers.get("Cache-Control")).toContain("max-age=30");
     expect(firstBody.items.map(({ id }) => id)).toEqual([ids.a2, ids.a1]);
-    expect(firstBody.nextCursor).not.toBeNull();
+    // Previously issued v1 cursors contain the Unix second and the last returned id.
+    expect(firstBody.nextCursor).toBe(
+      btoa(JSON.stringify([1, now.getTime() / 1000, ids.a1])).replace(/=+$/, ""),
+    );
 
     const second = await worker.fetch(
       new Request(

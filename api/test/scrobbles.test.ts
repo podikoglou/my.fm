@@ -88,6 +88,26 @@ function runScrobbles<A, E>(effect: Effect.Effect<A, E, Scrobbles>) {
 }
 
 describe("scrobble service visibility and validation", () => {
+  test("includes undated plays in offset history and ends cursor history at the last dated play", async () => {
+    const { db } = await seed();
+    await insertRows(db, "scrobbles", { id: "undated", userId, scrobbleDate: null });
+
+    const [offset, page] = await runScrobbles(
+      Effect.gen(function* () {
+        const service = yield* Scrobbles;
+
+        return yield* Effect.all([
+          service.getRecent({ username: "alex", offset: 2, limit: 1 }),
+          service.getRecentPage({ username: "alex", limit: 2 }),
+        ]);
+      }),
+    );
+
+    expect(offset.map(({ id }) => id)).toEqual(["undated"]);
+    expect(page.items.map(({ id }) => id)).toEqual(["scrobble-new", "scrobble-old"]);
+    expect(page.nextCursor).toBeNull();
+  });
+
   test("hides a private profile's scrobbles and months from other users and the public feed", async () => {
     await seed();
 
@@ -236,11 +256,13 @@ describe("scrobble queries", () => {
 
     const recent = await runSql(
       db,
-      findRecentScrobblesByUserId(userId, {
-        before: new Date("2026-11-11T00:00:00.000Z"),
-        offset: 0,
-        limit: 8,
-      }),
+      findRecentScrobblesByUserId(
+        userId,
+        { offset: 0, limit: 8 },
+        {
+          until: Date.parse("2026-11-11T00:00:00.000Z") / 1000,
+        },
+      ),
     );
 
     expect(recent.map((scrobble) => scrobble.id)).toEqual(["scrobble-old"]);

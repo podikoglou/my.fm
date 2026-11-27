@@ -19,11 +19,12 @@ import {
   findRecentScrobblesByUserId,
   type FeedItem,
   type ProjectedScrobble,
+  type RecentPlayFilters,
 } from "../db/queries/recent-plays.ts";
 import { D1Client } from "@effect/sql-d1";
 import { SqlClient } from "effect/sql";
 import { Users } from "../users/service.ts";
-import { decodeFeedCursor, encodeFeedCursor } from "./cursor.ts";
+import { readScrobblePage, type CursorPageInput, type ScrobblePage } from "./page.ts";
 import type { InvalidCursorError } from "./errors.ts";
 
 export interface RecentScrobblesInput {
@@ -33,36 +34,13 @@ export interface RecentScrobblesInput {
   readonly before?: number;
 }
 
-export interface RecentPageInput extends Omit<
-  RecentScrobblesInput,
-  "offset" | "before" | "username"
-> {
+export interface RecentPageInput extends CursorPageInput, RecentPlayFilters {
   readonly username?: string;
-  readonly since?: number;
-  readonly until?: number;
-  readonly cursor?: string;
-  readonly includeAlbumArtists?: boolean;
-  readonly includeAlbumReleaseDate?: boolean;
-}
-
-interface RecentPage {
-  readonly items: ProjectedScrobble[];
-  readonly nextCursor: string | null;
 }
 
 export interface ScrobbleMonthsInput {
   readonly username?: string;
   readonly timeZone: string;
-}
-
-export interface PublicFeedInput {
-  readonly cursor?: string;
-  readonly limit: number;
-}
-
-export interface PublicFeedPage {
-  readonly items: FeedItem[];
-  readonly nextCursor: string | null;
 }
 
 export interface ScrobblesApi {
@@ -83,7 +61,7 @@ export interface ScrobblesApi {
     input: RecentPageInput,
     viewerId?: User["id"],
   ) => Effect.Effect<
-    RecentPage,
+    ScrobblePage<ProjectedScrobble>,
     InvalidCursorError | UserNotFoundError | ProfilePrivateError | DbError
   >;
   readonly getMonths: (
@@ -91,8 +69,8 @@ export interface ScrobblesApi {
     viewerId?: User["id"],
   ) => Effect.Effect<MonthlyScrobbleCount[], UserNotFoundError | ProfilePrivateError | DbError>;
   readonly getPublicFeed: (
-    input: PublicFeedInput,
-  ) => Effect.Effect<PublicFeedPage, InvalidCursorError | DbError>;
+    input: CursorPageInput,
+  ) => Effect.Effect<ScrobblePage<FeedItem>, InvalidCursorError | DbError>;
 }
 
 export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
@@ -133,42 +111,20 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         const profile = yield* users.viewProfileByUsername(input.username, viewerId);
 
         return yield* runDb(
-          findRecentScrobblesByUserId(profile.id, {
-            offset: input.offset,
-            limit: input.limit,
-            before: input.before === undefined ? undefined : new Date(input.before * 1000),
-          }),
+          findRecentScrobblesByUserId(profile.id, input, { until: input.before }),
         );
       });
 
-      const getRecentPage = Effect.fn("Scrobbles.getRecentPage")(function* (
-        input: RecentPageInput,
-        viewerId?: User["id"],
-      ) {
-        const cursor = input.cursor === undefined ? null : yield* decodeFeedCursor(input.cursor);
-        const profile = yield* users.viewListeningProfile(input.username, viewerId);
+      const getRecentPage = Effect.fn("Scrobbles.getRecentPage")(
+        (input: RecentPageInput, viewerId?: User["id"]) =>
+          readScrobblePage(input, (window) =>
+            Effect.gen(function* () {
+              const profile = yield* users.viewListeningProfile(input.username, viewerId);
 
-        const rows = yield* runDb(
-          findRecentScrobblesByUserId(profile.id, {
-            includeAlbumArtists: input.includeAlbumArtists,
-            includeAlbumReleaseDate: input.includeAlbumReleaseDate,
-            pageAfter: cursor,
-            limit: input.limit + 1,
-            since: input.since,
-            before: input.until === undefined ? undefined : new Date(input.until * 1000),
-          }),
-        );
-
-        const items = rows.slice(0, input.limit);
-        const last = items.at(-1);
-
-        const nextCursor =
-          rows.length > input.limit && last?.scrobbleDate
-            ? encodeFeedCursor({ id: last.id, scrobbleDate: last.scrobbleDate })
-            : null;
-
-        return { items, nextCursor };
-      });
+              return yield* runDb(findRecentScrobblesByUserId(profile.id, window, input));
+            }),
+          ),
+      );
 
       const getMonths = Effect.fn("Scrobbles.getMonths")(function* (
         input: ScrobbleMonthsInput,
@@ -179,20 +135,9 @@ export class Scrobbles extends Context.Service<Scrobbles, ScrobblesApi>()(
         return yield* runDb(countScrobblesByMonth(profile.id, { timeZone: input.timeZone }));
       });
 
-      const getPublicFeed = Effect.fn("Scrobbles.getPublicFeed")(function* (
-        input: PublicFeedInput,
-      ) {
-        const cursor =
-          input.cursor === undefined ? undefined : yield* decodeFeedCursor(input.cursor);
-
-        const items = yield* runDb(findPublicFeed({ cursor, limit: input.limit + 1 }));
-
-        const page = items.slice(0, input.limit);
-        const last = page.at(-1);
-        const nextCursor = items.length > input.limit && last ? encodeFeedCursor(last) : null;
-
-        return { items: page, nextCursor };
-      });
+      const getPublicFeed = Effect.fn("Scrobbles.getPublicFeed")((input: CursorPageInput) =>
+        readScrobblePage(input, (window) => runDb(findPublicFeed(window))),
+      );
 
       return Scrobbles.of({
         persistPlays: persist,
