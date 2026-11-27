@@ -276,6 +276,9 @@ describe("profile stats", () => {
       "getTimeline?username=alex&bucket=hour",
       "getSample?username=alex&size=0",
       "getSummary?username=alex&since=-1",
+      "getSummary?username=alex&period=month&since=0",
+      "getTop?username=alex&kind=artists&period=lastMonth",
+      "getTop?username=alex&kind=tracks&period=week&timeZone=UTC",
     ]) {
       expect((await get(path)).status).toBe(400);
     }
