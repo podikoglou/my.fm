@@ -550,6 +550,11 @@ test("reads through all MCP tools with REST bounds and owner-only private access
     totalScrobbles: 9,
     topTracks: [{ name: "Private song", plays: 9, share: 1 }],
   });
+  const weekly = await callTool(accessToken, "get_top", { period: "week", kind: "tracks" });
+  expect(JSON.parse(text(weekly))).toMatchObject({ kind: "tracks" });
+  expect((await callTool(accessToken, "get_summary", { period: "week", until: 0 })).isError).toBe(
+    true,
+  );
   expect(
     (await callTool(accessToken, "get_top", { username: "owner", kind: "tracks", limit: 51 }))
       .isError,

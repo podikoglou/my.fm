@@ -7,6 +7,8 @@ import { NanoidSchema } from "../api/validators.ts";
 import {
   DEFAULT_SAMPLE_SIZE,
   DEFAULT_TOP_LIMIT,
+  chartPeriodFields,
+  validChartRange,
   StatsInputSchemas,
   TimelineBucketSchema,
   TopKindSchema,
@@ -93,14 +95,16 @@ const StatsRangeFields = {
 const GetSummaryInputSchema = Schema.Struct({
   username: ListenerUsername,
   ...StatsRangeFields,
-});
+  ...chartPeriodFields,
+}).check(validChartRange);
 
 const GetTopInputSchema = Schema.Struct({
   username: ListenerUsername,
   kind: TopKindSchema,
   limit: Schema.optional(StatsInputSchemas.topLimit),
   ...StatsRangeFields,
-});
+  ...chartPeriodFields,
+}).check(validChartRange);
 
 const GetTimelineInputSchema = Schema.Struct({
   username: ListenerUsername,
@@ -118,6 +122,8 @@ const GetSampleInputSchema = Schema.Struct({
 
 const RANGE_HINT =
   "Optional since/until are Unix seconds bounding the scrobbles considered (until is exclusive).";
+
+const CHART_HINT = `Use a named period for standard charts, or request an exact range. ${RANGE_HINT}`;
 
 function toToolInputSchema(schema: Schema.Top): Tool["inputSchema"] {
   const doc = Schema.toJsonSchemaDocument(schema);
@@ -163,13 +169,13 @@ const MCP_TOOLS: ReadonlyArray<Tool> = [
   },
   {
     name: "get_summary",
-    description: `Quick taste profile and library envelope: total scrobbles, first and last play, distinct artists, albums and tracks, and the top five of each. ${RANGE_HINT}`,
+    description: `Quick taste profile and library envelope: total scrobbles, first and last play, distinct artists, albums and tracks, and the top five of each. ${CHART_HINT}`,
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetSummaryInputSchema),
   },
   {
     name: "get_top",
-    description: `Ranked artists, albums, or tracks with play count, share of all scrobbles, and first/last seen in the range. An artist is the lead credited artist. limit defaults to 10. ${RANGE_HINT}`,
+    description: `Ranked artists, albums, or tracks with play count, share of all scrobbles, and first/last seen in the range. An artist is the lead credited artist. limit defaults to 10. ${CHART_HINT}`,
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetTopInputSchema),
   },

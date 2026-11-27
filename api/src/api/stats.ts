@@ -17,6 +17,7 @@ import { TimeZoneSchema } from "./scrobble.ts";
 
 export const MAX_TIMELINE_BUCKETS = 400;
 export const DEFAULT_TOP_LIMIT = 10;
+export const MAX_TOP_LIMIT = 50;
 export const DEFAULT_SAMPLE_SIZE = 20;
 
 export const TIMELINE_TOO_LONG =
@@ -27,11 +28,51 @@ const integerBetween = (minimum: number, maximum: number) =>
 
 /** Unix seconds up to the end of year 9999, so every value is a valid `Date`. */
 const UNIX_SECONDS = integerBetween(0, 253_402_300_799);
-const TOP_LIMIT = integerBetween(1, 50);
+const TOP_LIMIT = integerBetween(1, MAX_TOP_LIMIT);
 const SAMPLE_SIZE = integerBetween(1, 50);
 const SAMPLE_SEED = integerBetween(0, 0xff_ff_ff_ff);
 
 export const TopKindSchema = Schema.Literals(["artists", "albums", "tracks"]);
+
+const ChartPeriodSchema = Schema.Literals(["today", "week", "month", "sixMonths", "year", "all"]);
+
+export type ChartPeriod = typeof ChartPeriodSchema.Type;
+
+export const chartPeriodFields = {
+  period: Schema.optionalKey(
+    ChartPeriodSchema.annotate({
+      description:
+        "Today, the trailing 7, 30, 180 or 365 days, or all time (default without since/until). Do not combine a period with since/until.",
+    }),
+  ),
+  timeZone: Schema.optionalKey(
+    TimeZoneSchema.annotate({
+      description:
+        "IANA time zone for the start of today; defaults to UTC. Only valid for period=today.",
+    }),
+  ),
+};
+
+export type ChartRange = {
+  period?: ChartPeriod;
+  timeZone?: string;
+  since?: number;
+  until?: number;
+};
+
+export const validChartRange = Schema.makeFilter<ChartRange>(
+  ({ period, timeZone, since, until }) => {
+    if (period !== undefined && (since !== undefined || until !== undefined)) {
+      return "Choose a period or explicit since/until bounds, not both";
+    }
+
+    if (timeZone !== undefined && period !== "today") {
+      return "timeZone only applies to period=today";
+    }
+
+    return true;
+  },
+);
 
 export const TimelineBucketSchema = Schema.Literals(["day", "week", "month", "year"]);
 
@@ -116,18 +157,19 @@ const profileErrors = [UserNotFoundApiError, ProfilePrivateApiError, ServiceUnav
 export class StatsGroup extends HttpApiGroup.make("stats")
   .add(
     HttpApiEndpoint.get("getSummary", "/getSummary", {
-      query: rangeQuery,
+      query: Schema.Struct({ ...rangeQuery, ...chartPeriodFields }).check(validChartRange),
       success: SummarySchema,
       error: profileErrors,
     }),
   )
   .add(
     HttpApiEndpoint.get("getTop", "/getTop", {
-      query: {
+      query: Schema.Struct({
         ...rangeQuery,
+        ...chartPeriodFields,
         kind: TopKindSchema,
         limit: Schema.optionalKey(StatsQuerySchemas.topLimit),
-      },
+      }).check(validChartRange),
       success: TopEntitiesSchema,
       error: profileErrors,
     }),

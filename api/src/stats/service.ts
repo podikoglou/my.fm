@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Clock, Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import type { SqlClient as SqlClientService } from "effect/sql/SqlClient";
 
@@ -6,7 +6,7 @@ import type { DbError } from "../db/errors.ts";
 import type { User } from "../db/schema.ts";
 import type { ProfilePrivateError, UserNotFoundError } from "../users/errors.ts";
 
-import { MAX_TIMELINE_BUCKETS, TIMELINE_TOO_LONG } from "../api/stats.ts";
+import { MAX_TIMELINE_BUCKETS, TIMELINE_TOO_LONG, type ChartRange } from "../api/stats.ts";
 import { findScrobbleEdges, type ScrobbleRange } from "../db/queries/scrobbles.ts";
 import {
   countScrobblesInRanges,
@@ -18,6 +18,7 @@ import {
 import { calendarBuckets, type CalendarUnit } from "../time-zone.ts";
 import { Users } from "../users/service.ts";
 import { TimelineTooLongError } from "./errors.ts";
+import { chartWindow } from "./period.ts";
 import { stratifiedPoints } from "./sample.ts";
 import { findGaps, type TimelineBucket, type TimelineGap } from "./timeline.ts";
 
@@ -26,7 +27,9 @@ const TIMELINE_GAP_LIMIT = 5;
 
 export type StatsRangeInput = ScrobbleRange & { readonly username?: string };
 
-export type TopInput = StatsRangeInput & { readonly kind: TopKind; readonly limit: number };
+type ChartInput = ChartRange & { readonly username?: string };
+
+export type TopInput = ChartInput & { readonly kind: TopKind; readonly limit: number };
 
 export type TimelineInput = StatsRangeInput & {
   readonly bucket: CalendarUnit;
@@ -85,7 +88,7 @@ type ProfileError = UserNotFoundError | ProfilePrivateError | DbError;
 
 export interface StatsApi {
   readonly getSummary: (
-    input: StatsRangeInput,
+    input: ChartInput,
     viewerId?: User["id"],
   ) => Effect.Effect<Summary, ProfileError>;
   readonly getTop: (
@@ -130,6 +133,16 @@ function toRange({ since, until }: ScrobbleRange): ScrobbleRange {
 
 const toSeconds = (date: Date) => Math.floor(date.getTime() / 1000);
 
+const chartRange = Effect.fnUntraced(function* (input: ChartInput) {
+  if (input.since !== undefined || input.until !== undefined) return toRange(input);
+
+  return chartWindow(
+    input.period ?? "all",
+    new Date(yield* Clock.currentTimeMillis),
+    input.timeZone,
+  );
+});
+
 export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/Stats") {
   static readonly layer: Layer.Layer<Stats, never, Users | SqlClientService> = Layer.effect(
     Stats,
@@ -141,11 +154,11 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
         effect.pipe(Effect.provideService(SqlClient.SqlClient, sql));
 
       const getSummary = Effect.fn("Stats.getSummary")(function* (
-        input: StatsRangeInput,
+        input: ChartInput,
         viewerId?: User["id"],
       ) {
         const profile = yield* users.viewListeningProfile(input.username, viewerId);
-        const range = toRange(input);
+        const range = yield* chartRange(input);
         const limit = SUMMARY_TOP_LIMIT;
 
         const [edges, top] = yield* runDb(
@@ -182,7 +195,7 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
 
         const rows = yield* runDb(
           findTopEntities(profile.id, {
-            ...toRange(input),
+            ...(yield* chartRange(input)),
             kinds: [input.kind],
             limit: input.limit,
           }),
