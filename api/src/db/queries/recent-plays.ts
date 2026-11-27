@@ -5,6 +5,8 @@ import type { Fragment } from "effect/sql/Statement";
 import { DateFromEpochSeconds } from "../columns.ts";
 import type { Album, Artist, Scrobble, Track, User } from "../schema.ts";
 import { asDbError } from "../service.ts";
+import type { CursorWindow } from "../../scrobbles/page.ts";
+import type { ScrobbleRange } from "./scrobbles.ts";
 
 export type ProjectedArtist = Pick<Artist, "name"> & {
   spotifyUri?: Artist["spotifyUri"];
@@ -35,9 +37,12 @@ export type FeedItem = Pick<Scrobble, "id"> & {
   };
 };
 
-export type FeedCursor = Pick<Scrobble, "id"> & {
-  scrobbleDate: NonNullable<Scrobble["scrobbleDate"]>;
+export type RecentPlayFilters = ScrobbleRange & {
+  includeAlbumArtists?: boolean;
+  includeAlbumReleaseDate?: boolean;
 };
+
+type PageWindow = CursorWindow | { readonly offset: number; readonly limit: number };
 
 const ArtistCredits = Schema.fromJsonString(
   Schema.Array(
@@ -113,42 +118,35 @@ function projectTrack(row: typeof HistoryRow.Type | typeof FeedRow.Type): Projec
   };
 }
 
+// A single upper bound lets SQLite seek directly to the start of this page.
+function pageUpperBound(sql: SqlClient.SqlClient, window: PageWindow, until?: number) {
+  const after = "after" in window ? window.after : undefined;
+
+  if (until !== undefined && (!after || until <= after.seconds)) {
+    return sql`AND s.scrobbleDate < ${until}`;
+  }
+
+  if (after) {
+    return sql`AND (s.scrobbleDate, s.id) < (${after.seconds}, ${after.id})`;
+  }
+
+  return "offset" in window ? sql`` : sql`AND s.scrobbleDate IS NOT NULL`;
+}
+
 export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUserId")(function* (
   userId: User["id"],
+  window: PageWindow,
   {
     since,
-    before,
-    offset = 0,
-    limit,
-    pageAfter,
+    until,
     includeAlbumArtists = true,
     includeAlbumReleaseDate = false,
-  }: {
-    since?: number;
-    before?: NonNullable<Scrobble["scrobbleDate"]>;
-    offset?: number;
-    limit: number;
-    pageAfter?: FeedCursor | null;
-    includeAlbumArtists?: boolean;
-    includeAlbumReleaseDate?: boolean;
-  },
+  }: RecentPlayFilters = {},
 ) {
   const sql = yield* SqlClient.SqlClient;
 
   const lowerBound = since === undefined ? sql`` : sql`AND s.scrobbleDate >= ${since}`;
-
-  // A single upper bound lets SQLite seek directly to the start of this page.
-  const upperBound = (() => {
-    if (before && (!pageAfter || before <= pageAfter.scrobbleDate)) {
-      return sql`AND s.scrobbleDate < ${Math.floor(before.getTime() / 1000)}`;
-    }
-
-    if (pageAfter) {
-      return sql`AND (s.scrobbleDate, s.id) < (${Math.floor(pageAfter.scrobbleDate.getTime() / 1000)}, ${pageAfter.id})`;
-    }
-
-    return pageAfter === null ? sql`AND s.scrobbleDate IS NOT NULL` : sql``;
-  })();
+  const upperBound = pageUpperBound(sql, window, until);
 
   const albumCredits = includeAlbumArtists
     ? sql`(
@@ -178,7 +176,13 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
       ),
   });
 
-  const rows = yield* asDbError(find({ userId, limit, offset }));
+  const rows = yield* asDbError(
+    find({
+      userId,
+      limit: window.limit,
+      offset: "offset" in window ? window.offset : 0,
+    }),
+  );
 
   return rows.map(
     (row): ProjectedScrobble => ({
@@ -196,18 +200,12 @@ export const findRecentScrobblesByUserId = Effect.fn("scrobbles.findRecentByUser
   );
 });
 
-export const findPublicFeed = Effect.fn("scrobbles.findPublicFeed")(function* ({
-  cursor,
-  limit,
-}: {
-  cursor?: FeedCursor;
-  limit: number;
-}) {
+export const findPublicFeed = Effect.fn("scrobbles.findPublicFeed")(function* (
+  window: CursorWindow,
+) {
   const sql = yield* SqlClient.SqlClient;
 
-  const before = cursor
-    ? sql`AND (s.scrobbleDate, s.id) < (${Math.floor(cursor.scrobbleDate.getTime() / 1000)}, ${cursor.id})`
-    : sql``;
+  const upperBound = pageUpperBound(sql, window);
 
   const find = SqlSchema.findAll({
     Request: Schema.Void,
@@ -218,8 +216,8 @@ export const findPublicFeed = Effect.fn("scrobbles.findPublicFeed")(function* ({
         sql`
           SELECT s.*, u.username, u.name AS displayName, u.avatarUrl
           FROM scrobbles AS s JOIN users AS u ON u.id = s.userId
-          WHERE s.scrobbleDate IS NOT NULL AND u.isPrivate = 0 AND u.onboarded = 1 ${before}
-          ORDER BY s.scrobbleDate DESC, s.id DESC LIMIT ${limit}
+          WHERE u.isPrivate = 0 AND u.onboarded = 1 ${upperBound}
+          ORDER BY s.scrobbleDate DESC, s.id DESC LIMIT ${window.limit}
         `,
         sql`p.username, p.displayName, p.avatarUrl`,
       ),

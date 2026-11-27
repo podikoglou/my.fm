@@ -473,12 +473,13 @@ test("reads through all MCP tools with REST bounds and owner-only private access
 
   const playTime = Date.parse("2026-11-01T00:30:00Z") / 1000;
 
-  const inRange = async (since: number, until: number) => {
+  const inRange = async (since: number, until: number, cursor?: string) => {
     const result = await callTool(accessToken, "get_recent_scrobbles", {
       username: "owner",
       limit: 1,
       since,
       until,
+      cursor,
     });
 
     return Schema.decodeUnknownSync(RecentScrobblesSchema)(JSON.parse(text(result)).items);
@@ -487,6 +488,7 @@ test("reads through all MCP tools with REST bounds and owner-only private access
   expect(await inRange(playTime, playTime + 1)).toHaveLength(1);
   expect(await inRange(playTime + 1, playTime + 2)).toEqual([]);
   expect(await inRange(playTime - 1, playTime)).toEqual([]);
+  expect(await inRange(playTime - 1, playTime, first.nextCursor ?? undefined)).toEqual([]);
 
   const me = await callTool(accessToken, "get_me");
   expect(me.isError).not.toBe(true);
