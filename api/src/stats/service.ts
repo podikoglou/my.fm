@@ -1,4 +1,4 @@
-import { Clock, Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import type { SqlClient as SqlClientService } from "effect/sql/SqlClient";
 
@@ -8,17 +8,12 @@ import type { ProfilePrivateError, UserNotFoundError } from "../users/errors.ts"
 
 import { MAX_TIMELINE_BUCKETS, TIMELINE_TOO_LONG, type ChartRange } from "../api/stats.ts";
 import { findScrobbleEdges, type ScrobbleRange } from "../db/queries/scrobbles.ts";
-import {
-  countScrobblesInRanges,
-  findScrobblesAtPoints,
-  findTopEntities,
-  type RankedEntities,
-  type TopKind,
-} from "../db/queries/stats.ts";
+import { countScrobblesInRanges, findScrobblesAtPoints } from "../db/queries/stats.ts";
 import { calendarBuckets, type CalendarUnit } from "../time-zone.ts";
 import { Users } from "../users/service.ts";
 import { TimelineTooLongError } from "./errors.ts";
-import { chartWindow } from "./period.ts";
+import { chartKinds, loadChart } from "./charts.ts";
+import type { RankedEntities, TopKind } from "./ranking.ts";
 import { stratifiedPoints } from "./sample.ts";
 import { findGaps, type TimelineBucket, type TimelineGap } from "./timeline.ts";
 
@@ -108,8 +103,9 @@ export interface StatsApi {
 function toTopEntities(
   kind: TopKind,
   { total: totalScrobbles, rows: allRows }: RankedEntities,
+  limit: number,
 ): TopEntities {
-  const rows = allRows.filter((row) => row.kind === kind);
+  const rows = allRows.filter((row) => row.kind === kind).slice(0, limit);
 
   return {
     kind,
@@ -133,16 +129,6 @@ function toRange({ since, until }: ScrobbleRange): ScrobbleRange {
 
 const toSeconds = (date: Date) => Math.floor(date.getTime() / 1000);
 
-const chartRange = Effect.fnUntraced(function* (input: ChartInput) {
-  if (input.since !== undefined || input.until !== undefined) return toRange(input);
-
-  return chartWindow(
-    input.period ?? "all",
-    new Date(yield* Clock.currentTimeMillis),
-    input.timeZone,
-  );
-});
-
 export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/Stats") {
   static readonly layer: Layer.Layer<Stats, never, Users | SqlClientService> = Layer.effect(
     Stats,
@@ -158,31 +144,15 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
         viewerId?: User["id"],
       ) {
         const profile = yield* users.viewListeningProfile(input.username, viewerId);
-        const range = yield* chartRange(input);
-        const limit = SUMMARY_TOP_LIMIT;
-
-        const [edges, top] = yield* runDb(
-          Effect.all(
-            [
-              findScrobbleEdges(profile.id, range),
-              findTopEntities(profile.id, {
-                ...range,
-                kinds: ["artists", "albums", "tracks"],
-                limit,
-              }),
-            ],
-            { concurrency: "unbounded" },
-          ),
-        );
-
-        const artists = toTopEntities("artists", top);
-        const albums = toTopEntities("albums", top);
-        const tracks = toTopEntities("tracks", top);
+        const top = yield* runDb(loadChart(profile.id, input, chartKinds, SUMMARY_TOP_LIMIT));
+        const artists = toTopEntities("artists", top, SUMMARY_TOP_LIMIT);
+        const albums = toTopEntities("albums", top, SUMMARY_TOP_LIMIT);
+        const tracks = toTopEntities("tracks", top, SUMMARY_TOP_LIMIT);
 
         return {
           totalScrobbles: tracks.totalScrobbles,
-          firstScrobbleAt: edges?.earliest ?? null,
-          lastScrobbleAt: edges?.latest ?? null,
+          firstScrobbleAt: top.earliest === null ? null : new Date(top.earliest * 1000),
+          lastScrobbleAt: top.latest === null ? null : new Date(top.latest * 1000),
           distinct: { artists: artists.distinct, albums: albums.distinct, tracks: tracks.distinct },
           topArtists: artists.items,
           topAlbums: albums.items,
@@ -193,15 +163,9 @@ export class Stats extends Context.Service<Stats, StatsApi>()("@my.fm/api/stats/
       const getTop = Effect.fn("Stats.getTop")(function* (input: TopInput, viewerId?: User["id"]) {
         const profile = yield* users.viewListeningProfile(input.username, viewerId);
 
-        const rows = yield* runDb(
-          findTopEntities(profile.id, {
-            ...(yield* chartRange(input)),
-            kinds: [input.kind],
-            limit: input.limit,
-          }),
-        );
+        const rows = yield* runDb(loadChart(profile.id, input, [input.kind], input.limit));
 
-        return toTopEntities(input.kind, rows);
+        return toTopEntities(input.kind, rows, input.limit);
       });
 
       const getTimeline = Effect.fn("Stats.getTimeline")(function* (

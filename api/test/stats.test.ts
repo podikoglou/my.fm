@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import worker from "../src/worker.ts";
 import { insertRows, updateRows } from "./d1.ts";
@@ -102,6 +102,56 @@ async function seed() {
 }
 
 describe("profile stats", () => {
+  afterEach(() => vi.useRealTimers());
+
+  test("shares a period across chart kinds and limits until it expires", async () => {
+    await seed();
+    vi.setSystemTime(new Date("2026-04-04T12:00:00Z"));
+    const summary = () => get("getSummary?username=alex&period=week");
+    const top = await get("getTop?username=alex&period=week&kind=artists&limit=1");
+    expect(await top.json()).toMatchObject({
+      totalScrobbles: 3,
+      items: [{ name: "Second Artist" }],
+    });
+
+    await insertRows(env.DB, "scrobbles", {
+      id: "backfill",
+      userId,
+      trackName: "Another song",
+      scrobbleDate: new Date("2026-04-01"),
+    });
+    expect(await (await summary()).json()).toMatchObject({
+      totalScrobbles: 3,
+      topTracks: [{ name: "Track 2" }, { name: "Loose Song" }],
+    });
+    const exact = await get(`getSummary?username=alex&since=${seconds("2026-04-01")}`);
+    expect(await exact.json()).toMatchObject({ totalScrobbles: 4 });
+
+    vi.setSystemTime(new Date("2026-04-04T12:15:00Z"));
+    expect(await (await summary()).json()).toMatchObject({ totalScrobbles: 4 });
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM chart_snapshots").first("n")).toBe(1);
+  });
+
+  test("today separates zones and refreshes at local midnight before its TTL", async () => {
+    await seed();
+    await insertRows(env.DB, "scrobbles", {
+      id: "local-day",
+      userId,
+      trackName: "Late song",
+      scrobbleDate: new Date("2026-04-03T22:00:00Z"),
+    });
+    vi.setSystemTime(new Date("2026-04-04T20:59:00Z"));
+    const today = "getSummary?username=alex&period=today";
+    expect(await (await get(today)).json()).toMatchObject({ totalScrobbles: 1 });
+    expect(await (await get(`${today}&timeZone=Europe/Athens`)).json()).toMatchObject({
+      totalScrobbles: 2,
+    });
+    vi.setSystemTime(new Date("2026-04-04T21:00:00Z"));
+    expect(await (await get(`${today}&timeZone=Europe/Athens`)).json()).toMatchObject({
+      totalScrobbles: 0,
+    });
+  });
+
   test("ranks lead artists with share and first and last play", async () => {
     await seed();
 
@@ -283,6 +333,7 @@ describe("profile stats", () => {
       expect((await get(path)).status).toBe(400);
     }
 
+    expect((await get("getSummary?username=alex")).status).toBe(200);
     await updateRows(env.DB, "users", { isPrivate: true }, { id: userId });
 
     expect((await get("getSummary?username=alex")).status).toBe(403);
