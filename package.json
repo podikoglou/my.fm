@@ -3,6 +3,7 @@
   "workspaces": [
     "app/",
     "api/",
+    "effect-app/",
     "parity/"
   ],
   "scripts": {
@@ -11,6 +12,9 @@
     "dev": "alchemy dev",
     "dev:proxy": "caddy run --config Caddyfile",
     "dev:packages": "turbo dev",
+    "dev:effect": "bun run --cwd effect-app dev",
+    "dev:effect:proxy": "caddy run --config effect-app/Caddyfile",
+    "build:effect": "bun run --cwd effect-app build",
     "deploy": "alchemy deploy",
     "deploy:preview": "alchemy deploy --stage preview",
     "destroy": "alchemy destroy",
