@@ -477,6 +477,28 @@ describe("Ingestion.run", () => {
     }
   });
 
+  test("blocks for at least five minutes after a short Retry-After", async () => {
+    const db = env.DB;
+    await seedUser(db);
+
+    const logs = captureLogs();
+
+    try {
+      await runIngestionWith({
+        spotifyLayer: makeMockSpotifyLayer(() => ({
+          getRecentlyPlayedTracks: () =>
+            Effect.fail(new SpotifyQuotaExceededError({ retryAfterSeconds: 1 })),
+        })),
+      });
+
+      const heartbeat = await getIngestionRun(db);
+
+      expect(heartbeat?.blockedUntil).toEqual(new Date(now.getTime() + 5 * 60 * 1000));
+    } finally {
+      logs.restore();
+    }
+  });
+
   test("clamps a long block to one day", async () => {
     const db = env.DB;
     await seedUser(db);

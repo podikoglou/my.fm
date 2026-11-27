@@ -4,6 +4,13 @@ import type { SpotifyPlay } from "../spotify/service.ts";
 /** Fallback Spotify quota block when no numeric Retry-After is available (30 min). */
 export const SPOTIFY_QUOTA_FALLBACK_SECONDS = 30 * 60;
 
+/**
+ * Minimum Spotify quota block duration (5 minutes), so a short Retry-After
+ * does not let the next minute's tick retry while the app is still over its
+ * limit.
+ */
+export const SPOTIFY_QUOTA_MIN_SECONDS = 5 * 60;
+
 /** Maximum Spotify quota block duration (24 hours). */
 export const SPOTIFY_QUOTA_MAX_SECONDS = 24 * 60 * 60;
 
@@ -50,7 +57,7 @@ export function shouldFetchUser(user: UserScheduleState, now: Date): boolean {
 
 export function computeQuotaBlock(retryAfterSeconds: number | null, now: Date): Date {
   const seconds = Math.min(
-    Math.max(retryAfterSeconds ?? SPOTIFY_QUOTA_FALLBACK_SECONDS, 1),
+    Math.max(retryAfterSeconds ?? SPOTIFY_QUOTA_FALLBACK_SECONDS, SPOTIFY_QUOTA_MIN_SECONDS),
     SPOTIFY_QUOTA_MAX_SECONDS,
   );
 
