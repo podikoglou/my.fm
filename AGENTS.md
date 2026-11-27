@@ -10,3 +10,5 @@ For design, separation of concerns, typing, testing, and pull request skills, se
 For the code style that the lint enforces, see docs/CODE-STYLE.md
 For Vitest, Workers bindings and outbound request fixtures, see docs/TESTING.md
 For deploy, stages and secrets, see docs/DEPLOYMENT.md
+For the Effect UI rebuild, see [the migration reference](docs/EFFECT-UI.md)
+and [the Effect UI skill](.agents/skills/effect-ui/SKILL.md).
