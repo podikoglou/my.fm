@@ -1,33 +1,12 @@
 import { Effect, Schema } from "effect";
 import { SqlClient, SqlSchema } from "effect/sql";
 
+import { TopKindSchema } from "../../api/stats.ts";
+import type { TopEntityRow, TopKind } from "../../stats/ranking.ts";
 import { DateFromEpochSeconds } from "../columns.ts";
 import { asDbError } from "../service.ts";
 import type { User } from "../schema.ts";
 import type { ScrobbleRange } from "./scrobbles.ts";
-
-export type TopKind = "artists" | "albums" | "tracks";
-
-export type TopEntityRow = {
-  kind: TopKind;
-  name: string;
-  /** The credited artist of an album or a track; null for an artist. */
-  artist: string | null;
-  spotifyUri: string | null;
-  plays: number;
-  /** Unix seconds. */
-  firstPlayed: number;
-  /** Unix seconds. */
-  lastPlayed: number;
-  /** Distinct entities of this kind in the range. */
-  distinct: number;
-};
-
-export type RankedEntities = {
-  /** Every scrobble in the range, including ones without an entity of a kind. */
-  total: number;
-  rows: TopEntityRow[];
-};
 
 /**
  * One kind's entities from the `plays` groups. Catalog names join after
@@ -95,13 +74,15 @@ function entitiesOf(sql: SqlClient.SqlClient, kind: TopKind) {
  */
 const TopEntitiesRow = Schema.Struct({
   total: Schema.Int,
-  kind: Schema.NullOr(Schema.Literals(["artists", "albums", "tracks"])),
+  earliest: Schema.NullOr(Schema.Int),
+  latest: Schema.NullOr(Schema.Int),
+  kind: Schema.NullOr(TopKindSchema),
   name: Schema.NullOr(Schema.String),
   artist: Schema.NullOr(Schema.String),
   spotifyUri: Schema.NullOr(Schema.String),
   plays: Schema.NullOr(Schema.Int),
-  firstPlayed: Schema.NullOr(DateFromEpochSeconds),
-  lastPlayed: Schema.NullOr(DateFromEpochSeconds),
+  firstPlayed: Schema.NullOr(Schema.Int),
+  lastPlayed: Schema.NullOr(Schema.Int),
   distinct: Schema.NullOr(Schema.Int),
 });
 
@@ -123,8 +104,8 @@ function toTopEntityRow(row: typeof TopEntitiesRow.Type): TopEntityRow | null {
     artist: row.artist,
     spotifyUri: row.spotifyUri,
     plays: row.plays,
-    firstPlayed: Math.floor(row.firstPlayed.getTime() / 1000),
-    lastPlayed: Math.floor(row.lastPlayed.getTime() / 1000),
+    firstPlayed: row.firstPlayed,
+    lastPlayed: row.lastPlayed,
     distinct: row.distinct,
   };
 }
@@ -177,9 +158,12 @@ export const findTopEntities = Effect.fn("stats.findTopEntities")(function* (
           count(*) OVER (PARTITION BY kind) AS "distinct"
         FROM entities
       )
-      SELECT totals.total, ranked.kind, ranked.name, ranked.artist, ranked.spotifyUri,
+      SELECT totals.total, totals.earliest, totals.latest, ranked.kind, ranked.name, ranked.artist, ranked.spotifyUri,
         ranked.plays, ranked.firstPlayed, ranked.lastPlayed, ranked."distinct"
-      FROM (SELECT coalesce(sum(plays), 0) AS total FROM plays) AS totals
+      FROM (
+        SELECT coalesce(sum(plays), 0) AS total, min(firstPlayed) AS earliest, max(lastPlayed) AS latest
+        FROM plays
+      ) AS totals
       LEFT JOIN ranked ON ranked.rank <= ${limit}
       ORDER BY ranked.kind, ranked.rank
     `,
@@ -196,6 +180,8 @@ export const findTopEntities = Effect.fn("stats.findTopEntities")(function* (
 
   return {
     total: rows[0]?.total ?? 0,
+    earliest: rows[0]?.earliest ?? null,
+    latest: rows[0]?.latest ?? null,
     rows: rows.flatMap((row) => {
       const entity = toTopEntityRow(row);
 
