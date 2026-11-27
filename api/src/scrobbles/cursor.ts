@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-import type { FeedCursor, FeedItem } from "../db/queries/scrobbles.ts";
+import type { FeedCursor, FeedItem } from "../db/queries/recent-plays.ts";
 
 import { InvalidCursorError } from "./errors.ts";
 

@@ -7,17 +7,19 @@ import type { DatabaseRequirements } from "../db/service.ts";
 
 import {
   countScrobblesByMonth,
-  findPublicFeed,
-  findRecentScrobblesByUserId,
   findRecordedPlaysBetween,
   persistPlays,
-  type FeedItem,
   type MonthlyScrobbleCount,
   type PersistPlaysOptions,
   type PlayRecord,
-  type ProjectedScrobble,
   type RecordedPlay,
 } from "../db/queries/scrobbles.ts";
+import {
+  findPublicFeed,
+  findRecentScrobblesByUserId,
+  type FeedItem,
+  type ProjectedScrobble,
+} from "../db/queries/recent-plays.ts";
 import { D1Client } from "@effect/sql-d1";
 import { SqlClient } from "effect/sql";
 import { Users } from "../users/service.ts";
