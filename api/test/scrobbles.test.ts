@@ -2,7 +2,8 @@ import { env } from "cloudflare:workers";
 import { Effect, Layer, Schema } from "effect";
 import { describe, expect, test } from "vitest";
 
-import { countScrobblesByMonth, findRecentScrobblesByUserId } from "../src/db/queries/scrobbles.ts";
+import { countScrobblesByMonth } from "../src/db/queries/scrobbles.ts";
+import { findRecentScrobblesByUserId } from "../src/db/queries/recent-plays.ts";
 import { DbLive } from "../src/db/service.ts";
 import { Scrobbles } from "../src/scrobbles/service.ts";
 import { Users } from "../src/users/service.ts";
@@ -53,11 +54,10 @@ async function seed() {
     { trackSpotifyUri: "spotify:track:1", artistSpotifyUri: "spotify:artist:1", position: 0 },
   ]);
 
-  await insertRows(env.DB, "album_artists", {
-    albumSpotifyUri: "spotify:album:1",
-    artistSpotifyUri: "spotify:artist:1",
-    position: 0,
-  });
+  await insertRows(env.DB, "album_artists", [
+    { albumSpotifyUri: "spotify:album:1", artistSpotifyUri: "spotify:artist:1", position: 1 },
+    { albumSpotifyUri: "spotify:album:1", artistSpotifyUri: "spotify:artist:2", position: 0 },
+  ]);
 
   await insertRows(env.DB, "scrobbles", [
     {
@@ -193,7 +193,10 @@ describe("scrobble queries", () => {
       "Second Artist",
     ]);
     expect(scrobble?.album?.name).toBe("An Album");
-    expect(scrobble?.album?.artists[0]?.name).toBe("First Artist");
+    expect(scrobble?.album?.artists.map(({ name }) => name)).toEqual([
+      "Second Artist",
+      "First Artist",
+    ]);
   });
 
   test("projects unlinked scrobbles from stored fallback names and cover art", async () => {

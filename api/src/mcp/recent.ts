@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import type { ProjectedArtist, ProjectedScrobble } from "../db/queries/scrobbles.ts";
+import type { ProjectedArtist, ProjectedScrobble } from "../db/queries/recent-plays.ts";
 
 export const RecentExtras = Schema.Array(
   Schema.Literals(["images", "spotifyUris", "albumArtists", "albumReleaseDate"]),
