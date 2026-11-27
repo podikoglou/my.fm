@@ -12,21 +12,6 @@ your Spotify account and keeps a history of the tracks you play.
 
 Both components are deployed with [Alchemy](https://alchemy.run).
 
-## Listening charts
-
-`GET /api/stats/getTop?username=alex&kind=artists&period=week` returns the
-most-played artists over the trailing seven days. The MCP equivalent is
-`get_top({ kind: "artists", period: "week" })` for the signed-in listener.
-Use `getSummary` or `get_summary` for the top five artists, albums and tracks together.
-
-Both accept `today`, `week`, `month`, `sixMonths`, `year`, and `all` (the default).
-The rolling periods span 7, 30, 180 and 365 days respectively. `today` starts at
-local midnight in the optional `timeZone` (UTC by default).
-
-Period charts can lag new plays or imports by up to 15 minutes. For an exact
-range, omit `period` and pass `since` and/or `until` as Unix seconds instead;
-these requests bypass the cache. `since` is inclusive and `until` is exclusive.
-
 ## Development
 
 You need [Bun](https://bun.sh) and a [Spotify
