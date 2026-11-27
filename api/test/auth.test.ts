@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import { AuthService } from "../src/auth/service.ts";
 import worker, { makeWorkerInfraLayer } from "../src/worker.ts";
 import { queryRows } from "./d1.ts";
+import { captureLogs } from "./logs.ts";
 import { network } from "./network.ts";
 
 const baseUrl = "https://app.test";
@@ -34,6 +35,30 @@ describe("auth routes", () => {
     expect(url.searchParams.get("redirect_uri")).toBe(`${baseUrl}/api/auth/callback/spotify`);
     expect(url.searchParams.get("scope")).toContain("user-read-recently-played");
     expect(url.searchParams.get("scope")).toContain("user-read-currently-playing");
+  });
+
+  test("uses the configured origin for a request on another host", async () => {
+    const logs = captureLogs();
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://my-fm.example.workers.dev/api/auth/sign-in/social", {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: baseUrl },
+          body: JSON.stringify({ provider: "spotify" }),
+        }),
+        { ...env, BETTER_AUTH_URL: baseUrl },
+      );
+
+      const body = Schema.decodeUnknownSync(SocialSignInResponse)(await response.json());
+
+      expect(new URL(body.url).searchParams.get("redirect_uri")).toBe(
+        `${baseUrl}/api/auth/callback/spotify`,
+      );
+      expect(logs.messages.flat().join(" ")).not.toContain("Base URL is not set");
+    } finally {
+      logs.restore();
+    }
   });
 
   test("creates a user with a generated username on the first Spotify callback", async () => {

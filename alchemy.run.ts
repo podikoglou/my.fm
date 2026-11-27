@@ -7,15 +7,9 @@ import { fileURLToPath } from "node:url";
 
 import { API_RUN_WORKER_FIRST } from "./app/api-paths.ts";
 import Worker, { Database, ImportsBucket } from "./api/src/alchemy.ts";
+import { StageDomain } from "./stage-domain.ts";
 
 const appDir = fileURLToPath(new URL("./app/", import.meta.url));
-
-/**
- * Custom hostname for the preview stage, from the deploy environment, so each
- * deployment names a domain it owns. Without it the stage serves its
- * `workers.dev` URL. Any hostname attached outside Alchemy stays unmanaged.
- */
-const PreviewDomain = Config.String("WEBSITE_DOMAIN_PREVIEW").pipe(Config.option);
 
 /**
  * `Website.Vite` does not fit this build. React Router 7 declares an `ssr` Vite
@@ -31,15 +25,17 @@ const PreviewDomain = Config.String("WEBSITE_DOMAIN_PREVIEW").pipe(Config.option
 export const Website = Cloudflare.Website.StaticSite(
   "Website",
   Effect.gen(function* () {
-    const stage = yield* Alchemy.Stage;
-    const previewDomain = yield* Effect.orDie(PreviewDomain);
+    const domain = Option.getOrUndefined(yield* StageDomain);
 
     return {
       cwd: appDir,
       command: "bun run build",
       outdir: "build/client",
       main: new URL("./app/worker.ts", import.meta.url).href,
-      domain: stage === "preview" ? Option.getOrUndefined(previewDomain) : undefined,
+      domain,
+      // Better Auth keys OAuth state to one origin, so a stage with a domain
+      // must not also answer on workers.dev.
+      workersDev: domain === undefined,
       dev: {
         command: "bun run dev",
         env: {

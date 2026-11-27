@@ -14,6 +14,11 @@ export const SPOTIFY_SCOPES = [
 
 export interface AuthConfigValue {
   readonly betterAuthSecret: string;
+  /**
+   * The stage's public origin. Without it Better Auth derives the origin from
+   * each request and warns on every construction.
+   */
+  readonly betterAuthUrl?: string | undefined;
   readonly spotifyClientId: string;
   readonly spotifyClientSecret: string;
 }
@@ -34,6 +39,7 @@ function createBetterAuth(
 ) {
   return betterAuth({
     secret: config.betterAuthSecret,
+    baseURL: config.betterAuthUrl,
     database: effectSqlAdapter(database),
     socialProviders: {
       spotify: {

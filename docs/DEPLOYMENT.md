@@ -10,12 +10,13 @@ stage and `bun run destroy` removes it.
 ## A stage is a full copy
 
 Each stage has its own Worker names, its own D1 database and its own Better Auth
-secret. The preview stage takes its hostname from the deploy environment
-(`WEBSITE_DOMAIN_PREVIEW`), and a stage with none serves its `workers.dev` URL.
+secret. The live and preview stages take their hostnames from the deploy
+environment (`WEBSITE_DOMAIN_LIVE`, `WEBSITE_DOMAIN_PREVIEW`), and a stage with
+none serves its `workers.dev` URL.
 
-A hostname needs a matching Spotify redirect URI, because Better Auth derives the
-callback from the request origin. Without it, sign-in fails while the deploy
-succeeds.
+A stage with a hostname serves only that hostname, and Better Auth uses it as
+its base URL. It needs a matching Spotify redirect URI. Without it, sign-in fails
+while the deploy succeeds.
 
 You can deploy prod with `bun run deploy` and preview with `bun run deploy:preview` .
 
