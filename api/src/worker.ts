@@ -30,6 +30,7 @@ export type WorkerBindings = {
   readonly AUTH_RATE_LIMIT: RateLimitBinding;
   readonly PUBLIC_READ_RATE_LIMIT: RateLimitBinding;
   readonly BETTER_AUTH_SECRET: string;
+  readonly BETTER_AUTH_URL?: string;
   readonly SPOTIFY_CLIENT_ID: string;
   readonly SPOTIFY_CLIENT_SECRET: string;
 };
@@ -51,6 +52,7 @@ export function makeWorkerInfraLayer(env: WorkerBindings): Layer.Layer<AppServic
     }),
     AuthConfig.layer({
       betterAuthSecret: env.BETTER_AUTH_SECRET,
+      betterAuthUrl: env.BETTER_AUTH_URL,
       spotifyClientId: env.SPOTIFY_CLIENT_ID,
       spotifyClientSecret: env.SPOTIFY_CLIENT_SECRET,
     }),

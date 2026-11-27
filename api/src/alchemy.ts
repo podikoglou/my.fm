@@ -1,10 +1,11 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
-import { Config, Effect, Layer, Redacted } from "effect";
+import { Config, Effect, Layer, Option, Redacted } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import { fileURLToPath } from "node:url";
 
 import { API_DEV_PORT } from "../../dev.ts";
+import { StageDomain } from "../../stage-domain.ts";
 import { AuthConfig } from "./auth/service.ts";
 import { DbLive } from "./db/service.ts";
 import { Imports } from "./import/service.ts";
@@ -51,18 +52,29 @@ export const PublicReadRateLimit = rateLimitResource("PUBLIC_READ_RATE_LIMIT");
  */
 export default class Worker extends Cloudflare.Workers.Worker<Worker>()(
   "Worker",
-  {
-    main: import.meta.url,
-    compatibility: { date: "2026-11-02", flags: ["global_fetch_strictly_public"] },
-    dev: { port: API_DEV_PORT, strictPort: true },
-    cache: { enabled: true },
-    observability: { enabled: true, issues: { enabled: true } },
-    env: {
-      BETTER_AUTH_SECRET: BetterAuthSecret,
-      SPOTIFY_CLIENT_ID: Config.String("SPOTIFY_CLIENT_ID"),
-      SPOTIFY_CLIENT_SECRET: Config.Redacted("SPOTIFY_CLIENT_SECRET"),
-    },
-  },
+  Effect.gen(function* () {
+    const domain = yield* StageDomain;
+
+    return {
+      main: import.meta.url,
+      compatibility: { date: "2026-11-02", flags: ["global_fetch_strictly_public"] },
+      dev: { port: API_DEV_PORT, strictPort: true },
+      cache: { enabled: true },
+      observability: { enabled: true, issues: { enabled: true } },
+      // The website reaches this Worker through its service binding, so a
+      // stage with a domain serves auth on that one origin only.
+      workersDev: Option.isNone(domain),
+      env: {
+        BETTER_AUTH_SECRET: BetterAuthSecret,
+        SPOTIFY_CLIENT_ID: Config.String("SPOTIFY_CLIENT_ID"),
+        SPOTIFY_CLIENT_SECRET: Config.Redacted("SPOTIFY_CLIENT_SECRET"),
+        ...Option.match(domain, {
+          onNone: () => ({}),
+          onSome: (hostname) => ({ BETTER_AUTH_URL: `https://${hostname}` }),
+        }),
+      },
+    };
+  }),
   Effect.gen(function* () {
     const dbClient = yield* Cloudflare.D1.QueryDatabase(Database);
     const importsBucket = yield* Cloudflare.R2.ReadWriteBucket(ImportsBucket);
@@ -81,6 +93,12 @@ export default class Worker extends Cloudflare.Workers.Worker<Worker>()(
       const betterAuthSecret = yield* Config.String("BETTER_AUTH_SECRET").pipe(Effect.orDie);
       const spotifyClientId = yield* Config.String("SPOTIFY_CLIENT_ID").pipe(Effect.orDie);
 
+      const betterAuthUrl = yield* Config.String("BETTER_AUTH_URL").pipe(
+        Config.option,
+        Effect.map(Option.getOrUndefined),
+        Effect.orDie,
+      );
+
       const spotifyClientSecret = yield* Config.Redacted("SPOTIFY_CLIENT_SECRET").pipe(
         Effect.map(Redacted.value),
         Effect.orDie,
@@ -95,6 +113,7 @@ export default class Worker extends Cloudflare.Workers.Worker<Worker>()(
         }),
         AuthConfig.layer({
           betterAuthSecret,
+          betterAuthUrl,
           spotifyClientId,
           spotifyClientSecret,
         }),
