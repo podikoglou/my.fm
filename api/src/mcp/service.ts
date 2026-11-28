@@ -17,6 +17,7 @@ import { Scrobbles } from "../scrobbles/service.ts";
 import { Stats } from "../stats/service.ts";
 import { Users } from "../users/service.ts";
 
+import { calendarCursor, CalendarRangeFields, exclusiveRange, resolveToolRange } from "./range.ts";
 import { presentRecentPlay, RecentExtras } from "./recent.ts";
 
 const TOOL_ANNOTATIONS = {
@@ -73,7 +74,8 @@ const GetRecentScrobblesInputSchema = Schema.Struct({
       description: "Number of plays to return (1–200, default 50).",
     })
     .pipe(Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_RECENT_LIMIT))),
-});
+  ...CalendarRangeFields,
+}).check(exclusiveRange);
 
 const GetScrobbleMonthsInputSchema = Schema.Struct({
   username: ListenerUsername,
@@ -86,6 +88,7 @@ const GetPublicFeedInputSchema = Schema.Struct({
 });
 
 const StatsRangeFields = {
+  ...CalendarRangeFields,
   since: Schema.optional(StatsInputSchemas.unixSeconds),
   until: Schema.optional(StatsInputSchemas.unixSeconds),
 };
@@ -93,28 +96,27 @@ const StatsRangeFields = {
 const GetSummaryInputSchema = Schema.Struct({
   username: ListenerUsername,
   ...StatsRangeFields,
-});
+}).check(exclusiveRange);
 
 const GetTopInputSchema = Schema.Struct({
   username: ListenerUsername,
   kind: TopKindSchema,
   limit: Schema.optional(StatsInputSchemas.topLimit),
   ...StatsRangeFields,
-});
+}).check(exclusiveRange);
 
 const GetTimelineInputSchema = Schema.Struct({
   username: ListenerUsername,
   bucket: TimelineBucketSchema,
-  timeZone: Schema.optional(TimeZoneSchema),
   ...StatsRangeFields,
-});
+}).check(exclusiveRange);
 
 const GetSampleInputSchema = Schema.Struct({
   username: ListenerUsername,
   size: Schema.optional(StatsInputSchemas.sampleSize),
   seed: Schema.optional(StatsInputSchemas.sampleSeed),
   ...StatsRangeFields,
-});
+}).check(exclusiveRange);
 
 const RANGE_HINT =
   "Optional since/until are Unix seconds bounding the scrobbles considered (until is exclusive).";
@@ -321,7 +323,10 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
             }
 
             case "get_recent_scrobbles": {
-              const decoded = yield* decodeGetRecentScrobblesInput(rawArgs).pipe(Effect.result);
+              const decoded = yield* decodeGetRecentScrobblesInput(rawArgs).pipe(
+                Effect.flatMap(resolveToolRange),
+                Effect.result,
+              );
 
               if (Result.isFailure(decoded)) {
                 return toolError(String(decoded.failure));
@@ -343,7 +348,7 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
                     Effect.map(({ items, nextCursor }) =>
                       toolData({
                         items: items.map((item) => presentRecentPlay(item, input.include)),
-                        nextCursor,
+                        nextCursor: calendarCursor(input.calendar, nextCursor),
                       }),
                     ),
                     Effect.catchTags({
@@ -420,7 +425,10 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
             }
 
             case "get_summary": {
-              const decoded = yield* decodeGetSummaryInput(rawArgs).pipe(Effect.result);
+              const decoded = yield* decodeGetSummaryInput(rawArgs).pipe(
+                Effect.flatMap(resolveToolRange),
+                Effect.result,
+              );
 
               if (Result.isFailure(decoded)) {
                 return toolError(String(decoded.failure));
@@ -434,7 +442,10 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
             }
 
             case "get_top": {
-              const decoded = yield* decodeGetTopInput(rawArgs).pipe(Effect.result);
+              const decoded = yield* decodeGetTopInput(rawArgs).pipe(
+                Effect.flatMap(resolveToolRange),
+                Effect.result,
+              );
 
               if (Result.isFailure(decoded)) {
                 return toolError(String(decoded.failure));
@@ -450,7 +461,10 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
             }
 
             case "get_timeline": {
-              const decoded = yield* decodeGetTimelineInput(rawArgs).pipe(Effect.result);
+              const decoded = yield* decodeGetTimelineInput(rawArgs).pipe(
+                Effect.flatMap(resolveToolRange),
+                Effect.result,
+              );
 
               if (Result.isFailure(decoded)) {
                 return toolError(String(decoded.failure));
@@ -470,7 +484,10 @@ export class McpService extends Context.Service<McpService, McpServiceApi>()(
             }
 
             case "get_sample": {
-              const decoded = yield* decodeGetSampleInput(rawArgs).pipe(Effect.result);
+              const decoded = yield* decodeGetSampleInput(rawArgs).pipe(
+                Effect.flatMap(resolveToolRange),
+                Effect.result,
+              );
 
               if (Result.isFailure(decoded)) {
                 return toolError(String(decoded.failure));
