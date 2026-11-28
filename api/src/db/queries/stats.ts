@@ -138,14 +138,16 @@ export const findTopEntities = Effect.fn("stats.findTopEntities")(function* (
   userId: User["id"],
   {
     kinds,
+    q,
     limit,
     since,
     until,
-  }: ScrobbleRange & { kinds: readonly [TopKind, ...TopKind[]]; limit: number },
+  }: ScrobbleRange & { kinds: readonly [TopKind, ...TopKind[]]; limit: number; q?: string },
 ) {
   const sql = yield* SqlClient.SqlClient;
 
   const entities = sql.join(" UNION ALL ", false)(kinds.map((kind) => entitiesOf(sql, kind)));
+  const matchingName = q === undefined ? sql`` : sql`WHERE instr(lower(name), lower(${q})) > 0`;
 
   // The totals row left-joins every ranked row, and stands alone when nothing
   // ranks, so the play total survives a range without any entity of these kinds.
@@ -176,6 +178,7 @@ export const findTopEntities = Effect.fn("stats.findTopEntities")(function* (
           row_number() OVER (PARTITION BY kind ORDER BY plays DESC, lastPlayed DESC) AS rank,
           count(*) OVER (PARTITION BY kind) AS "distinct"
         FROM entities
+        ${matchingName}
       )
       SELECT totals.total, ranked.kind, ranked.name, ranked.artist, ranked.spotifyUri,
         ranked.plays, ranked.firstPlayed, ranked.lastPlayed, ranked."distinct"

@@ -37,6 +37,7 @@ export const TimelineBucketSchema = Schema.Literals(["day", "week", "month", "ye
 
 /** Inputs decoded from JSON, as MCP tool arguments arrive. */
 export const StatsInputSchemas = {
+  nameQuery: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
   unixSeconds: Schema.Finite.check(...UNIX_SECONDS),
   topLimit: Schema.Finite.check(...TOP_LIMIT),
   sampleSize: Schema.Finite.check(...SAMPLE_SIZE),
@@ -126,6 +127,7 @@ export class StatsGroup extends HttpApiGroup.make("stats")
       query: {
         ...rangeQuery,
         kind: TopKindSchema,
+        q: Schema.optionalKey(StatsInputSchemas.nameQuery),
         limit: Schema.optionalKey(StatsQuerySchemas.topLimit),
       },
       success: TopEntitiesSchema,

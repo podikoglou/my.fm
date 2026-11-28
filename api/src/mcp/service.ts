@@ -96,6 +96,7 @@ const GetSummaryInputSchema = Schema.Struct({
 });
 
 const GetTopInputSchema = Schema.Struct({
+  q: Schema.optionalKey(StatsInputSchemas.nameQuery),
   username: ListenerUsername,
   kind: TopKindSchema,
   limit: Schema.optional(StatsInputSchemas.topLimit),
@@ -169,7 +170,7 @@ const MCP_TOOLS: ReadonlyArray<Tool> = [
   },
   {
     name: "get_top",
-    description: `Ranked artists, albums, or tracks with play count, share of all scrobbles, and first/last seen in the range. An artist is the lead credited artist. limit defaults to 10. ${RANGE_HINT}`,
+    description: `Ranked artists, albums, or tracks with play count, share of all scrobbles, and first/last seen in the range. Use q to find entities whose name contains the given text before limiting the results. distinct counts matching entities. An artist is the lead credited artist. limit defaults to 10. ${RANGE_HINT}`,
     annotations: TOOL_ANNOTATIONS,
     inputSchema: toToolInputSchema(GetTopInputSchema),
   },

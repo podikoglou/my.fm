@@ -158,6 +158,19 @@ describe("profile stats", () => {
     });
   });
 
+  test("finds a lower-ranked imported track by name and preserves its share of all plays", async () => {
+    await seed();
+
+    const response = await get("getTop?username=alex&kind=tracks&q=loOSE&limit=1");
+    expect(await response.json()).toMatchObject({
+      totalScrobbles: 6,
+      distinct: 1,
+      items: [
+        { name: "Loose Song", plays: 1, share: 0.1667, lastPlayedAt: "2026-04-04T10:00:00.000Z" },
+      ],
+    });
+  });
+
   test("counts plays in the range when none of them has an album", async () => {
     await seed();
 
